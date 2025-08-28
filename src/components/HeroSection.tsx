@@ -1,9 +1,22 @@
+import { useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { Search, MapPin } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import heroImage from "@/assets/hero-marketplace.jpg"
 
 export const HeroSection = () => {
+  const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [location, setLocation] = useState("");
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const params = new URLSearchParams();
+    if (searchQuery.trim()) params.set("q", searchQuery.trim());
+    if (location.trim()) params.set("location", location.trim());
+    navigate(`/listings?${params.toString()}`);
+  };
   return (
     <section className="relative overflow-hidden bg-gradient-surface">
       {/* Background Image with Overlay */}
@@ -32,14 +45,16 @@ export const HeroSection = () => {
             Contactez directement. Négociez en toute confiance.
           </p>
 
-          {/* Search Form */}
-          <div className="bg-white/95 backdrop-blur rounded-xl p-6 shadow-xl">
+           {/* Search Form */}
+          <form onSubmit={handleSearch} className="bg-white/95 backdrop-blur rounded-xl p-6 shadow-xl">
             <div className="flex flex-col md:flex-row gap-4">
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
                 <Input 
                   placeholder="Que recherchez-vous ?" 
                   className="pl-10 h-12 text-base border-border"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
               
@@ -48,15 +63,17 @@ export const HeroSection = () => {
                 <Input 
                   placeholder="Ville ou région" 
                   className="pl-10 h-12 text-base border-border"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
                 />
               </div>
               
-              <Button variant="hero" size="lg" className="h-12 px-8">
+              <Button type="submit" variant="hero" size="lg" className="h-12 px-8">
                 <Search className="mr-2 h-5 w-5" />
                 Rechercher
               </Button>
             </div>
-          </div>
+          </form>
 
           {/* Popular Searches */}
           <div className="mt-6">

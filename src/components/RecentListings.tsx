@@ -1,3 +1,5 @@
+import { useState } from "react"
+import { Link } from "react-router-dom"
 import { MapPin, Clock, Eye, Heart } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -71,6 +73,15 @@ const recentListings = [
 ]
 
 export const RecentListings = () => {
+  const [favorites, setFavorites] = useState<number[]>([]);
+
+  const toggleFavorite = (id: number) => {
+    setFavorites(prev => 
+      prev.includes(id) 
+        ? prev.filter(fav => fav !== id)
+        : [...prev, id]
+    );
+  };
   return (
     <section className="py-16 bg-background">
       <div className="container mx-auto px-4">
@@ -84,8 +95,10 @@ export const RecentListings = () => {
             </p>
           </div>
           
-          <Button variant="outline" className="hidden md:flex">
-            Voir toutes les annonces
+          <Button variant="outline" className="hidden md:flex" asChild>
+            <Link to="/listings">
+              Voir toutes les annonces
+            </Link>
           </Button>
         </div>
 
@@ -117,8 +130,9 @@ export const RecentListings = () => {
                   variant="ghost"
                   size="icon"
                   className="absolute top-3 right-3 bg-white/80 hover:bg-white text-muted-foreground hover:text-primary backdrop-blur-sm"
+                  onClick={() => toggleFavorite(listing.id)}
                 >
-                  <Heart className="h-4 w-4" />
+                  <Heart className={`h-4 w-4 ${favorites.includes(listing.id) ? "fill-destructive text-destructive" : ""}`} />
                 </Button>
                 
                 {/* Stats */}
@@ -153,8 +167,10 @@ export const RecentListings = () => {
                   </div>
                 </div>
                 
-                <Button variant="cta" className="w-full">
-                  Contacter le vendeur
+                <Button variant="cta" className="w-full" asChild>
+                  <Link to={`/listing/${listing.id}`}>
+                    Voir les détails
+                  </Link>
                 </Button>
               </div>
             </div>
@@ -163,8 +179,10 @@ export const RecentListings = () => {
         
         {/* Mobile View All Button */}
         <div className="md:hidden mt-8 text-center">
-          <Button variant="outline" className="w-full">
-            Voir toutes les annonces
+          <Button variant="outline" className="w-full" asChild>
+            <Link to="/listings">
+              Voir toutes les annonces
+            </Link>
           </Button>
         </div>
       </div>

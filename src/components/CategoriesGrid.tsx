@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom"
 import { Car, Home, Smartphone, Shirt, Sofa, Briefcase, Heart, MoreHorizontal } from "lucide-react"
 
 const categories = [
@@ -77,9 +78,9 @@ export const CategoriesGrid = () => {
           {categories.map((category) => {
             const IconComponent = category.icon
             return (
-              <a
+              <Link
                 key={category.name}
-                href={category.href}
+                to={`/listings?category=${encodeURIComponent(category.name)}`}
                 className="group relative overflow-hidden rounded-xl bg-card border border-card-border p-6 hover:shadow-lg transition-all duration-300 hover:scale-105"
               >
                 <div className="flex flex-col items-center text-center">
@@ -98,7 +99,7 @@ export const CategoriesGrid = () => {
 
                 {/* Hover Effect */}
                 <div className="absolute inset-0 bg-gradient-primary opacity-0 group-hover:opacity-5 transition-opacity duration-300 rounded-xl" />
-              </a>
+              </Link>
             )
           })}
         </div>

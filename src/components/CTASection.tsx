@@ -1,7 +1,23 @@
+import { useState } from "react"
+import { Link } from "react-router-dom"
 import { Plus, Search, Shield, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useToast } from "@/hooks/use-toast"
 
 export const CTASection = () => {
+  const { toast } = useToast();
+  const [email, setEmail] = useState("");
+
+  const handleNewsletterSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (email.trim()) {
+      toast({
+        title: "Inscription réussie !",
+        description: "Vous recevrez nos dernières annonces par email.",
+      });
+      setEmail("");
+    }
+  };
   return (
     <section className="py-20 bg-gradient-hero relative overflow-hidden">
       {/* Background Pattern */}
@@ -42,14 +58,18 @@ export const CTASection = () => {
 
         {/* CTAs */}
         <div className="flex flex-col md:flex-row gap-4 justify-center items-center mb-16">
-          <Button variant="secondary" size="xl" className="bg-white text-primary hover:bg-white/90 min-w-[200px]">
-            <Plus className="mr-2 h-5 w-5" />
-            Publier une annonce
+          <Button variant="secondary" size="xl" className="bg-white text-primary hover:bg-white/90 min-w-[200px]" asChild>
+            <Link to="/publish">
+              <Plus className="mr-2 h-5 w-5" />
+              Publier une annonce
+            </Link>
           </Button>
           
-          <Button variant="outline" size="xl" className="border-white text-white hover:bg-white hover:text-primary min-w-[200px]">
-            <Search className="mr-2 h-5 w-5" />
-            Parcourir les annonces
+          <Button variant="outline" size="xl" className="border-white text-white hover:bg-white hover:text-primary min-w-[200px]" asChild>
+            <Link to="/listings">
+              <Search className="mr-2 h-5 w-5" />
+              Parcourir les annonces
+            </Link>
           </Button>
         </div>
 
