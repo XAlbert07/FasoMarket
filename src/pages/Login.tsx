@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
@@ -8,10 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Eye, EyeOff } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { useAuthContext } from "@/contexts/AuthContext";
 
 const Login = () => {
-  const { toast } = useToast();
+  const navigate = useNavigate();
+  const { signIn, signUp, loading } = useAuthContext();
   const [showPassword, setShowPassword] = useState(false);
   const [loginData, setLoginData] = useState({ email: "", password: "" });
   const [registerData, setRegisterData] = useState({
@@ -22,57 +24,38 @@ const Login = () => {
     confirmPassword: ""
   });
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!loginData.email || !loginData.password) {
-      toast({
-        title: "Erreur",
-        description: "Veuillez remplir tous les champs",
-        variant: "destructive"
-      });
       return;
     }
 
-    // Simulation de connexion
-    toast({
-      title: "Connexion réussie !",
-      description: "Vous êtes maintenant connecté.",
-    });
-    
-    // Redirection
-    window.location.href = "/";
+    try {
+      await signIn(loginData.email, loginData.password);
+      navigate("/");
+    } catch (error) {
+      // Error handling is done in the useAuth hook
+    }
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!registerData.name || !registerData.email || !registerData.password) {
-      toast({
-        title: "Erreur",
-        description: "Veuillez remplir tous les champs obligatoires",
-        variant: "destructive"
-      });
       return;
     }
 
     if (registerData.password !== registerData.confirmPassword) {
-      toast({
-        title: "Erreur",
-        description: "Les mots de passe ne correspondent pas",
-        variant: "destructive"
-      });
       return;
     }
 
-    // Simulation d'inscription
-    toast({
-      title: "Compte créé !",
-      description: "Votre compte a été créé avec succès.",
-    });
-    
-    // Redirection
-    window.location.href = "/";
+    try {
+      await signUp(registerData.email, registerData.password, registerData.name, registerData.phone);
+      // Don't navigate automatically - user needs to verify email
+    } catch (error) {
+      // Error handling is done in the useAuth hook
+    }
   };
 
   return (
@@ -134,9 +117,9 @@ const Login = () => {
                     </div>
                   </div>
                   
-                  <Button type="submit" className="w-full">
-                    Se connecter
-                  </Button>
+                   <Button type="submit" className="w-full" disabled={loading}>
+                     {loading ? "Connexion..." : "Se connecter"}
+                   </Button>
                   
                   <div className="text-center">
                     <Button variant="link" className="text-sm">
@@ -206,9 +189,9 @@ const Login = () => {
                     />
                   </div>
                   
-                  <Button type="submit" className="w-full">
-                    Créer mon compte
-                  </Button>
+                   <Button type="submit" className="w-full" disabled={loading}>
+                     {loading ? "Création..." : "Créer mon compte"}
+                   </Button>
                 </form>
               </TabsContent>
             </Tabs>
