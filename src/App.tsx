@@ -7,6 +7,9 @@ import Index from "./pages/Index";
 import Listings from "./pages/Listings";
 import PublishListing from "./pages/PublishListing";
 import Login from "./pages/Login";
+import MerchantDashboard from "./pages/MerchantDashboard";
+import AdminDashboard from "./pages/AdminDashboard";
+import ProtectedRoute from "./components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -22,6 +25,22 @@ const App = () => (
           <Route path="/listings" element={<Listings />} />
           <Route path="/publish" element={<PublishListing />} />
           <Route path="/login" element={<Login />} />
+          <Route 
+            path="/merchant-dashboard" 
+            element={
+              <ProtectedRoute requiredRole="merchant">
+                <MerchantDashboard />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/admin-dashboard" 
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <AdminDashboard />
+              </ProtectedRoute>
+            } 
+          />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
