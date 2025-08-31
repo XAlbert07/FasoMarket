@@ -1,4 +1,5 @@
 import { Facebook, Instagram, Mail, Phone, MapPin } from "lucide-react"
+import { Link } from "react-router-dom"
 
 export const Footer = () => {
   return (
@@ -58,20 +59,36 @@ export const Footer = () => {
             <div>
               <h3 className="font-heading font-semibold text-lg mb-6">Liens rapides</h3>
               <ul className="space-y-3">
-                {[
-                  "Comment publier",
-                  "Conseils sécurité",
-                  "Aide & Support",
-                  "À propos",
-                  "Blog",
-                  "Conditions d'utilisation"
-                ].map((link) => (
-                  <li key={link}>
-                    <a href="#" className="text-white/80 hover:text-primary transition-colors">
-                      {link}
-                    </a>
-                  </li>
-                ))}
+                <li>
+                  <Link to="/publish" className="text-white/80 hover:text-primary transition-colors">
+                    Comment publier
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/help-support" className="text-white/80 hover:text-primary transition-colors">
+                    Conseils sécurité
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/help-support" className="text-white/80 hover:text-primary transition-colors">
+                    Aide & Support
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/about" className="text-white/80 hover:text-primary transition-colors">
+                    À propos
+                  </Link>
+                </li>
+                <li>
+                  <a href="#" className="text-white/80 hover:text-primary transition-colors">
+                    Blog
+                  </a>
+                </li>
+                <li>
+                  <Link to="/terms-of-service" className="text-white/80 hover:text-primary transition-colors">
+                    Conditions d'utilisation
+                  </Link>
+                </li>
               </ul>
             </div>
 
@@ -130,15 +147,15 @@ export const Footer = () => {
             </p>
             
             <div className="flex space-x-6 text-sm">
-              <a href="#" className="text-white/80 hover:text-primary transition-colors">
+              <Link to="/privacy-policy" className="text-white/80 hover:text-primary transition-colors">
                 Politique de confidentialité
-              </a>
-              <a href="#" className="text-white/80 hover:text-primary transition-colors">
+              </Link>
+              <Link to="/legal-notice" className="text-white/80 hover:text-primary transition-colors">
                 Mentions légales
-              </a>
-              <a href="#" className="text-white/80 hover:text-primary transition-colors">
+              </Link>
+              <Link to="/terms-of-service" className="text-white/80 hover:text-primary transition-colors">
                 CGU
-              </a>
+              </Link>
             </div>
           </div>
         </div>
