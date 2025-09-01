@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
@@ -8,19 +9,30 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Upload, X, Eye } from "lucide-react";
+import { Upload, X, Eye, MapPin } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useCreateListing } from "@/hooks/useListings";
+import { useImageUpload } from "@/hooks/useImageUpload";
+import { useGeolocation } from "@/hooks/useGeolocation";
+import { useAuthContext } from "@/contexts/AuthContext";
 
 const PublishListing = () => {
   const { toast } = useToast();
-  const [images, setImages] = useState<string[]>([]);
+  const navigate = useNavigate();
+  const { user } = useAuthContext();
+  const { createListing, loading: creatingListing } = useCreateListing();
+  const { uploadImages, uploading } = useImageUpload();
+  const { getCurrentLocation, location } = useGeolocation();
+  
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     title: "",
     description: "",
     price: "",
     category: "",
     location: "",
-    condition: "new",
+    condition: "new" as "new" | "used",
     phone: ""
   });
 
@@ -49,20 +61,61 @@ const PublishListing = () => {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files) {
-      const newImages = Array.from(files).map(file => URL.createObjectURL(file));
-      setImages(prev => [...prev, ...newImages].slice(0, 8)); // Max 8 images
+      const newFiles = Array.from(files);
+      const totalFiles = imageFiles.length + newFiles.length;
+      
+      if (totalFiles > 8) {
+        toast({
+          title: "Limite atteinte",
+          description: "Vous ne pouvez télécharger que 8 images maximum",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const newPreviews = newFiles.map(file => URL.createObjectURL(file));
+      setImageFiles(prev => [...prev, ...newFiles]);
+      setImagePreviews(prev => [...prev, ...newPreviews]);
     }
   };
 
   const removeImage = (index: number) => {
-    setImages(prev => prev.filter((_, i) => i !== index));
+    // Révoquer l'URL pour libérer la mémoire
+    URL.revokeObjectURL(imagePreviews[index]);
+    setImageFiles(prev => prev.filter((_, i) => i !== index));
+    setImagePreviews(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleGetLocation = async () => {
+    try {
+      await getCurrentLocation();
+      toast({
+        title: "Position obtenue",
+        description: "Votre position a été enregistrée pour l'annonce"
+      });
+    } catch (error) {
+      toast({
+        title: "Erreur de géolocalisation",
+        description: error instanceof Error ? error.message : "Impossible d'obtenir votre position",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validation basique
-    if (!formData.title || !formData.description || !formData.price || !formData.category) {
+    if (!user) {
+      toast({
+        title: "Connexion requise",
+        description: "Vous devez être connecté pour publier une annonce",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Validation
+    if (!formData.title || !formData.description || !formData.price || !formData.category || !formData.location) {
       toast({
         title: "Erreur",
         description: "Veuillez remplir tous les champs obligatoires",
@@ -71,14 +124,45 @@ const PublishListing = () => {
       return;
     }
 
-    // Simulation de publication
-    toast({
-      title: "Annonce publiée !",
-      description: "Votre annonce sera visible après modération.",
-    });
-    
-    // Redirection vers les annonces
-    window.location.href = "/listings";
+    if (imageFiles.length === 0) {
+      toast({
+        title: "Images requises",
+        description: "Veuillez ajouter au moins une image",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      // Upload des images
+      const imageUrls = await uploadImages(imageFiles);
+      
+      // Créer l'annonce
+      const listingData = {
+        title: formData.title,
+        description: formData.description,
+        price: parseFloat(formData.price),
+        category: formData.category,
+        location: formData.location,
+        condition: formData.condition,
+        phone: formData.phone,
+        images: imageUrls,
+        latitude: location?.latitude,
+        longitude: location?.longitude
+      };
+
+      const newListing = await createListing(listingData);
+      
+      if (newListing) {
+        navigate('/merchant-dashboard');
+      }
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Erreur lors de la création de l'annonce",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleInputChange = (field: string, value: string) => {
@@ -108,7 +192,7 @@ const PublishListing = () => {
             <CardContent>
               <div className="space-y-4">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {images.map((image, index) => (
+                  {imagePreviews.map((image, index) => (
                     <div key={index} className="relative group">
                       <img 
                         src={image} 
@@ -121,13 +205,14 @@ const PublishListing = () => {
                         size="icon"
                         className="absolute -top-2 -right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
                         onClick={() => removeImage(index)}
+                        disabled={uploading}
                       >
                         <X className="h-3 w-3" />
                       </Button>
                     </div>
                   ))}
                   
-                  {images.length < 8 && (
+                  {imagePreviews.length < 8 && (
                     <label className="border-2 border-dashed border-muted-foreground/25 rounded-lg h-24 flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50 transition-colors">
                       <Upload className="h-6 w-6 text-muted-foreground mb-1" />
                       <span className="text-xs text-muted-foreground">Ajouter</span>
@@ -137,13 +222,17 @@ const PublishListing = () => {
                         accept="image/*"
                         className="hidden"
                         onChange={handleImageUpload}
+                        disabled={uploading}
                       />
                     </label>
                   )}
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Ajoutez jusqu'à 8 photos (formats JPG, PNG)
+                  Ajoutez jusqu'à 8 photos (formats JPG, PNG) - {imagePreviews.length}/8
                 </p>
+                {uploading && (
+                  <p className="text-sm text-primary">Téléchargement des images en cours...</p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -209,18 +298,30 @@ const PublishListing = () => {
 
               <div>
                 <Label htmlFor="location">Localisation *</Label>
-                <Select value={formData.location} onValueChange={(value) => handleInputChange("location", value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choisir une ville" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {locations.map((location) => (
-                      <SelectItem key={location} value={location}>
-                        {location}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="space-y-2">
+                  <Select value={formData.location} onValueChange={(value) => handleInputChange("location", value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choisir une ville" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {locations.map((location) => (
+                        <SelectItem key={location} value={location}>
+                          {location}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleGetLocation}
+                    className="w-full"
+                  >
+                    <MapPin className="h-4 w-4 mr-2" />
+                    {location ? "Position enregistrée ✓" : "Utiliser ma position"}
+                  </Button>
+                </div>
               </div>
 
               <div>
@@ -268,12 +369,16 @@ const PublishListing = () => {
 
           {/* Actions */}
           <div className="flex gap-4">
-            <Button type="button" variant="outline" className="flex-1">
+            <Button type="button" variant="outline" className="flex-1" disabled>
               <Eye className="h-4 w-4 mr-2" />
               Aperçu
             </Button>
-            <Button type="submit" className="flex-1">
-              Publier l'annonce
+            <Button 
+              type="submit" 
+              className="flex-1"
+              disabled={creatingListing || uploading || !user}
+            >
+              {creatingListing || uploading ? "Publication en cours..." : "Publier l'annonce"}
             </Button>
           </div>
         </form>

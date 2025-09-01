@@ -1,7 +1,9 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Link } from "react-router-dom"
 import { MapPin, Clock, Eye, Heart } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useListings } from "@/hooks/useListings"
+import { useFavorites } from "@/hooks/useFavorites"
 
 const recentListings = [
   {
@@ -73,15 +75,14 @@ const recentListings = [
 ]
 
 export const RecentListings = () => {
-  const [favorites, setFavorites] = useState<number[]>([]);
+  const { listings, loading, fetchListings } = useListings();
+  const { toggleFavorite, isFavorite } = useFavorites();
 
-  const toggleFavorite = (id: number) => {
-    setFavorites(prev => 
-      prev.includes(id) 
-        ? prev.filter(fav => fav !== id)
-        : [...prev, id]
-    );
-  };
+  useEffect(() => {
+    fetchListings({ sortBy: "date" });
+  }, []);
+
+  const recentListings = listings.slice(0, 6);
   return (
     <section className="py-16 bg-background">
       <div className="container mx-auto px-4">
@@ -102,80 +103,86 @@ export const RecentListings = () => {
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {recentListings.map((listing) => (
-            <div
-              key={listing.id}
-              className="group bg-card border border-card-border rounded-xl overflow-hidden hover:shadow-lg transition-all duration-300 hover:scale-[1.02]"
-            >
-              {/* Image */}
-              <div className="relative aspect-[4/3] overflow-hidden">
-                <img
-                  src={listing.image}
-                  alt={listing.title}
-                  className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-                
-                {/* Badges */}
-                <div className="absolute top-3 left-3 flex gap-2">
-                  {listing.isNew && (
-                    <span className="bg-accent text-accent-foreground px-2 py-1 rounded-full text-xs font-medium">
-                      Nouveau
-                    </span>
-                  )}
-                </div>
-                
-                {/* Favorite Button */}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute top-3 right-3 bg-white/80 hover:bg-white text-muted-foreground hover:text-primary backdrop-blur-sm"
-                  onClick={() => toggleFavorite(listing.id)}
-                >
-                  <Heart className={`h-4 w-4 ${favorites.includes(listing.id) ? "fill-destructive text-destructive" : ""}`} />
-                </Button>
-                
-                {/* Stats */}
-                <div className="absolute bottom-3 left-3 flex items-center gap-3 text-white text-sm">
-                  <div className="flex items-center gap-1 bg-black/50 px-2 py-1 rounded">
-                    <Eye className="h-3 w-3" />
-                    {listing.views}
+        {loading ? (
+          <div className="text-center py-8">
+            <p>Chargement des annonces...</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {recentListings.map((listing) => (
+              <div
+                key={listing.id}
+                className="group bg-card border border-card-border rounded-xl overflow-hidden hover:shadow-lg transition-all duration-300 hover:scale-[1.02]"
+              >
+                {/* Image */}
+                <div className="relative aspect-[4/3] overflow-hidden">
+                  <img
+                    src={listing.images?.[0] || "/placeholder.svg"}
+                    alt={listing.title}
+                    className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                  
+                  {/* Badges */}
+                  <div className="absolute top-3 left-3 flex gap-2">
+                    {new Date(listing.created_at) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) && (
+                      <span className="bg-accent text-accent-foreground px-2 py-1 rounded-full text-xs font-medium">
+                        Nouveau
+                      </span>
+                    )}
+                  </div>
+                  
+                  {/* Favorite Button */}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute top-3 right-3 bg-white/80 hover:bg-white text-muted-foreground hover:text-primary backdrop-blur-sm"
+                    onClick={() => toggleFavorite(listing.id)}
+                  >
+                    <Heart className={`h-4 w-4 ${isFavorite(listing.id) ? "fill-destructive text-destructive" : ""}`} />
+                  </Button>
+                  
+                  {/* Stats */}
+                  <div className="absolute bottom-3 left-3 flex items-center gap-3 text-white text-sm">
+                    <div className="flex items-center gap-1 bg-black/50 px-2 py-1 rounded">
+                      <Eye className="h-3 w-3" />
+                      {listing.views}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Content */}
-              <div className="p-4">
-                <h3 className="font-semibold text-lg text-card-foreground mb-2 line-clamp-2 group-hover:text-primary transition-colors">
-                  {listing.title}
-                </h3>
-                
-                <div className="flex items-center justify-between mb-3">
-                  <div className="text-2xl font-bold text-primary">
-                    {parseInt(listing.price).toLocaleString()} {listing.currency}
+                {/* Content */}
+                <div className="p-4">
+                  <h3 className="font-semibold text-lg text-card-foreground mb-2 line-clamp-2 group-hover:text-primary transition-colors">
+                    {listing.title}
+                  </h3>
+                  
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-2xl font-bold text-primary">
+                      {listing.price.toLocaleString()} XOF
+                    </div>
                   </div>
+                  
+                  <div className="flex items-center justify-between text-sm text-muted-foreground mb-4">
+                    <div className="flex items-center gap-1">
+                      <MapPin className="h-3 w-3" />
+                      {listing.location}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {new Date(listing.created_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                  
+                  <Button variant="cta" className="w-full" asChild>
+                    <Link to={`/listing/${listing.id}`}>
+                      Voir les détails
+                    </Link>
+                  </Button>
                 </div>
-                
-                <div className="flex items-center justify-between text-sm text-muted-foreground mb-4">
-                  <div className="flex items-center gap-1">
-                    <MapPin className="h-3 w-3" />
-                    {listing.location}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    {listing.timeAgo}
-                  </div>
-                </div>
-                
-                <Button variant="cta" className="w-full" asChild>
-                  <Link to={`/listing/${listing.id}`}>
-                    Voir les détails
-                  </Link>
-                </Button>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
         
         {/* Mobile View All Button */}
         <div className="md:hidden mt-8 text-center">

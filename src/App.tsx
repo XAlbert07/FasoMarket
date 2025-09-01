@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import Index from "./pages/Index";
 import Listings from "./pages/Listings";
+import ListingDetail from "./pages/ListingDetail";
 import PublishListing from "./pages/PublishListing";
 import Login from "./pages/Login";
 import MerchantDashboard from "./pages/MerchantDashboard";
@@ -30,6 +31,7 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/listings" element={<Listings />} />
+          <Route path="/listing/:id" element={<ListingDetail />} />
           <Route path="/publish" element={<PublishListing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
