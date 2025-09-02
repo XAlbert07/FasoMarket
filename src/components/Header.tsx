@@ -1,11 +1,13 @@
 import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { Search, Plus, User, Menu } from "lucide-react"
+import { Search, Plus, User, Menu, Heart, MessageCircle } from "lucide-react"
+import { useAuthContext } from "@/contexts/AuthContext"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
 export const Header = () => {
   const navigate = useNavigate()
+  const { user } = useAuthContext()
   const [searchQuery, setSearchQuery] = useState("")
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
@@ -54,12 +56,32 @@ export const Header = () => {
               </Link>
             </Button>
             
-            {/* User Menu */}
-            <Button variant="ghost" size="icon" asChild>
-              <Link to="/login">
-                <User className="h-4 w-4" />
-              </Link>
-            </Button>
+            {/* User Actions */}
+            {user ? (
+              <div className="flex items-center space-x-2">
+                <Button variant="ghost" size="icon" asChild>
+                  <Link to="/favorites">
+                    <Heart className="h-4 w-4" />
+                  </Link>
+                </Button>
+                <Button variant="ghost" size="icon" asChild>
+                  <Link to="/messages">
+                    <MessageCircle className="h-4 w-4" />
+                  </Link>
+                </Button>
+                <Button variant="ghost" size="icon" asChild>
+                  <Link to="/merchant-dashboard">
+                    <User className="h-4 w-4" />
+                  </Link>
+                </Button>
+              </div>
+            ) : (
+              <Button variant="ghost" size="icon" asChild>
+                <Link to="/login">
+                  <User className="h-4 w-4" />
+                </Link>
+              </Button>
+            )}
             
             {/* Mobile Menu */}
             <Button 

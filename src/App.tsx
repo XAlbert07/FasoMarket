@@ -11,6 +11,10 @@ import PublishListing from "./pages/PublishListing";
 import Login from "./pages/Login";
 import MerchantDashboard from "./pages/MerchantDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
+import Messages from "./pages/Messages";
+import Favorites from "./pages/Favorites";
+import UserProfile from "./pages/UserProfile";
+import CategoryListings from "./pages/CategoryListings";
 import ProtectedRoute from "./components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
@@ -39,6 +43,10 @@ const App = () => (
           <Route path="/terms-of-service" element={<TermsOfService />} />
           <Route path="/about" element={<About />} />
           <Route path="/help-support" element={<HelpSupport />} />
+          <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
+          <Route path="/favorites" element={<ProtectedRoute><Favorites /></ProtectedRoute>} />
+          <Route path="/user/:userId" element={<UserProfile />} />
+          <Route path="/category/:category" element={<CategoryListings />} />
           <Route 
             path="/merchant-dashboard" 
             element={
