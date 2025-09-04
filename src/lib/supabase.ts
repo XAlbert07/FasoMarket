@@ -18,29 +18,30 @@ export type Database = {
           email: string
           full_name: string | null
           phone: string | null
-          role: 'user' | 'merchant' | 'admin'
+          role: 'merchant' | 'admin'
           created_at: string
-          updated_at: string
+          updated_at: string | null
         }
         Insert: {
-          id: string
+          id?: string
           email: string
           full_name?: string | null
           phone?: string | null
-          role?: 'user' | 'merchant' | 'admin'
+          role?: 'merchant' | 'admin'
           created_at?: string
-          updated_at?: string
+          updated_at?: string | null
         }
         Update: {
           id?: string
           email?: string
           full_name?: string | null
           phone?: string | null
-          role?: 'user' | 'merchant' | 'admin'
+          role?: 'merchant' | 'admin'
           created_at?: string
-          updated_at?: string
+          updated_at?: string | null
         }
       }
+
       categories: {
         Row: {
           id: string
@@ -70,6 +71,7 @@ export type Database = {
           created_at?: string
         }
       }
+
       listings: {
         Row: {
           id: string
@@ -135,6 +137,7 @@ export type Database = {
           expires_at?: string | null
         }
       }
+
       messages: {
         Row: {
           id: string
@@ -164,6 +167,7 @@ export type Database = {
           created_at?: string
         }
       }
+
       favorites: {
         Row: {
           id: string
@@ -184,6 +188,7 @@ export type Database = {
           created_at?: string
         }
       }
+
       reports: {
         Row: {
           id: string
