@@ -226,7 +226,7 @@ const Listings = () => {
                       {revealedPhones.includes(listing.id) ? (
                         <div className="flex items-center justify-center space-x-2 p-2 bg-muted rounded">
                           <Phone className="h-4 w-4" />
-                          <span className="font-mono">{listing.phone}</span>
+                          <span className="font-mono">{listing.contact_phone}</span>
                           <Button
                             variant="outline"
                             size="sm"
