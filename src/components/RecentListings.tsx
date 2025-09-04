@@ -4,75 +4,7 @@ import { MapPin, Clock, Eye, Heart } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useListings } from "@/hooks/useListings"
 import { useFavorites } from "@/hooks/useFavorites"
-
-const recentListings = [
-  {
-    id: 1,
-    title: "iPhone 14 Pro Max 256GB - État neuf",
-    price: "450,000",
-    currency: "FCFA",
-    location: "Ouagadougou, Secteur 15",
-    image: "/api/placeholder/300/200",
-    timeAgo: "Il y a 2h",
-    views: 24,
-    isNew: true
-  },
-  {
-    id: 2,
-    title: "Toyota Corolla 2018 - Automatique",
-    price: "8,500,000",
-    currency: "FCFA",
-    location: "Bobo-Dioulasso, Centre-ville",
-    image: "/api/placeholder/300/200",
-    timeAgo: "Il y a 4h",
-    views: 67,
-    isNew: false
-  },
-  {
-    id: 3,
-    title: "Villa 4 chambres avec piscine",
-    price: "25,000,000",
-    currency: "FCFA",
-    location: "Ouagadougou, Zone du Bois",
-    image: "/api/placeholder/300/200",
-    timeAgo: "Il y a 1 jour",
-    views: 156,
-    isNew: false
-  },
-  {
-    id: 4,
-    title: "Moto Yamaha 125cc - Très bon état",
-    price: "850,000",
-    currency: "FCFA",
-    location: "Koudougou, Centre",
-    image: "/api/placeholder/300/200",
-    timeAgo: "Il y a 1 jour",
-    views: 43,
-    isNew: false
-  },
-  {
-    id: 5,
-    title: "MacBook Pro M2 - Comme neuf",
-    price: "1,200,000",
-    currency: "FCFA",
-    location: "Ouagadougou, Secteur 30",
-    image: "/api/placeholder/300/200",
-    timeAgo: "Il y a 2 jours",
-    views: 89,
-    isNew: false
-  },
-  {
-    id: 6,
-    title: "Terrain 500m² - Titre foncier",
-    price: "12,000,000",
-    currency: "FCFA",
-    location: "Ouaga 2000",
-    image: "/api/placeholder/300/200",
-    timeAgo: "Il y a 3 jours",
-    views: 203,
-    isNew: false
-  }
-]
+import { formatPrice, formatRelativeTime, isListingNew, formatViewsCount } from "@/lib/utils"
 
 export const RecentListings = () => {
   const { listings, loading, fetchListings } = useListings();
@@ -82,7 +14,9 @@ export const RecentListings = () => {
     fetchListings({ sortBy: "date" });
   }, []);
 
+  // On récupère les 6 annonces les plus récentes
   const recentListings = listings.slice(0, 6);
+  
   return (
     <section className="py-16 bg-background">
       <div className="container mx-auto px-4">
@@ -107,6 +41,10 @@ export const RecentListings = () => {
           <div className="text-center py-8">
             <p>Chargement des annonces...</p>
           </div>
+        ) : recentListings.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-muted-foreground">Aucune annonce récente disponible.</p>
+          </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {recentListings.map((listing) => (
@@ -114,7 +52,7 @@ export const RecentListings = () => {
                 key={listing.id}
                 className="group bg-card border border-card-border rounded-xl overflow-hidden hover:shadow-lg transition-all duration-300 hover:scale-[1.02]"
               >
-                {/* Image */}
+                {/* Image avec overlays */}
                 <div className="relative aspect-[4/3] overflow-hidden">
                   <img
                     src={listing.images?.[0] || "/placeholder.svg"}
@@ -122,16 +60,16 @@ export const RecentListings = () => {
                     className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
                   
-                  {/* Badges */}
+                  {/* Badge "Nouveau" - disparaît après 48h */}
                   <div className="absolute top-3 left-3 flex gap-2">
-                    {new Date(listing.created_at) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) && (
+                    {isListingNew(listing.created_at) && (
                       <span className="bg-accent text-accent-foreground px-2 py-1 rounded-full text-xs font-medium">
                         Nouveau
                       </span>
                     )}
                   </div>
                   
-                  {/* Favorite Button */}
+                  {/* Bouton favori */}
                   <Button
                     variant="ghost"
                     size="icon"
@@ -141,38 +79,41 @@ export const RecentListings = () => {
                     <Heart className={`h-4 w-4 ${isFavorite(listing.id) ? "fill-destructive text-destructive" : ""}`} />
                   </Button>
                   
-                  {/* Stats */}
+                  {/* Statistiques de vues - maintenant avec nombre formaté */}
                   <div className="absolute bottom-3 left-3 flex items-center gap-3 text-white text-sm">
                     <div className="flex items-center gap-1 bg-black/50 px-2 py-1 rounded">
                       <Eye className="h-3 w-3" />
-                      {listing.views}
+                      <span>{formatViewsCount(listing.views_count || 0)}</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Content */}
+                {/* Contenu de la carte */}
                 <div className="p-4">
                   <h3 className="font-semibold text-lg text-card-foreground mb-2 line-clamp-2 group-hover:text-primary transition-colors">
                     {listing.title}
                   </h3>
                   
+                  {/* Prix formaté en F CFA */}
                   <div className="flex items-center justify-between mb-3">
                     <div className="text-2xl font-bold text-primary">
-                      {listing.price.toLocaleString()} XOF
+                      {formatPrice(listing.price, listing.currency)}
                     </div>
                   </div>
                   
+                  {/* Localisation et date relative */}
                   <div className="flex items-center justify-between text-sm text-muted-foreground mb-4">
                     <div className="flex items-center gap-1">
                       <MapPin className="h-3 w-3" />
-                      {listing.location}
+                      <span className="truncate">{listing.location}</span>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 flex-shrink-0">
                       <Clock className="h-3 w-3" />
-                      {new Date(listing.created_at).toLocaleDateString()}
+                      <span>{formatRelativeTime(listing.created_at)}</span>
                     </div>
                   </div>
                   
+                  {/* Bouton d'action */}
                   <Button variant="cta" className="w-full" asChild>
                     <Link to={`/listing/${listing.id}`}>
                       Voir les détails
@@ -184,7 +125,7 @@ export const RecentListings = () => {
           </div>
         )}
         
-        {/* Mobile View All Button */}
+        {/* Bouton mobile pour voir toutes les annonces */}
         <div className="md:hidden mt-8 text-center">
           <Button variant="outline" className="w-full" asChild>
             <Link to="/listings">
