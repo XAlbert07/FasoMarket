@@ -9,6 +9,7 @@ import Listings from "./pages/Listings";
 import ListingDetail from "./pages/ListingDetail";
 import PublishListing from "./pages/PublishListing";
 import Login from "./pages/Login";
+import ForgotPassword from "./pages/ForgotPassword";
 import MerchantDashboard from "./pages/MerchantDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import Messages from "./pages/Messages";
@@ -23,6 +24,7 @@ import TermsOfService from "./pages/TermsOfService";
 import About from "./pages/About";
 import HelpSupport from "./pages/HelpSupport";
 import MyProfile from "./pages/MyProfile";
+import HowToPublish from "./pages/HowToPublish";
 
 const queryClient = new QueryClient();
 
@@ -39,6 +41,7 @@ const App = () => (
           <Route path="/listing/:id" element={<ListingDetail />} />
           <Route path="/publish" element={<PublishListing />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/legal-notice" element={<LegalNotice />} />
           <Route path="/terms-of-service" element={<TermsOfService />} />
@@ -47,6 +50,7 @@ const App = () => (
           <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
           <Route path="/favorites" element={<ProtectedRoute><Favorites /></ProtectedRoute>} />
           <Route path="/user/:userId" element={<UserProfile />} />
+          <Route path="/how-to-publish" element={<HowToPublish />} />
           <Route path="/category/:category" element={<CategoryListings />} />
           <Route path="/my-profile" element={<ProtectedRoute><MyProfile /></ProtectedRoute>} />
           <Route 

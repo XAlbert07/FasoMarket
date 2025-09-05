@@ -279,7 +279,7 @@ const Login = () => {
                   
                   <div className="text-center">
                     <Button variant="link" className="text-sm" type="button">
-                      Mot de passe oublié ?
+                      <a href="/forgot-password">Mot de passe oublié ?</a>
                     </Button>
                   </div>
                 </form>

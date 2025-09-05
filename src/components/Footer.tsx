@@ -60,7 +60,7 @@ export const Footer = () => {
               <h3 className="font-heading font-semibold text-lg mb-6">Liens rapides</h3>
               <ul className="space-y-3">
                 <li>
-                  <Link to="/publish" className="text-white/80 hover:text-primary transition-colors">
+                  <Link to="how-to-publish" className="text-white/80 hover:text-primary transition-colors">
                     Comment publier
                   </Link>
                 </li>
