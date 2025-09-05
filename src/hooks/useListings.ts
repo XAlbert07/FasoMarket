@@ -1,61 +1,53 @@
+// ===============================================
+// HOOK USELISTING CORRIGÉ - INTÉGRATION PROGRESSIVE DU SYSTÈME DE VUES
+// ===============================================
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuthContext } from '@/contexts/AuthContext';
-import { Listing, SearchFilters, ListingView } from '@/types/database';
+import { Listing, SearchFilters } from '@/types/database';
 import { useToast } from '@/hooks/use-toast';
+import { useListingViews } from '@/hooks/useListingViews';
 
 /**
  * Hook principal pour la gestion des collections d'annonces
- * Ce hook s'occupe de récupérer et filtrer les listes d'annonces
- * Il maintient l'état local des annonces, du chargement et des erreurs
+ * Version stable - pas de modifications ici
  */
 export const useListings = () => {
-  // États locaux pour gérer les données des annonces et l'interface utilisateur
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  /**
-   * Fonction pour récupérer les annonces avec filtres optionnels
-   * Cette fonction construit dynamiquement une requête Supabase basée sur les filtres
-   * Elle illustre comment construire des requêtes complexes de manière programmatique
-   */
   const fetchListings = async (filters?: SearchFilters) => {
     setLoading(true);
     setError(null);
 
     try {
-      // Construction de la requête de base - nous récupérons toutes les colonnes
-      // et filtrons par statut 'active' pour ne montrer que les annonces publiées
+      // Requête simple et sûre - comme dans votre version qui fonctionnait
       let query = supabase
         .from('listings')
         .select('*')
         .eq('status', 'active')
         .order('created_at', { ascending: false });
 
-      // Application conditionnelle des filtres - cette approche permet une recherche flexible
-      // Le pattern 'or' de Supabase permet de chercher dans plusieurs colonnes simultanément
+      // Application des filtres (inchangé)
       if (filters?.query) {
         query = query.or(`title.ilike.%${filters.query}%,description.ilike.%${filters.query}%`);
       }
 
-      // Filtrage par catégorie - nous utilisons l'ID de catégorie pour une recherche précise
       if (filters?.category) {
         query = query.eq('category', filters.category);
       }
 
-      // Filtrage géographique - important pour une marketplace locale comme FasoMarket
       if (filters?.location) {
         query = query.eq('location', filters.location);
       }
 
-      // Filtrage par condition de l'article - neuf, occasion, etc.
       if (filters?.condition) {
         query = query.eq('condition', filters.condition);
       }
 
-      // Filtres de prix - utilisation des opérateurs de comparaison Supabase
       if (filters?.priceMin) {
         query = query.gte('price', filters.priceMin);
       }
@@ -64,13 +56,13 @@ export const useListings = () => {
         query = query.lte('price', filters.priceMax);
       }
 
-      // Tri dynamique des résultats - permet différentes stratégies d'affichage
+      // CORRECTION : utilisation de views_count au lieu de views
       if (filters?.sortBy === 'price_asc') {
         query = query.order('price', { ascending: true });
       } else if (filters?.sortBy === 'price_desc') {
         query = query.order('price', { ascending: false });
       } else if (filters?.sortBy === 'views') {
-        query = query.order('views', { ascending: false });
+        query = query.order('views_count', { ascending: false });
       }
 
       const { data, error } = await query;
@@ -79,7 +71,6 @@ export const useListings = () => {
 
       setListings(data || []);
     } catch (err) {
-      // Gestion d'erreur robuste avec feedback utilisateur
       setError(err instanceof Error ? err.message : 'Erreur lors du chargement des annonces');
       toast({
         title: "Erreur",
@@ -91,10 +82,6 @@ export const useListings = () => {
     }
   };
 
-  /**
-   * Fonction spécialisée pour récupérer les annonces d'un utilisateur spécifique
-   * Utilisée principalement dans le dashboard marchand pour voir ses propres annonces
-   */
   const fetchUserListings = async (userId: string) => {
     setLoading(true);
     try {
@@ -123,17 +110,18 @@ export const useListings = () => {
 };
 
 /**
- * Hook pour la gestion d'une annonce individuelle
- * Ce hook s'occupe de récupérer les détails d'une annonce spécifique
- * Il inclut aussi la logique de comptage des vues pour les statistiques
+ * Hook pour une annonce individuelle - VERSION CORRIGÉE
+ * Retour à la requête simple qui fonctionnait, avec intégration du nouveau système de vues
  */
 export const useListing = (id: string) => {
   const [listing, setListing] = useState<Listing | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuthContext();
+  
+  // Intégration du nouveau système de vues
+  const { recordView, getViewsCount, getViewsStats } = useListingViews();
 
-  // Effect automatique qui se déclenche quand l'ID change
   useEffect(() => {
     if (id) {
       fetchListing();
@@ -143,6 +131,8 @@ export const useListing = (id: string) => {
   const fetchListing = async () => {
     setLoading(true);
     try {
+      // CORRECTION CRITIQUE : Retour à la requête simple qui fonctionnait
+      // Nous récupérons les données de base d'abord
       const { data, error } = await supabase
         .from('listings')
         .select('*')
@@ -150,72 +140,98 @@ export const useListing = (id: string) => {
         .single();
 
       if (error) throw error;
-      setListing(data);
 
-      // Enregistrement automatique d'une vue - important pour les analytics
-      if (data) {
-        await recordView(data.id);
+      // Si nous avons besoin des données de profil et catégorie,
+      // nous pouvons les récupérer séparément de manière sûre
+      let enrichedListing = data;
+
+      try {
+        // Récupération optionnelle des données du profil
+        if (data.user_id) {
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('full_name, phone, email')
+            .eq('id', data.user_id)
+            .single();
+          
+          if (profileData) {
+            enrichedListing.profiles = profileData;
+          }
+        }
+
+        // Récupération optionnelle des données de catégorie
+        if (data.category_id) {
+          const { data: categoryData } = await supabase
+            .from('categories')
+            .select('name, icon, slug')
+            .eq('id', data.category_id)
+            .single();
+          
+          if (categoryData) {
+            enrichedListing.categories = categoryData;
+          }
+        }
+      } catch (enrichmentError) {
+        // Si les requêtes d'enrichissement échouent, ce n'est pas grave
+        // L'annonce principale est récupérée, c'est le plus important
+        console.warn('Impossible d\'enrichir les données de l\'annonce:', enrichmentError);
+      }
+
+      setListing(enrichedListing);
+
+      // Enregistrement de la vue avec le nouveau système
+      if (enrichedListing) {
+        recordView(enrichedListing.id);
       }
     } catch (err) {
+      console.error('Erreur détaillée lors de la récupération de l\'annonce:', err);
       setError(err instanceof Error ? err.message : 'Annonce introuvable');
     } finally {
       setLoading(false);
     }
   };
 
-  /**
-   * Fonction pour enregistrer les vues de manière intelligente
-   * Elle évite de compter plusieurs vues du même utilisateur dans les 24h
-   * C'est une logique métier importante pour éviter le spam de vues
-   */
-  const recordView = async (listingId: string) => {
-    try {
-      // Vérification si l'utilisateur a déjà vu cette annonce récemment
-      const { data: existingView } = await supabase
-        .from('listing_views')
-        .select('id')
-        .eq('listing_id', listingId)
-        .eq('user_id', user?.id || null)
-        .gte('viewed_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
-        .single();
-
-      // Si pas de vue récente, on enregistre une nouvelle vue
-      if (!existingView) {
-        await supabase.from('listing_views').insert({
-          listing_id: listingId,
-          user_id: user?.id || null,
-          ip_address: 'unknown'
-        });
-
-        // Incrémentation du compteur global de vues
-        await supabase.rpc('increment_listing_views', { listing_id: listingId });
-      }
-    } catch (err) {
-      // Les erreurs de vue ne doivent pas affecter l'expérience utilisateur
-      console.error('Erreur lors de l\'enregistrement de la vue:', err);
+  // Fonctions utilitaires pour les composants
+  const refreshViewsCount = async () => {
+    if (listing?.id) {
+      return await getViewsCount(listing.id);
     }
+    return { count: 0, isLoading: false, error: null };
   };
 
-  return { listing, loading, error, refetch: fetchListing };
+  const getDetailedStats = async () => {
+    if (listing?.id) {
+      return await getViewsStats(listing.id);
+    }
+    return {
+      totalViews: 0,
+      uniqueVisitors: 0,
+      registeredUserViews: 0,
+      anonymousViews: 0,
+      todayViews: 0
+    };
+  };
+
+  return { 
+    listing, 
+    loading, 
+    error, 
+    refetch: fetchListing,
+    refreshViewsCount,
+    getDetailedStats,
+    recordView: (listingId: string) => recordView(listingId)
+  };
 };
 
 /**
- * Hook principal pour les opérations de création, modification et suppression d'annonces
- * C'est le cœur de la fonctionnalité marchande de votre application
- * Ce hook contient toutes les corrections nécessaires pour résoudre vos problèmes RLS
+ * Hook de création/modification/suppression - pas de changements
  */
 export const useCreateListing = () => {
   const [loading, setLoading] = useState(false);
   const { user } = useAuthContext();
   const { toast } = useToast();
 
-  /**
-   * FONCTION DE CRÉATION D'ANNONCE - CORRIGÉE
-   * Cette fonction contient les corrections principales pour résoudre l'erreur RLS
-   * Les commentaires expliquent chaque correction appliquée
-   */
   const createListing = async (listingData: any) => {
-    // Vérification de sécurité - l'utilisateur doit être authentifié
     if (!user) {
       toast({
         title: "Erreur",
@@ -227,16 +243,13 @@ export const useCreateListing = () => {
 
     setLoading(true);
     try {
-      // CORRECTION CRITIQUE: Changement du status de 'pending' à 'active'
-      // Votre contrainte de base de données n'accepte pas 'pending' comme valeur
-      // Cette modification résout l'erreur RLS 42501 que vous rencontriez
       const { data, error } = await supabase
         .from('listings')
         .insert({
           title: listingData.title,
           description: listingData.description,
           price: listingData.price,
-          category_id: listingData.category_id, // Utilisation du vrai ID de catégorie
+          category_id: listingData.category_id,
           location: listingData.location,
           condition: listingData.condition,
           contact_phone: listingData.phone,
@@ -244,16 +257,15 @@ export const useCreateListing = () => {
           latitude: listingData.latitude,
           longitude: listingData.longitude,
           currency: listingData.currency,
-          user_id: user.id, // Utilisation de l'ID utilisateur authentifié
-          status: 'active', // CORRECTION: Changé de 'pending' à 'active'
-          views_count: 0    // Initialisation du compteur de vues
+          user_id: user.id,
+          status: 'active',
+          views_count: 0
         })
-        .select() // Important: récupère les données insérées pour confirmer la création
+        .select()
         .single();
 
       if (error) throw error;
 
-      // Feedback positif à l'utilisateur en cas de succès
       toast({
         title: "Succès",
         description: "Votre annonce a été créée avec succès !",
@@ -261,7 +273,6 @@ export const useCreateListing = () => {
 
       return data;
     } catch (err) {
-      // Gestion d'erreur améliorée avec logging détaillé
       const errorMessage = err instanceof Error ? err.message : "Erreur lors de la création de l'annonce";
       toast({
         title: "Erreur",
@@ -269,7 +280,6 @@ export const useCreateListing = () => {
         variant: "destructive"
       });
       
-      // Log détaillé pour le debugging - crucial pour identifier les problèmes
       console.error('Erreur Supabase détaillée:', {
         error: err,
         userData: user,
@@ -282,10 +292,6 @@ export const useCreateListing = () => {
     }
   };
 
-  /**
-   * Fonction de mise à jour d'annonce
-   * Inclut la sécurité au niveau des lignes - un utilisateur ne peut modifier que ses propres annonces
-   */
   const updateListing = async (id: string, updates: Partial<Listing>) => {
     setLoading(true);
     try {
@@ -293,7 +299,7 @@ export const useCreateListing = () => {
         .from('listings')
         .update(updates)
         .eq('id', id)
-        .eq('user_id', user?.id) // Sécurité: seul le propriétaire peut modifier
+        .eq('user_id', user?.id)
         .select()
         .single();
 
@@ -317,10 +323,6 @@ export const useCreateListing = () => {
     }
   };
 
-  /**
-   * Fonction de suppression d'annonce
-   * Inclut les mêmes protections de sécurité que la mise à jour
-   */
   const deleteListing = async (id: string) => {
     setLoading(true);
     try {
@@ -328,7 +330,7 @@ export const useCreateListing = () => {
         .from('listings')
         .delete()
         .eq('id', id)
-        .eq('user_id', user?.id); // Sécurité: seul le propriétaire peut supprimer
+        .eq('user_id', user?.id);
 
       if (error) throw error;
 
@@ -350,7 +352,6 @@ export const useCreateListing = () => {
     }
   };
 
-  // Interface publique du hook - toutes les fonctions et états nécessaires
   return {
     createListing,
     updateListing,
