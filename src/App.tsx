@@ -22,6 +22,7 @@ import LegalNotice from "./pages/LegalNotice";
 import TermsOfService from "./pages/TermsOfService";
 import About from "./pages/About";
 import HelpSupport from "./pages/HelpSupport";
+import MyProfile from "./pages/MyProfile";
 
 const queryClient = new QueryClient();
 
@@ -47,6 +48,7 @@ const App = () => (
           <Route path="/favorites" element={<ProtectedRoute><Favorites /></ProtectedRoute>} />
           <Route path="/user/:userId" element={<UserProfile />} />
           <Route path="/category/:category" element={<CategoryListings />} />
+          <Route path="/my-profile" element={<ProtectedRoute><MyProfile /></ProtectedRoute>} />
           <Route 
             path="/merchant-dashboard" 
             element={

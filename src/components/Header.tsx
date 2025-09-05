@@ -133,7 +133,7 @@ export const Header = () => {
                   <DropdownMenuSeparator />
                   
                   <DropdownMenuItem asChild>
-                    <Link to="/profile" className="flex items-center cursor-pointer">
+                    <Link to="/my-profile" className="flex items-center cursor-pointer">
                       <User className="mr-2 h-4 w-4" />
                       Mon Profil
                     </Link>
@@ -253,7 +253,7 @@ export const Header = () => {
                     {profile.full_name || user.email}
                   </div>
                   <Button variant="outline" className="w-full" asChild>
-                    <Link to="/profile" onClick={() => setIsMenuOpen(false)}>
+                    <Link to="/my-profile" onClick={() => setIsMenuOpen(false)}>
                       <User className="mr-2 h-4 w-4" />
                       Mon Profil
                     </Link>

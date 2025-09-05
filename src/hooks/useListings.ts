@@ -1,8 +1,8 @@
 // ===============================================
-// HOOK USELISTING CORRIGÉ - INTÉGRATION PROGRESSIVE DU SYSTÈME DE VUES
+// HOOK USELISTING CORRIGÉ - VERSION STABLE SANS CYCLES INFINIS
 // ===============================================
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react'; // Ajout de useCallback
 import { supabase } from '@/lib/supabase';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { Listing, SearchFilters } from '@/types/database';
@@ -11,7 +11,7 @@ import { useListingViews } from '@/hooks/useListingViews';
 
 /**
  * Hook principal pour la gestion des collections d'annonces
- * Version stable - pas de modifications ici
+ * Version corrigée avec useCallback pour éviter les cycles infinis
  */
 export const useListings = () => {
   const [listings, setListings] = useState<Listing[]>([]);
@@ -19,7 +19,9 @@ export const useListings = () => {
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const fetchListings = async (filters?: SearchFilters) => {
+  // Utilisation de useCallback pour mémoriser fetchListings
+  // Cette fonction ne sera recréée que si toast change (ce qui est rare)
+  const fetchListings = useCallback(async (filters?: SearchFilters) => {
     setLoading(true);
     setError(null);
 
@@ -80,11 +82,17 @@ export const useListings = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]); // Seule dépendance : toast
 
-  const fetchUserListings = async (userId: string) => {
+  // SOLUTION CRITIQUE : Utilisation de useCallback pour fetchUserListings
+  // Cette fonction sera stable et ne causera plus de cycles infinis
+  const fetchUserListings = useCallback(async (userId: string) => {
     setLoading(true);
+    setError(null); // Reset de l'erreur à chaque nouvelle tentative
+    
     try {
+      console.log("Début de fetchUserListings pour userId:", userId);
+      
       const { data, error } = await supabase
         .from('listings')
         .select('*')
@@ -92,13 +100,23 @@ export const useListings = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
+      
+      console.log("Données récupérées:", data?.length || 0, "annonces");
       setListings(data || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur lors du chargement');
+      const errorMessage = err instanceof Error ? err.message : 'Erreur lors du chargement';
+      console.error("Erreur dans fetchUserListings:", err);
+      setError(errorMessage);
+      
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger vos annonces",
+        variant: "destructive"
+      });
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]); // Seule dépendance : toast
 
   return {
     listings,
@@ -111,7 +129,7 @@ export const useListings = () => {
 
 /**
  * Hook pour une annonce individuelle - VERSION CORRIGÉE
- * Retour à la requête simple qui fonctionnait, avec intégration du nouveau système de vues
+ * Utilisation de useCallback pour éviter les problèmes de dépendances
  */
 export const useListing = (id: string) => {
   const [listing, setListing] = useState<Listing | null>(null);
@@ -122,17 +140,15 @@ export const useListing = (id: string) => {
   // Intégration du nouveau système de vues
   const { recordView, getViewsCount, getViewsStats } = useListingViews();
 
-  useEffect(() => {
-    if (id) {
-      fetchListing();
-    }
-  }, [id]);
-
-  const fetchListing = async () => {
+  // Mémorisation de fetchListing pour éviter les re-créations inutiles
+  const fetchListing = useCallback(async () => {
+    if (!id) return;
+    
     setLoading(true);
+    setError(null);
+    
     try {
       // CORRECTION CRITIQUE : Retour à la requête simple qui fonctionnait
-      // Nous récupérons les données de base d'abord
       const { data, error } = await supabase
         .from('listings')
         .select('*')
@@ -141,8 +157,7 @@ export const useListing = (id: string) => {
 
       if (error) throw error;
 
-      // Si nous avons besoin des données de profil et catégorie,
-      // nous pouvons les récupérer séparément de manière sûre
+      // Enrichissement optionnel des données
       let enrichedListing = data;
 
       try {
@@ -172,8 +187,6 @@ export const useListing = (id: string) => {
           }
         }
       } catch (enrichmentError) {
-        // Si les requêtes d'enrichissement échouent, ce n'est pas grave
-        // L'annonce principale est récupérée, c'est le plus important
         console.warn('Impossible d\'enrichir les données de l\'annonce:', enrichmentError);
       }
 
@@ -189,17 +202,21 @@ export const useListing = (id: string) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, recordView]); // Dépendances stables
 
-  // Fonctions utilitaires pour les composants
-  const refreshViewsCount = async () => {
+  useEffect(() => {
+    fetchListing();
+  }, [fetchListing]); // Maintenant fetchListing est stable grâce à useCallback
+
+  // Fonctions utilitaires mémorisées
+  const refreshViewsCount = useCallback(async () => {
     if (listing?.id) {
       return await getViewsCount(listing.id);
     }
     return { count: 0, isLoading: false, error: null };
-  };
+  }, [listing?.id, getViewsCount]);
 
-  const getDetailedStats = async () => {
+  const getDetailedStats = useCallback(async () => {
     if (listing?.id) {
       return await getViewsStats(listing.id);
     }
@@ -210,7 +227,7 @@ export const useListing = (id: string) => {
       anonymousViews: 0,
       todayViews: 0
     };
-  };
+  }, [listing?.id, getViewsStats]);
 
   return { 
     listing, 
@@ -219,19 +236,20 @@ export const useListing = (id: string) => {
     refetch: fetchListing,
     refreshViewsCount,
     getDetailedStats,
-    recordView: (listingId: string) => recordView(listingId)
+    recordView: useCallback((listingId: string) => recordView(listingId), [recordView])
   };
 };
 
 /**
- * Hook de création/modification/suppression - pas de changements
+ * Hook de création/modification/suppression
+ * Utilisation de useCallback pour les fonctions exposées
  */
 export const useCreateListing = () => {
   const [loading, setLoading] = useState(false);
   const { user } = useAuthContext();
   const { toast } = useToast();
 
-  const createListing = async (listingData: any) => {
+  const createListing = useCallback(async (listingData: any) => {
     if (!user) {
       toast({
         title: "Erreur",
@@ -290,9 +308,9 @@ export const useCreateListing = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, toast]); // Dépendances stables
 
-  const updateListing = async (id: string, updates: Partial<Listing>) => {
+  const updateListing = useCallback(async (id: string, updates: Partial<Listing>) => {
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -321,9 +339,9 @@ export const useCreateListing = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id, toast]);
 
-  const deleteListing = async (id: string) => {
+  const deleteListing = useCallback(async (id: string) => {
     setLoading(true);
     try {
       const { error } = await supabase
@@ -350,7 +368,7 @@ export const useCreateListing = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id, toast]);
 
   return {
     createListing,

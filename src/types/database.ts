@@ -11,6 +11,9 @@ export interface Profile {
   email: string;
   full_name: string | null;
   phone: string | null;
+  bio: string | null; // Nouveau champ ajouté
+  location: string | null; // Nouveau champ ajouté
+  avatar_url: string | null; // Nouveau champ ajouté
   role: 'merchant' | 'admin'; // Seuls ces deux rôles
   created_at: string;
   updated_at: string | null;
