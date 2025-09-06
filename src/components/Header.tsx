@@ -154,7 +154,7 @@ export const Header = () => {
                   </DropdownMenuItem>
                   
                   <DropdownMenuItem asChild>
-                    <Link to="/mes-annonces" className="flex items-center cursor-pointer">
+                    <Link to="/my-listings" className="flex items-center cursor-pointer">
                       <ListIcon className="mr-2 h-4 w-4" />
                       Mes Annonces
                     </Link>

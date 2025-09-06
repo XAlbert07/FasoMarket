@@ -25,6 +25,7 @@ import About from "./pages/About";
 import HelpSupport from "./pages/HelpSupport";
 import MyProfile from "./pages/MyProfile";
 import HowToPublish from "./pages/HowToPublish";
+import MyListings from "./pages/MyListings";
 
 const queryClient = new QueryClient();
 
@@ -53,6 +54,7 @@ const App = () => (
           <Route path="/how-to-publish" element={<HowToPublish />} />
           <Route path="/category/:category" element={<CategoryListings />} />
           <Route path="/my-profile" element={<ProtectedRoute><MyProfile /></ProtectedRoute>} />
+           <Route path="/my-listings" element={<ProtectedRoute><MyListings /></ProtectedRoute>} />
           <Route 
             path="/merchant-dashboard" 
             element={
