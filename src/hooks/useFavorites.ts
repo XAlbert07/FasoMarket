@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { Favorite } from '@/types/database';
@@ -9,17 +9,25 @@ export const useFavorites = () => {
   const [loading, setLoading] = useState(false);
   const { user } = useAuthContext();
   const { toast } = useToast();
+  
+  // ✅ Utilisation d'une ref pour éviter les requêtes concurrentes
+  const loadingRef = useRef(false);
 
   useEffect(() => {
     if (user) {
       fetchFavorites();
+    } else {
+      // ✅ Reset des favoris quand l'utilisateur se déconnecte
+      setFavorites([]);
     }
   }, [user]);
 
   const fetchFavorites = async () => {
-    if (!user) return;
+    if (!user || loadingRef.current) return; // ✅ Évite les appels concurrents
 
+    loadingRef.current = true;
     setLoading(true);
+    
     try {
       const { data, error } = await supabase
         .from('favorites')
@@ -33,8 +41,15 @@ export const useFavorites = () => {
       setFavorites(data || []);
     } catch (error) {
       console.error('Erreur lors du chargement des favoris:', error);
+      // ✅ Optionnel: afficher un toast d'erreur pour informer l'utilisateur
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger vos favoris",
+        variant: "destructive"
+      });
     } finally {
       setLoading(false);
+      loadingRef.current = false; // ✅ Libère le verrou
     }
   };
 
@@ -60,6 +75,7 @@ export const useFavorites = () => {
 
         if (error) throw error;
 
+        // ✅ Mise à jour optimiste de l'état local
         setFavorites(prev => prev.filter(fav => fav.id !== existingFavorite.id));
         
         toast({
@@ -69,19 +85,23 @@ export const useFavorites = () => {
         
         return false;
       } else {
-        // Ajouter aux favoris
-        const { data, error } = await supabase
+        // Ajouter aux favoris - nous avons besoin des données complètes
+        const { data: newFavorite, error } = await supabase
           .from('favorites')
           .insert({
             user_id: user.id,
             listing_id: listingId
           })
-          .select()
+          .select(`
+            *,
+            listing:listings(*)
+          `)
           .single();
 
         if (error) throw error;
 
-        setFavorites(prev => [...prev, data]);
+        // ✅ Mise à jour optimiste avec les données complètes
+        setFavorites(prev => [...prev, newFavorite]);
         
         toast({
           title: "Ajouté aux favoris",
@@ -91,6 +111,7 @@ export const useFavorites = () => {
         return true;
       }
     } catch (error) {
+      console.error('Erreur lors de la gestion des favoris:', error);
       toast({
         title: "Erreur",
         description: "Erreur lors de la gestion des favoris",

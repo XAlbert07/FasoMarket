@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useFavorites } from '@/hooks/useFavorites';
 import { useAuthContext } from '@/contexts/AuthContext';
@@ -13,13 +12,10 @@ import { fr } from 'date-fns/locale';
 
 const Favorites = () => {
   const { user } = useAuthContext();
-  const { favorites, loading, toggleFavorite, refetch } = useFavorites();
+  const { favorites, loading, toggleFavorite } = useFavorites();
 
-  useEffect(() => {
-    if (user) {
-      refetch();
-    }
-  }, [user, refetch]);
+  // ✅ Suppression du useEffect redondant qui causait le double chargement
+  // Le hook useFavorites gère déjà le chargement automatique
 
   if (!user) {
     return (

@@ -274,7 +274,7 @@ export const Header = () => {
                   </Button>
 
                   <Button variant="outline" className="w-full" asChild>
-                    <Link to="/mes-annonces" onClick={() => setIsMenuOpen(false)}>
+                    <Link to="/my-listings" onClick={() => setIsMenuOpen(false)}>
                       <ListIcon className="mr-2 h-4 w-4" />
                       Mes Annonces
                     </Link>
