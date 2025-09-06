@@ -47,12 +47,15 @@ export const Footer = () => {
                   "Emploi & Services"
                 ].map((category) => (
                   <li key={category}>
-                    <a href="#" className="text-white/80 hover:text-primary transition-colors">
-                      {category}
-                    </a>
+                    <Link 
+                     to={`/listings?category=${encodeURIComponent(category)}`}
+                     className="text-white/80 hover:text-primary transition-colors"
+                    >
+                     {category}
+                   </Link>
                   </li>
                 ))}
-              </ul>
+                </ul>
             </div>
 
             {/* Quick Links */}

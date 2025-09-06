@@ -64,8 +64,11 @@ const Listings = () => {
     setSearchParams(newParams);
   };
 
+  // ✅ SOLUTION : Fonction modifiée pour gérer les valeurs spéciales
   const updateFilter = (key: keyof SearchFilters, value: any) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
+    // Convertir les valeurs spéciales en chaînes vides pour le filtrage
+    const processedValue = (value === "all" || value === "none") ? "" : value;
+    setFilters(prev => ({ ...prev, [key]: processedValue }));
   };
 
   const revealPhone = (id: string) => {
@@ -100,24 +103,32 @@ const Listings = () => {
                 <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               </div>
               
-              <Select value={filters.category} onValueChange={(value) => updateFilter("category", value)}>
+              {/* ✅ SOLUTION : Utiliser une valeur non-vide pour "toutes les catégories" */}
+              <Select 
+                value={filters.category || "all"} 
+                onValueChange={(value) => updateFilter("category", value)}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Catégorie" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Toutes les catégories</SelectItem>
+                  <SelectItem value="all">Toutes les catégories</SelectItem>
                   {categories.map((cat) => (
                     <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
 
-              <Select value={filters.location} onValueChange={(value) => updateFilter("location", value)}>
+              {/* ✅ SOLUTION : Même correction pour les localisations */}
+              <Select 
+                value={filters.location || "all"} 
+                onValueChange={(value) => updateFilter("location", value)}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Localisation" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Toutes les villes</SelectItem>
+                  <SelectItem value="all">Toutes les villes</SelectItem>
                   {locations.map((loc) => (
                     <SelectItem key={loc} value={loc}>{loc}</SelectItem>
                   ))}
@@ -143,7 +154,11 @@ const Listings = () => {
                 value={filters.priceMax || ""}
                 onChange={(e) => updateFilter("priceMax", e.target.value ? parseInt(e.target.value) : undefined)}
               />
-              <Select value={filters.sortBy} onValueChange={(value) => updateFilter("sortBy", value)}>
+              {/* ✅ SOLUTION : Assurer que sortBy a toujours une valeur valide */}
+              <Select 
+                value={filters.sortBy || "date"} 
+                onValueChange={(value) => updateFilter("sortBy", value)}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -230,7 +245,7 @@ const Listings = () => {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => navigator.clipboard.writeText(listing.phone)}
+                            onClick={() => navigator.clipboard.writeText(listing.contact_phone)}
                           >
                             Copier
                           </Button>
