@@ -1,5 +1,5 @@
 // components/SmartListingDetail.tsx
-// Version mise à jour intégrant le système d'avis amélioré
+// Version mise à jour avec système de messagerie intégré et hook spécialisé pour les invités
 
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -8,15 +8,24 @@ import { useListing } from "@/hooks/useListings";
 import { useSellerProfile } from "@/hooks/useSellerProfile";
 import { useSellerActiveListings } from "@/hooks/useSellerListings";
 import { useSellerReviewsStats } from "@/hooks/useSellerReviews";
+// Import du nouveau hook pour les messages d'invités
+import { useGuestMessages } from '@/hooks/useGuestMessages';
 import ListingDetail from "@/pages/ListingDetail";
 import OwnerListingDetail from "@/components/OwnerListingDetail";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { EnhancedReviewForm, EnhancedReviewsDisplay } from "@/components/EnhancedReviewSystem";
+import { ChatModal } from "@/components/ChatModal";
 import { useToast } from "@/hooks/use-toast";
-import { Star, Shield, MessageSquare, Phone, MapPin, Clock } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { Star, Shield, MessageSquare, Phone, MapPin, Clock, Send } from "lucide-react";
 
 const SmartListingDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -89,17 +98,32 @@ const SmartListingDetail = () => {
     return <OwnerListingDetail />;
   }
 
-  return <BuyerListingDetailWithEnhancedReviews listing={listing} />;
+  return <BuyerListingDetailWithEnhancedReviewsAndChat listing={listing} />;
 };
 
-// Composant spécialisé pour la vue acheteur avec le nouveau système d'avis
-interface BuyerListingDetailWithEnhancedReviewsProps {
+// Composant spécialisé pour la vue acheteur avec le nouveau système d'avis et de chat
+interface BuyerListingDetailWithEnhancedReviewsAndChatProps {
   listing: any;
 }
 
-const BuyerListingDetailWithEnhancedReviews = ({ listing }: BuyerListingDetailWithEnhancedReviewsProps) => {
+const BuyerListingDetailWithEnhancedReviewsAndChat = ({ listing }: BuyerListingDetailWithEnhancedReviewsAndChatProps) => {
   const navigate = useNavigate();
+  const { user } = useAuthContext();
+  const { toast } = useToast();
   const [reviewsRefreshKey, setReviewsRefreshKey] = useState(0);
+  
+  // États pour le système de messagerie
+  const [isChatModalOpen, setIsChatModalOpen] = useState(false);
+  const [isGuestMessageModalOpen, setIsGuestMessageModalOpen] = useState(false);
+  const [guestMessageData, setGuestMessageData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    message: ''
+  });
+  
+  // Hook spécialisé pour les messages d'invités - remplace l'état sendingGuestMessage
+  const { sendGuestMessage, loading: guestMessageLoading } = useGuestMessages();
   
   // Récupération des données du vendeur
   const { 
@@ -122,8 +146,6 @@ const BuyerListingDetailWithEnhancedReviews = ({ listing }: BuyerListingDetailWi
   // États pour la gestion de l'affichage du numéro
   const [showPhoneNumber, setShowPhoneNumber] = useState(false);
   const [phoneLoading, setPhoneLoading] = useState(false);
-  
-  const { toast } = useToast();
 
   const handleReviewSubmitted = () => {
     setReviewsRefreshKey(prev => prev + 1);
@@ -176,6 +198,50 @@ const BuyerListingDetailWithEnhancedReviews = ({ listing }: BuyerListingDetailWi
       });
     } finally {
       setPhoneLoading(false);
+    }
+  };
+
+  // Gestion du clic sur "Envoyer un message"
+  const handleSendMessageClick = () => {
+    if (user) {
+      // Utilisateur connecté : ouvrir le chat modal
+      setIsChatModalOpen(true);
+    } else {
+      // Utilisateur non connecté : ouvrir le modal pour invités
+      setIsGuestMessageModalOpen(true);
+    }
+  };
+
+  // Fonction améliorée pour envoyer un message d'invité avec le nouveau hook
+  const handleSendGuestMessage = async () => {
+    // Validation des champs obligatoires
+    if (!guestMessageData.name || !guestMessageData.email || !guestMessageData.message) {
+      toast({
+        title: "Erreur",
+        description: "Veuillez remplir tous les champs obligatoires.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      // Utilisation du hook spécialisé pour les messages d'invités
+      // Ce hook gère automatiquement l'insertion dans une table dédiée avec une structure optimisée
+      await sendGuestMessage(listing.id, listing.user_id, {
+        name: guestMessageData.name,
+        email: guestMessageData.email,
+        phone: guestMessageData.phone || undefined, // Conversion de chaîne vide en undefined
+        message: guestMessageData.message
+      });
+
+      // Réinitialiser le formulaire et fermer le modal en cas de succès
+      setGuestMessageData({ name: '', email: '', phone: '', message: '' });
+      setIsGuestMessageModalOpen(false);
+
+    } catch (error) {
+      // Le hook useGuestMessages gère déjà l'affichage des erreurs via toast
+      // On log l'erreur pour le debugging
+      console.error('Error in handleSendGuestMessage:', error);
     }
   };
 
@@ -321,7 +387,7 @@ const BuyerListingDetailWithEnhancedReviews = ({ listing }: BuyerListingDetailWi
 
           {/* Sidebar - Contact et informations vendeur */}
           <div className="space-y-6">
-            {/* Section contact */}
+            {/* Section contact avec messagerie intégrée */}
             <Card data-contact-section>
               <CardContent className="p-6">
                 <h3 className="font-semibold mb-4 flex items-center gap-2">
@@ -373,9 +439,13 @@ const BuyerListingDetailWithEnhancedReviews = ({ listing }: BuyerListingDetailWi
                     </button>
                   )}
                   
-                  <button className="w-full border border-input hover:bg-accent py-2 px-4 rounded flex items-center justify-center gap-2">
+                  {/* Bouton de messagerie intelligent */}
+                  <button 
+                    onClick={handleSendMessageClick}
+                    className="w-full border border-input hover:bg-accent py-2 px-4 rounded flex items-center justify-center gap-2 transition-colors"
+                  >
                     <MessageSquare className="h-4 w-4" />
-                    Envoyer un message
+                    {user ? 'Envoyer un message' : 'Envoyer un message (invité)'}
                   </button>
                 </div>
                 
@@ -522,6 +592,103 @@ const BuyerListingDetailWithEnhancedReviews = ({ listing }: BuyerListingDetailWi
           </div>
         </div>
       </main>
+
+      {/* Chat Modal pour utilisateurs connectés */}
+      {user && (
+        <ChatModal
+          isOpen={isChatModalOpen}
+          onClose={() => setIsChatModalOpen(false)}
+          listingId={listing.id}
+          receiverId={listing.user_id}
+          receiverName={sellerProfile?.full_name || listing.profiles?.full_name || 'Vendeur'}
+          receiverAvatar={sellerProfile?.avatar_url || listing.profiles?.avatar_url}
+          isVerified={sellerProfile?.is_verified || false}
+        />
+      )}
+
+      {/* Modal de message pour invités avec intégration du nouveau hook */}
+      <Dialog open={isGuestMessageModalOpen} onOpenChange={setIsGuestMessageModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Envoyer un message</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="text-sm text-muted-foreground">
+              Vous n'êtes pas connecté. Laissez vos coordonnées pour que le vendeur puisse vous recontacter.
+            </div>
+            
+            <div className="grid gap-4">
+              <div>
+                <Label htmlFor="guest-name">Nom complet *</Label>
+                <Input
+                  id="guest-name"
+                  value={guestMessageData.name}
+                  onChange={(e) => setGuestMessageData(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Votre nom complet"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="guest-email">Adresse email *</Label>
+                <Input
+                  id="guest-email"
+                  type="email"
+                  value={guestMessageData.email}
+                  onChange={(e) => setGuestMessageData(prev => ({ ...prev, email: e.target.value }))}
+                  placeholder="votre@email.com"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="guest-phone">Téléphone (optionnel)</Label>
+                <Input
+                  id="guest-phone"
+                  value={guestMessageData.phone}
+                  onChange={(e) => setGuestMessageData(prev => ({ ...prev, phone: e.target.value }))}
+                  placeholder="+226 XX XX XX XX"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="guest-message">Votre message *</Label>
+                <Textarea
+                  id="guest-message"
+                  value={guestMessageData.message}
+                  onChange={(e) => setGuestMessageData(prev => ({ ...prev, message: e.target.value }))}
+                  placeholder={`Bonjour, je suis intéressé(e) par votre annonce "${listing.title}". Pourriez-vous me donner plus d'informations ?`}
+                  rows={4}
+                />
+              </div>
+            </div>
+            
+            <div className="flex justify-end gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => setIsGuestMessageModalOpen(false)}
+                disabled={guestMessageLoading}
+              >
+                Annuler
+              </Button>
+              <Button 
+                onClick={handleSendGuestMessage}
+                disabled={guestMessageLoading || !guestMessageData.name || !guestMessageData.email || !guestMessageData.message}
+              >
+                {guestMessageLoading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2" />
+                    Envoi...
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4 mr-2" />
+                    Envoyer le message
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Footer />
     </div>
