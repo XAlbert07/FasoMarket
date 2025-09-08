@@ -7,6 +7,7 @@ import { Listing, SearchFilters } from '@/types/database';
 import { useToast } from '@/hooks/use-toast';
 import { useListingViews } from '@/hooks/useListingViews';
 
+
 /**
  * Hook principal pour la gestion des collections d'annonces
  * VERSION CORRIGÉE - Compatible avec votre schéma Supabase actuel
