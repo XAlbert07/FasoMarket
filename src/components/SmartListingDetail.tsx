@@ -1,5 +1,6 @@
 // components/SmartListingDetail.tsx
-// Version corrigée avec navigation fonctionnelle et données réelles
+// Version mise à jour intégrant le système d'avis amélioré
+
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuthContext } from "@/contexts/AuthContext";
@@ -12,8 +13,10 @@ import OwnerListingDetail from "@/components/OwnerListingDetail";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Card, CardContent } from "@/components/ui/card";
-import { ReviewForm, ReviewsDisplay, useCanUserReview } from "@/components/ReviewSystem";
+import { Badge } from "@/components/ui/badge";
+import { EnhancedReviewForm, EnhancedReviewsDisplay } from "@/components/EnhancedReviewSystem";
 import { useToast } from "@/hooks/use-toast";
+import { Star, Shield, MessageSquare, Phone, MapPin, Clock } from "lucide-react";
 
 const SmartListingDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -86,20 +89,19 @@ const SmartListingDetail = () => {
     return <OwnerListingDetail />;
   }
 
-  return <BuyerListingDetailWithReviews listing={listing} />;
+  return <BuyerListingDetailWithEnhancedReviews listing={listing} />;
 };
 
-// Composant spécialisé pour la vue acheteur avec gestion du numéro de téléphone ET DONNÉES RÉELLES
-interface BuyerListingDetailWithReviewsProps {
+// Composant spécialisé pour la vue acheteur avec le nouveau système d'avis
+interface BuyerListingDetailWithEnhancedReviewsProps {
   listing: any;
 }
 
-const BuyerListingDetailWithReviews = ({ listing }: BuyerListingDetailWithReviewsProps) => {
+const BuyerListingDetailWithEnhancedReviews = ({ listing }: BuyerListingDetailWithEnhancedReviewsProps) => {
   const navigate = useNavigate();
-  const { canReview, loading: reviewCheckLoading } = useCanUserReview(listing.user_id, listing.id);
   const [reviewsRefreshKey, setReviewsRefreshKey] = useState(0);
   
-  // CORRECTION 1 : Utilisation des hooks pour récupérer les VRAIES données du vendeur
+  // Récupération des données du vendeur
   const { 
     profile: sellerProfile, 
     loading: profileLoading, 
@@ -127,7 +129,7 @@ const BuyerListingDetailWithReviews = ({ listing }: BuyerListingDetailWithReview
     setReviewsRefreshKey(prev => prev + 1);
   };
 
-  // CORRECTION 2 : Fonction pour naviguer vers le profil complet du vendeur
+  // Navigation vers le profil complet du vendeur
   const handleViewFullProfile = () => {
     if (!listing.user_id) {
       toast({
@@ -138,7 +140,6 @@ const BuyerListingDetailWithReviews = ({ listing }: BuyerListingDetailWithReview
       return;
     }
 
-    // Navigation vers la page de profil vendeur - URL corrigée pour correspondre à App.tsx
     navigate(`/seller-profile/${listing.user_id}`);
   };
 
@@ -208,6 +209,33 @@ const BuyerListingDetailWithReviews = ({ listing }: BuyerListingDetailWithReview
     return activeListingsCount.toString();
   };
 
+  // Fonction pour obtenir le badge de confiance du vendeur
+  const getTrustBadge = () => {
+    if (!reviewsStats || reviewsStats.totalReviews === 0) {
+      return <Badge variant="secondary">Nouveau vendeur</Badge>;
+    }
+
+    if (reviewsStats.averageRating >= 4.5 && reviewsStats.totalReviews >= 10) {
+      return (
+        <Badge className="bg-green-100 text-green-800 border-green-300">
+          <Shield className="h-3 w-3 mr-1" />
+          Vendeur de confiance
+        </Badge>
+      );
+    }
+
+    if (reviewsStats.averageRating >= 4.0) {
+      return (
+        <Badge className="bg-blue-100 text-blue-800 border-blue-300">
+          <Star className="h-3 w-3 mr-1" />
+          Bien noté
+        </Badge>
+      );
+    }
+
+    return null;
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -250,56 +278,75 @@ const BuyerListingDetailWithReviews = ({ listing }: BuyerListingDetailWithReview
                 </div>
                 
                 <div className="flex flex-wrap gap-2">
-                  <span className="px-2 py-1 bg-secondary text-secondary-foreground rounded text-sm">
+                  <Badge variant="outline">
                     {listing.categories?.name || 'Non catégorisé'}
-                  </span>
-                  <span className="px-2 py-1 bg-secondary text-secondary-foreground rounded text-sm">
+                  </Badge>
+                  <Badge variant="outline">
                     {listing.condition === 'new' ? 'Neuf' : 'Occasion'}
-                  </span>
-                  <span className="px-2 py-1 bg-secondary text-secondary-foreground rounded text-sm">
+                  </Badge>
+                  <Badge variant="outline" className="flex items-center gap-1">
+                    <MapPin className="h-3 w-3" />
                     {listing.location}
-                  </span>
+                  </Badge>
+                  <Badge variant="outline" className="flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    {new Date(listing.created_at).toLocaleDateString('fr-FR')}
+                  </Badge>
                 </div>
                 
                 <div className="border-t pt-4">
                   <h3 className="font-semibold mb-2">Description</h3>
-                  <p className="text-muted-foreground whitespace-pre-wrap">
+                  <p className="text-muted-foreground whitespace-pre-wrap leading-relaxed">
                     {listing.description}
                   </p>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Avis existants sur le vendeur */}
-            <ReviewsDisplay sellerId={listing.user_id} compact={true} />
+            {/* Avis existants sur le vendeur - Version améliorée */}
+            <EnhancedReviewsDisplay 
+              sellerId={listing.user_id} 
+              compact={true} 
+              key={reviewsRefreshKey}
+            />
 
-            {/* Formulaire d'avis */}
-            {!reviewCheckLoading && (
-              <ReviewForm
-                sellerId={listing.user_id}
-                listingId={listing.id}
-                listingTitle={listing.title}
-                onReviewSubmitted={handleReviewSubmitted}
-                canReview={canReview}
-              />
-            )}
+            {/* Formulaire d'avis amélioré */}
+            <EnhancedReviewForm
+              sellerId={listing.user_id}
+              listingId={listing.id}
+              listingTitle={listing.title}
+              onReviewSubmitted={handleReviewSubmitted}
+            />
           </div>
 
           {/* Sidebar - Contact et informations vendeur */}
           <div className="space-y-6">
             {/* Section contact */}
-            <Card>
+            <Card data-contact-section>
               <CardContent className="p-6">
-                <h3 className="font-semibold mb-4">Contacter le vendeur</h3>
+                <h3 className="font-semibold mb-4 flex items-center gap-2">
+                  <Phone className="h-5 w-5" />
+                  Contacter le vendeur
+                </h3>
                 
                 <div className="space-y-3">
                   {!showPhoneNumber ? (
                     <button 
                       onClick={handleShowPhoneNumber}
                       disabled={phoneLoading}
-                      className="w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 py-2 px-4 rounded transition-colors"
+                      className="w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 py-2 px-4 rounded transition-colors flex items-center justify-center gap-2"
                     >
-                      {phoneLoading ? "Chargement..." : "Afficher le numéro"}
+                      {phoneLoading ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                          Chargement...
+                        </>
+                      ) : (
+                        <>
+                          <Phone className="h-4 w-4" />
+                          Afficher le numéro
+                        </>
+                      )}
                     </button>
                   ) : (
                     <div className="w-full p-3 bg-muted rounded border-2 border-primary/20">
@@ -319,90 +366,119 @@ const BuyerListingDetailWithReviews = ({ listing }: BuyerListingDetailWithReview
                         const message = encodeURIComponent(`Bonjour, je suis intéressé(e) par votre annonce "${listing.title}" sur FasoMarket.`);
                         window.open(`https://wa.me/${whatsappNumber}?text=${message}`, '_blank');
                       }}
-                      className="w-full bg-green-600 text-white hover:bg-green-700 py-2 px-4 rounded transition-colors"
+                      className="w-full bg-green-600 text-white hover:bg-green-700 py-2 px-4 rounded transition-colors flex items-center justify-center gap-2"
                     >
+                      <MessageSquare className="h-4 w-4" />
                       Contacter sur WhatsApp
                     </button>
                   )}
                   
-                  <button className="w-full border border-input hover:bg-accent py-2 px-4 rounded">
+                  <button className="w-full border border-input hover:bg-accent py-2 px-4 rounded flex items-center justify-center gap-2">
+                    <MessageSquare className="h-4 w-4" />
                     Envoyer un message
                   </button>
                 </div>
                 
-                <div className="mt-4 text-sm text-muted-foreground">
-                  <p><strong>Temps de réponse :</strong> {
-                    profileLoading ? "..." : 
-                    sellerProfile?.response_rate >= 90 ? "Quelques heures" : 
-                    sellerProfile?.response_rate >= 70 ? "Quelques heures à 1 jour" : 
-                    "1-2 jours"
-                  }</p>
-                  <p><strong>Disponibilité :</strong> 8h - 18h</p>
+                <div className="mt-4 text-sm text-muted-foreground space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-3 w-3" />
+                    <span><strong>Temps de réponse :</strong> {
+                      profileLoading ? "..." : 
+                      sellerProfile?.response_rate >= 90 ? "Quelques heures" : 
+                      sellerProfile?.response_rate >= 70 ? "Quelques heures à 1 jour" : 
+                      "1-2 jours"
+                    }</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-3 w-3" />
+                    <span><strong>Disponibilité :</strong> 8h - 18h</span>
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* CORRECTION MAJEURE : Informations sur le vendeur avec VRAIES données */}
+            {/* Informations sur le vendeur avec données réelles et badges de confiance */}
             <Card>
               <CardContent className="p-6">
                 <h3 className="font-semibold mb-4">À propos du vendeur</h3>
                 
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
+                  <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center overflow-hidden">
                     {sellerProfile?.avatar_url || listing.profiles?.avatar_url ? (
                       <img 
                         src={sellerProfile?.avatar_url || listing.profiles.avatar_url} 
                         alt={sellerProfile?.full_name || listing.profiles.full_name} 
-                        className="w-full h-full rounded-full object-cover"
+                        className="w-full h-full object-cover"
                       />
                     ) : (
-                      <span className="text-lg font-semibold">
+                      <span className="text-lg font-semibold text-muted-foreground">
                         {(sellerProfile?.full_name || listing.profiles?.full_name)?.charAt(0) || 'V'}
                       </span>
                     )}
                   </div>
-                  <div>
+                  <div className="flex-1">
                     <h4 className="font-medium">
                       {sellerProfile?.full_name || listing.profiles?.full_name || 'Vendeur'}
                     </h4>
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm text-muted-foreground">
-                        Membre depuis {new Date(sellerProfile?.created_at || listing.created_at).getFullYear()}
-                      </p>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <span>Membre depuis {new Date(sellerProfile?.created_at || listing.created_at).getFullYear()}</span>
                       {sellerProfile?.is_verified && (
-                        <span className="text-blue-500 text-sm">✓ Vérifié</span>
+                        <Badge variant="secondary" className="text-xs">
+                          <Shield className="h-3 w-3 mr-1" />
+                          Vérifié
+                        </Badge>
                       )}
                     </div>
                   </div>
                 </div>
+
+                {/* Badge de confiance basé sur les avis */}
+                <div className="mb-4">
+                  {getTrustBadge()}
+                </div>
                 
-                {/* DONNÉES RÉELLES au lieu de valeurs codées en dur */}
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
+                {/* Statistiques du vendeur */}
+                <div className="grid grid-cols-2 gap-4 text-sm mb-4">
+                  <div className="text-center p-3 bg-muted/50 rounded">
                     <p className="text-muted-foreground">Annonces</p>
-                    <p className="font-medium">{getDisplayListingsCount()}</p>
+                    <p className="font-semibold text-lg">{getDisplayListingsCount()}</p>
                   </div>
-                  <div>
-                    <p className="text-muted-foreground">Note</p>
-                    <p className="font-medium">{getDisplayRating()}</p>
+                  <div className="text-center p-3 bg-muted/50 rounded">
+                    <p className="text-muted-foreground">Évaluation</p>
+                    <p className="font-semibold text-lg">{getDisplayRating()}</p>
                   </div>
                 </div>
                 
-                {/* Affichage des statistiques supplémentaires si disponibles */}
+                {/* Statistiques détaillées des avis si disponibles */}
                 {reviewsStats && reviewsStats.totalReviews > 0 && (
-                  <div className="mt-3 text-sm text-muted-foreground">
-                    <p>Basé sur {reviewsStats.totalReviews} avis</p>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Total des avis :</span>
+                      <span className="font-medium">{reviewsStats.totalReviews}</span>
+                    </div>
+                    {reviewsStats.verifiedPurchasesCount > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Achats vérifiés :</span>
+                        <span className="font-medium text-green-600">{reviewsStats.verifiedPurchasesCount}</span>
+                      </div>
+                    )}
+                    {reviewsStats.responseRate > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Taux de réponse :</span>
+                        <span className="font-medium">{reviewsStats.responseRate}%</span>
+                      </div>
+                    )}
                   </div>
                 )}
                 
                 {/* Bio du vendeur si disponible */}
                 {sellerProfile?.bio && (
-                  <div className="mt-3 text-sm text-muted-foreground">
-                    <p className="italic">"{sellerProfile.bio}"</p>
+                  <div className="mt-4 p-3 bg-muted/30 rounded text-sm">
+                    <p className="italic text-muted-foreground">"{sellerProfile.bio}"</p>
                   </div>
                 )}
                 
-                {/* CORRECTION : Bouton FONCTIONNEL pour voir le profil complet */}
+                {/* Bouton pour voir le profil complet */}
                 <button 
                   onClick={handleViewFullProfile}
                   className="w-full mt-4 border border-input hover:bg-accent py-2 px-4 rounded text-sm transition-colors"
@@ -412,15 +488,34 @@ const BuyerListingDetailWithReviews = ({ listing }: BuyerListingDetailWithReview
               </CardContent>
             </Card>
 
-            {/* Conseils de sécurité */}
-            <Card>
+            {/* Conseils de sécurité améliorés */}
+            <Card className="border-amber-200 bg-amber-50/30">
               <CardContent className="p-6">
-                <h3 className="font-semibold mb-4">Conseils de sécurité</h3>
-                <ul className="text-sm text-muted-foreground space-y-1">
-                  <li>• Rencontrez en lieu public</li>
-                  <li>• Vérifiez avant de payer</li>
-                  <li>• Ne payez jamais à l'avance</li>
-                  <li>• Laissez un avis après achat</li>
+                <h3 className="font-semibold mb-4 flex items-center gap-2 text-amber-800">
+                  <Shield className="h-5 w-5" />
+                  Conseils de sécurité
+                </h3>
+                <ul className="text-sm space-y-2 text-amber-700">
+                  <li className="flex items-start gap-2">
+                    <span className="text-amber-600 mt-1">•</span>
+                    <span>Rencontrez toujours en lieu public et fréquenté</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-amber-600 mt-1">•</span>
+                    <span>Examinez minutieusement avant de payer</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-amber-600 mt-1">•</span>
+                    <span>Ne payez jamais à l'avance sans voir l'article</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-amber-600 mt-1">•</span>
+                    <span>Laissez un avis honnête après votre achat</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-amber-600 mt-1">•</span>
+                    <span>Signalez tout comportement suspect</span>
+                  </li>
                 </ul>
               </CardContent>
             </Card>
