@@ -27,6 +27,7 @@ import MyProfile from "./pages/MyProfile";
 import HowToPublish from "./pages/HowToPublish";
 import MyListings from "./pages/MyListings";
 import SellerProfile from "./pages/SellerProfile";
+import EditListing from "./pages/EditListing";
 
 const queryClient = new QueryClient();
 
@@ -48,6 +49,21 @@ const App = () => (
               Cette approche offre une expérience utilisateur cohérente avec des URLs prévisibles
             */}
             <Route path="/listing/:id" element={<SmartListingDetail />} />
+
+             {/* 
+              NOUVELLE ROUTE : Édition d'annonce protégée
+              Seul le propriétaire de l'annonce peut y accéder
+              La vérification se fait dans le composant EditListing lui-même
+            */}
+            <Route 
+              path="/edit-listing/:id" 
+              element={
+                <ProtectedRoute>
+                  <EditListing />
+                </ProtectedRoute>
+              } 
+            />
+            
             
             <Route path="/publish" element={<PublishListing />} />
             <Route path="/login" element={<Login />} />

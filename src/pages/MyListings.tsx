@@ -11,6 +11,7 @@ import { useListings, useCreateListing } from "@/hooks/useListings"; // Import a
 import { useAuthContext } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
 
+
 const MyListings = () => {
   const { user } = useAuthContext();
   
@@ -261,7 +262,7 @@ const MyListings = () => {
                               </Link>
                             </DropdownMenuItem>
                             <DropdownMenuItem asChild>
-                              <Link to={`/publish?edit=${listing.id}`} className="flex items-center gap-2">
+                              <Link to={`/edit-listing/${listing.id}`} className="flex items-center gap-2">
                                 <Edit className="h-4 w-4" />
                                 Modifier
                               </Link>

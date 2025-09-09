@@ -555,70 +555,262 @@ export const useCreateListing = () => {
     }
   }, [user, toast]);
 
+  // Fonction updateListing CORRIGÉE - Remplace celle qui ne fonctionnait pas
   const updateListing = useCallback(async (id: string, updates: Partial<Listing>) => {
+    if (!user) {
+      toast({
+        title: "Erreur d'authentification",
+        description: "Vous devez être connecté pour modifier une annonce",
+        variant: "destructive"
+      });
+      return null;
+    }
+
+    if (!id) {
+      toast({
+        title: "Erreur",
+        description: "ID de l'annonce manquant",
+        variant: "destructive"
+      });
+      return null;
+    }
+
     setLoading(true);
     try {
+      console.log('Début de la mise à jour de l\'annonce:', { id, updates, userId: user.id });
+
+      // D'abord vérifier que l'annonce existe et appartient à l'utilisateur
+      const { data: existingListing, error: checkError } = await supabase
+        .from('listings')
+        .select('id, user_id, title')
+        .eq('id', id)
+        .single();
+
+      if (checkError) {
+        console.error('Erreur lors de la vérification de l\'annonce:', checkError);
+        throw new Error('Annonce introuvable');
+      }
+
+      if (!existingListing) {
+        throw new Error('Cette annonce n\'existe pas');
+      }
+
+      if (existingListing.user_id !== user.id) {
+        throw new Error('Vous n\'avez pas les droits pour modifier cette annonce');
+      }
+
+      // Préparer les données de mise à jour en excluant les champs non-modifiables
+      const allowedFields = [
+        'title', 'description', 'price', 'currency', 'category_id', 
+        'location', 'condition', 'contact_phone', 'contact_email', 
+        'contact_whatsapp', 'images', 'updated_at', 'status'
+      ];
+      
+      const sanitizedUpdates: any = {};
+      Object.keys(updates).forEach(key => {
+        if (allowedFields.includes(key) && updates[key as keyof Listing] !== undefined) {
+          sanitizedUpdates[key] = updates[key as keyof Listing];
+        }
+      });
+
+      // Toujours mettre à jour le timestamp
+      sanitizedUpdates.updated_at = new Date().toISOString();
+
+      console.log('Données à mettre à jour:', sanitizedUpdates);
+
+      // Effectuer la mise à jour
       const { data, error } = await supabase
         .from('listings')
-        .update(updates)
+        .update(sanitizedUpdates)
         .eq('id', id)
-        .eq('user_id', user?.id)
+        .eq('user_id', user.id) // Double sécurité
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Erreur Supabase lors de la mise à jour:', error);
+        
+        // Gestion spécifique des erreurs courantes
+        if (error.code === 'PGRST116') {
+          throw new Error('Aucune modification n\'a été effectuée');
+        } else if (error.code === '23503') {
+          throw new Error('Catégorie sélectionnée invalide');
+        } else if (error.message.includes('permission denied')) {
+          throw new Error('Vous n\'avez pas les droits pour modifier cette annonce');
+        } else {
+          throw new Error(`Erreur de base de données: ${error.message}`);
+        }
+      }
+
+      if (!data) {
+        console.warn('Mise à jour réussie mais aucune donnée retournée');
+        throw new Error('La mise à jour semble avoir échoué');
+      }
+
+      console.log('Mise à jour réussie:', data);
 
       toast({
-        title: "Succès",
-        description: "Annonce mise à jour avec succès !",
+        title: "Annonce mise à jour",
+        description: "Vos modifications ont été sauvegardées avec succès !",
+        duration: 4000
       });
 
       return data;
     } catch (err) {
-      toast({
-        title: "Erreur",
-        description: err instanceof Error ? err.message : "Erreur lors de la mise à jour",
-        variant: "destructive"
+      console.error('Erreur complète dans updateListing:', {
+        error: err,
+        id,
+        updates,
+        userId: user.id
       });
+
+      const errorMessage = err instanceof Error ? 
+        err.message : 
+        "Erreur inconnue lors de la mise à jour de l'annonce";
+
+      toast({
+        title: "Erreur de mise à jour",
+        description: errorMessage,
+        variant: "destructive",
+        duration: 6000
+      });
+      
       return null;
     } finally {
       setLoading(false);
     }
-  }, [user?.id, toast]);
+  }, [user, toast]);
 
+  // Fonction deleteListing CORRIGÉE - Version qui fonctionne vraiment
   const deleteListing = useCallback(async (id: string) => {
+    if (!user) {
+      toast({
+        title: "Erreur d'authentification",
+        description: "Vous devez être connecté pour supprimer une annonce",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    if (!id) {
+      toast({
+        title: "Erreur",
+        description: "ID de l'annonce manquant",
+        variant: "destructive"
+      });
+      return false;
+    }
+
     setLoading(true);
     try {
-      const { error } = await supabase
+      console.log('Début de la suppression de l\'annonce:', { id, userId: user.id });
+
+      // Vérification préalable
+      const { data: existingListing, error: checkError } = await supabase
+        .from('listings')
+        .select('id, user_id, title')
+        .eq('id', id)
+        .single();
+
+      if (checkError || !existingListing) {
+        throw new Error('Annonce introuvable');
+      }
+
+      if (existingListing.user_id !== user.id) {
+        throw new Error('Vous n\'avez pas les droits pour supprimer cette annonce');
+      }
+
+      // Supprimer d'abord les données liées pour éviter les erreurs de contrainte
+
+      // 1. Supprimer les favoris
+      const { error: favoritesError } = await supabase
+        .from('favorites')
+        .delete()
+        .eq('listing_id', id);
+
+      if (favoritesError) {
+        console.warn('Erreur suppression favoris (non critique):', favoritesError);
+      }
+
+      // 2. Supprimer les messages
+      const { error: messagesError } = await supabase
+        .from('messages')
+        .delete()
+        .eq('listing_id', id);
+
+      if (messagesError) {
+        console.warn('Erreur suppression messages (non critique):', messagesError);
+      }
+
+      // 3. Supprimer les messages d'invités si la table existe
+      const { error: guestMessagesError } = await supabase
+        .from('guest_messages')
+        .delete()
+        .eq('listing_id', id);
+
+      if (guestMessagesError && guestMessagesError.code !== 'PGRST116') {
+        console.warn('Erreur suppression guest_messages (non critique):', guestMessagesError);
+      }
+
+      // 4. Supprimer les signalements liés
+      const { error: reportsError } = await supabase
+        .from('reports')
+        .delete()
+        .eq('listing_id', id);
+
+      if (reportsError) {
+        console.warn('Erreur suppression reports (non critique):', reportsError);
+      }
+
+      // 5. Finalement, supprimer l'annonce
+      const { error: deleteError } = await supabase
         .from('listings')
         .delete()
         .eq('id', id)
-        .eq('user_id', user?.id);
+        .eq('user_id', user.id); // Double sécurité
 
-      if (error) throw error;
+      if (deleteError) {
+        console.error('Erreur lors de la suppression de l\'annonce:', deleteError);
+        throw new Error(`Impossible de supprimer l'annonce: ${deleteError.message}`);
+      }
+
+      console.log('Suppression réussie');
 
       toast({
-        title: "Succès",
-        description: "Annonce supprimée avec succès !",
+        title: "Annonce supprimée",
+        description: `L'annonce "${existingListing.title}" a été supprimée définitivement`,
+        duration: 5000
       });
 
       return true;
     } catch (err) {
-      toast({
-        title: "Erreur",
-        description: err instanceof Error ? err.message : "Erreur lors de la suppression",
-        variant: "destructive"
+      console.error('Erreur complète dans deleteListing:', {
+        error: err,
+        id,
+        userId: user.id
       });
+
+      const errorMessage = err instanceof Error ? 
+        err.message : 
+        "Erreur inconnue lors de la suppression de l'annonce";
+
+      toast({
+        title: "Erreur de suppression",
+        description: errorMessage,
+        variant: "destructive",
+        duration: 6000
+      });
+      
       return false;
     } finally {
       setLoading(false);
     }
-  }, [user?.id, toast]);
+  }, [user, toast]);
 
   return {
     createListing,
-    updateListing,
-    deleteListing,
+    updateListing,   // Version corrigée
+    deleteListing,   // Version corrigée
     loading
   };
 };
