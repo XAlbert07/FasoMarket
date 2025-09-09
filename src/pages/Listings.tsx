@@ -11,6 +11,8 @@ import { MapPin, Eye, Heart, Phone, Search, Filter } from "lucide-react";
 import { useListings } from "@/hooks/useListings";
 import { useFavorites } from "@/hooks/useFavorites";
 import { SearchFilters } from "@/types/database";
+import { Link } from "react-router-dom";
+
 
 const Listings = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -228,15 +230,16 @@ const Listings = () => {
 
                     <div className="flex items-center text-sm text-muted-foreground">
                       <Eye className="h-4 w-4 mr-1" />
-                      {listing.views} vues
+                      {listing.views_count} vues
                     </div>
 
                     <div className="pt-2 space-y-2">
                       <Button className="w-full" asChild>
-                        <a href={`/listing/${listing.id}`}>
-                          Voir les détails
-                        </a>
+                         <Link to={`/listing/${listing.id}`}>
+                            Voir les détails
+                         </Link>
                       </Button>
+
                       
                       {revealedPhones.includes(listing.id) ? (
                         <div className="flex items-center justify-center space-x-2 p-2 bg-muted rounded">

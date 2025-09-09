@@ -1,12 +1,19 @@
+// pages/SellerProfile.tsx
+// Version complète avec système de signalement intégré et interface utilisateur améliorée
+
 import { useParams, Link, useNavigate } from "react-router-dom";
+import { useState } from "react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+import { EnhancedReportDialog } from "@/components/EnhancedReportDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { 
   MapPin, 
   Calendar, 
@@ -17,62 +24,40 @@ import {
   CheckCircle, 
   Crown,
   Package,
-  User
+  User,
+  Flag,
+  Shield,
+  MoreVertical,
+  Share2,
+  AlertTriangle,
+  Info,
+  Heart,
+  HeartOff,
+  Mail
 } from "lucide-react";
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { formatRelativeTime, formatPrice } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { useAuthContext } from "@/contexts/AuthContext";
 
-// Conservation de la logique métier robuste avec les hooks spécialisés
+// Hooks spécialisés avec gestion d'erreur robuste
 import { useSellerProfile } from '@/hooks/useSellerProfile';
 import { useSellerListings } from '@/hooks/useSellerListings';
 import { useSellerReviews } from '@/hooks/useSellerReviews';
-
-// Interfaces maintenues pour assurer la compatibilité
-interface SellerProfile {
-  id: string;
-  full_name: string;
-  avatar_url?: string;
-  bio?: string;
-  city?: string;
-  created_at: string;
-  is_verified: boolean;
-  total_listings: number;
-  active_listings: number;
-  average_rating: number;
-  total_reviews: number;
-  phone?: string;
-}
-
-interface SellerListing {
-  id: string;
-  title: string;
-  price: number;
-  currency: string;
-  location: string;
-  condition: string;
-  images: string[];
-  created_at: string;
-  views_count: number;
-  category_name: string;
-}
-
-interface Review {
-  id: string;
-  rating: number;
-  comment: string;
-  reviewer_name: string;
-  created_at: string;
-  listing_title: string;
-}
+import { useFavorites } from '@/hooks/useFavorites';
 
 const SellerProfile = () => {
   const { sellerId } = useParams<{ sellerId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuthContext();
   
-  // Conservation de la logique de données sophistiquée
+  // États pour l'interface utilisateur
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  
+  // Récupération des données avec gestion d'erreur
   const { 
     profile,
     stats,
@@ -86,7 +71,7 @@ const SellerProfile = () => {
     error: listingsError
   } = useSellerListings(sellerId || '', { 
     status: 'active',
-    limit: 8  // Augmenté pour une meilleure présentation
+    limit: 12  // Augmenté pour une meilleure présentation
   });
   
   const { 
@@ -95,74 +80,197 @@ const SellerProfile = () => {
     loading: reviewsLoading,
     error: reviewsError
   } = useSellerReviews(sellerId || '', { 
-    limit: 6  // Augmenté pour une meilleure vue d'ensemble
+    limit: 8  // Augmenté pour une vue d'ensemble complète
   });
 
-  // Gestion intelligente des états préservée
+  const { favorites, addToFavorites, removeFromFavorites, loading: favLoading } = useFavorites();
+
+  // Gestion des états avec fallbacks intelligents
   const loading = profileLoading;
   const error = profileError || (!profile && !profileLoading ? 'Profil introuvable' : null);
 
-  // Fonction de contact améliorée conservée
+  // Fonction de contact améliorée avec validation
   const handleContact = () => {
-    if (profile?.phone) {
+    if (!profile) {
+      toast({
+        title: "Erreur",
+        description: "Informations du vendeur non disponibles",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (profile.phone) {
       window.location.href = `tel:${profile.phone}`;
     } else {
       toast({
-        title: "Contact non disponible",
-        description: "Les informations de contact de ce vendeur ne sont pas publiques",
+        title: "Contact indisponible",
+        description: "Ce vendeur n'a pas publié de numéro de téléphone",
         variant: "destructive"
       });
     }
   };
 
-  // Fonction pour le rendu des étoiles avec style épuré
+  // Fonction de partage du profil avec options multiples
+  const handleShare = async () => {
+    const shareData = {
+      title: `Profil de ${profile?.full_name || 'Vendeur'} sur FasoMarket`,
+      text: `Découvrez le profil de ${profile?.full_name || 'ce vendeur'} sur FasoMarket`,
+      url: window.location.href
+    };
+
+    if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+      try {
+        await navigator.share(shareData);
+      } catch (error) {
+        setIsShareModalOpen(true);
+      }
+    } else {
+      setIsShareModalOpen(true);
+    }
+  };
+
+  // Fonction pour copier le lien du profil
+  const copyProfileLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      toast({
+        title: "Lien copié",
+        description: "Le lien du profil a été copié dans le presse-papiers."
+      });
+      setIsShareModalOpen(false);
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Impossible de copier le lien.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Fonction de gestion des favoris sur les annonces
+  const handleFavoriteToggle = async (listingId: string) => {
+    if (!user) {
+      toast({
+        title: "Connexion requise",
+        description: "Connectez-vous pour ajouter des annonces à vos favoris.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const isFavorite = favorites.some(fav => fav.listing_id === listingId);
+    
+    try {
+      if (isFavorite) {
+        await removeFromFavorites(listingId);
+        toast({
+          title: "Retiré des favoris",
+          description: "L'annonce a été retirée de vos favoris."
+        });
+      } else {
+        await addToFavorites(listingId);
+        toast({
+          title: "Ajouté aux favoris",
+          description: "L'annonce a été ajoutée à vos favoris."
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Impossible de modifier les favoris pour le moment.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Fonction pour le rendu des étoiles avec design amélioré
   const renderStars = (rating: number) => {
     return Array.from({ length: 5 }, (_, i) => (
       <Star
         key={i}
         className={`h-4 w-4 ${
-          i < Math.floor(rating) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'
+          i < Math.floor(rating) ? 'text-yellow-400 fill-yellow-400' : 
+          i < rating ? 'text-yellow-400 fill-yellow-200' : 'text-gray-300'
         }`}
       />
     ));
   };
 
-  // Fonction pour déterminer les badges appropriés basée sur les performances
+  // Fonction pour déterminer les badges basés sur les performances et la confiance
   const getBadges = () => {
     const badges = [];
     
-    // Badge de vérification en vert pour la confiance de base
     if (profile?.is_verified) {
       badges.push({
         icon: <CheckCircle className="h-4 w-4" />,
-        text: "Vérifié",
+        text: "Profil vérifié",
         variant: "default" as const,
         className: "bg-green-100 text-green-800 border-green-200 dark:bg-green-900 dark:text-green-100"
       });
     }
     
-    // Badge d'excellence en doré pour les vendeurs exceptionnels
-    if (profile?.average_rating >= 4.7 && profile?.total_reviews >= 10) {
+    // Badge d'excellence pour les vendeurs exceptionnels
+    if (profile?.average_rating >= 4.7 && profile?.total_reviews >= 15) {
       badges.push({
         icon: <Crown className="h-4 w-4" />,
-        text: "Excellence",
+        text: "Vendeur d'excellence",
         variant: "secondary" as const,
         className: "bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900 dark:text-yellow-100"
+      });
+    } else if (profile?.average_rating >= 4.5 && profile?.total_reviews >= 10) {
+      badges.push({
+        icon: <Shield className="h-4 w-4" />,
+        text: "Vendeur de confiance",
+        variant: "secondary" as const,
+        className: "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900 dark:text-blue-100"
       });
     }
     
     return badges;
   };
 
-  // État de chargement épuré
+  // État de chargement avec skeleton moderne
   if (loading) {
     return (
       <div className="min-h-screen">
         <Header />
-        <main className="container mx-auto px-4 py-8">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-            <p className="mt-4 text-muted-foreground">Chargement du profil...</p>
+        <main className="container mx-auto px-4 py-8 max-w-6xl">
+          <div className="animate-pulse space-y-8">
+            {/* Header skeleton */}
+            <Card>
+              <CardContent className="pt-8 pb-8">
+                <div className="flex flex-col lg:flex-row gap-8">
+                  <div className="flex flex-col items-center lg:items-start gap-6">
+                    <div className="h-28 w-28 bg-muted rounded-full" />
+                    <div className="space-y-3 w-full lg:max-w-xs">
+                      <div className="h-12 bg-muted rounded" />
+                      <div className="h-12 bg-muted rounded" />
+                    </div>
+                  </div>
+                  <div className="flex-1 space-y-6">
+                    <div className="space-y-3">
+                      <div className="h-8 bg-muted rounded w-1/2" />
+                      <div className="h-4 bg-muted rounded w-3/4" />
+                    </div>
+                    <div className="h-20 bg-muted rounded" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            {/* Stats skeleton */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {[...Array(3)].map((_, i) => (
+                <Card key={i}>
+                  <CardContent className="pt-6 pb-6 text-center">
+                    <div className="h-8 w-8 bg-muted rounded mx-auto mb-3" />
+                    <div className="h-6 bg-muted rounded mb-2" />
+                    <div className="h-4 bg-muted rounded" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </div>
         </main>
         <Footer />
@@ -170,22 +278,31 @@ const SellerProfile = () => {
     );
   }
 
-  // Gestion des erreurs avec design épuré
+  // Gestion d'erreur avec design amélioré et actions recommandées
   if (error || !profile) {
     return (
       <div className="min-h-screen">
         <Header />
         <main className="container mx-auto px-4 py-8">
-          <Card className="max-w-md mx-auto">
-            <CardContent className="pt-6 text-center">
-              <User className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <h2 className="text-xl font-semibold mb-2">Vendeur introuvable</h2>
-              <p className="text-muted-foreground mb-4">
-                Ce profil vendeur n'existe pas ou n'est plus disponible.
-              </p>
-              <Button onClick={() => navigate('/listings')}>
-                Retour aux annonces
-              </Button>
+          <Card className="max-w-2xl mx-auto">
+            <CardContent className="pt-12 pb-12 text-center space-y-6">
+              <div className="mx-auto w-20 h-20 bg-red-100 rounded-full flex items-center justify-center">
+                <User className="w-10 h-10 text-red-600" />
+              </div>
+              <div className="space-y-2">
+                <h2 className="text-2xl font-bold">Profil vendeur introuvable</h2>
+                <p className="text-muted-foreground max-w-md mx-auto">
+                  Ce profil vendeur n'existe pas, a été suspendu ou n'est plus disponible sur FasoMarket.
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <Button onClick={() => navigate('/listings')} variant="outline">
+                  Voir toutes les annonces
+                </Button>
+                <Button onClick={() => window.history.back()}>
+                  Retour
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </main>
@@ -201,14 +318,43 @@ const SellerProfile = () => {
       <Header />
       <main className="container mx-auto px-4 py-6 max-w-6xl">
         
-        {/* Section principale du profil repensée */}
+        {/* Barre d'actions en haut */}
+        <div className="flex items-center justify-between mb-6 p-4 bg-card rounded-lg border">
+          <Button
+            variant="ghost"
+            onClick={() => window.history.back()}
+          >
+            ← Retour
+          </Button>
+          
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={handleShare}>
+              <Share2 className="h-4 w-4 mr-1" />
+              Partager
+            </Button>
+            
+            {/* Intégration du signalement de profil */}
+            <EnhancedReportDialog
+              profileId={sellerId}
+              profileName={profile.full_name}
+              trigger={
+                <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50">
+                  <Flag className="h-4 w-4 mr-1" />
+                  Signaler
+                </Button>
+              }
+            />
+          </div>
+        </div>
+        
+        {/* Section principale du profil */}
         <Card className="mb-6">
           <CardContent className="pt-8 pb-8">
             <div className="flex flex-col lg:flex-row gap-8">
               
-              {/* Colonne gauche : Avatar et contact */}
+              {/* Colonne gauche : Avatar et actions */}
               <div className="flex flex-col items-center lg:items-start gap-6">
-                <Avatar className="h-28 w-28 ring-4 ring-primary/10">
+                <Avatar className="h-32 w-32 ring-4 ring-primary/10">
                   <AvatarImage 
                     src={profile.avatar_url} 
                     alt={`Photo de ${profile.full_name}`}
@@ -218,15 +364,15 @@ const SellerProfile = () => {
                   </AvatarFallback>
                 </Avatar>
 
-                {/* Boutons d'action repositionnés */}
+                {/* Boutons d'action */}
                 <div className="flex flex-col w-full gap-3 lg:max-w-xs">
-                  <Button onClick={handleContact} className="w-full">
+                  <Button onClick={handleContact} size="lg" className="w-full">
                     <Phone className="h-4 w-4 mr-2" />
-                    Contacter le vendeur
+                    Contacter
                   </Button>
-                  <Button variant="outline" className="w-full">
+                  <Button variant="outline" size="lg" className="w-full">
                     <MessageCircle className="h-4 w-4 mr-2" />
-                    Envoyer un message
+                    Message
                   </Button>
                 </div>
               </div>
@@ -234,27 +380,30 @@ const SellerProfile = () => {
               {/* Colonne droite : Informations détaillées */}
               <div className="flex-1 space-y-6">
                 
-                {/* Nom et badges repositionnés stratégiquement */}
-                <div className="space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                    <h1 className="text-3xl font-bold text-foreground">
-                      {profile.full_name}
-                    </h1>
-                    {/* Badges près du nom pour impact visuel maximal */}
-                    {badges.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {badges.map((badge, index) => (
-                          <Badge 
-                            key={index}
-                            variant={badge.variant}
-                            className={badge.className}
-                          >
-                            {badge.icon}
-                            <span className="ml-1">{badge.text}</span>
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
+                {/* Nom, badges et métadonnées */}
+                <div className="space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                    <div className="space-y-3">
+                      <h1 className="text-3xl font-bold text-foreground">
+                        {profile.full_name}
+                      </h1>
+                      
+                      {/* Badges de confiance positionnés stratégiquement */}
+                      {badges.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {badges.map((badge, index) => (
+                            <Badge 
+                              key={index}
+                              variant={badge.variant}
+                              className={badge.className}
+                            >
+                              {badge.icon}
+                              <span className="ml-1">{badge.text}</span>
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Métadonnées du profil */}
@@ -272,38 +421,64 @@ const SellerProfile = () => {
                         locale: fr
                       })}</span>
                     </div>
+                    <div className="flex items-center gap-1">
+                      <Eye className="h-4 w-4" />
+                      <span>Vu récemment</span>
+                    </div>
                   </div>
                 </div>
 
-                {/* Bio intégrée dans la section principale */}
+                {/* Bio intégrée */}
                 {profile.bio && (
-                  <div className="space-y-2">
-                    <h3 className="font-semibold text-foreground">Présentation</h3>
-                    <p className="text-muted-foreground leading-relaxed text-base">
-                      {profile.bio}
-                    </p>
+                  <div className="space-y-3">
+                    <h3 className="font-semibold text-lg text-foreground">Présentation</h3>
+                    <div className="p-4 bg-muted/30 rounded-lg">
+                      <p className="text-muted-foreground leading-relaxed text-base italic">
+                        "{profile.bio}"
+                      </p>
+                    </div>
                   </div>
                 )}
 
-                {/* Évaluation et statistiques épurées */}
-                <div className="flex items-center gap-6">
+                {/* Évaluation et performances */}
+                <div className="flex flex-wrap items-center gap-6">
                   <div className="flex items-center gap-2">
                     {renderStars(profile.average_rating)}
-                    <span className="font-medium text-foreground">
+                    <span className="font-semibold text-lg text-foreground">
                       {profile.average_rating.toFixed(1)}
                     </span>
                     <span className="text-muted-foreground">
                       ({profile.total_reviews} avis)
                     </span>
                   </div>
+                  
+                  {reviewsStats && reviewsStats.responseRate > 0 && (
+                    <div className="flex items-center gap-1 text-sm">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      <span className="text-muted-foreground">
+                        {reviewsStats.responseRate}% de réponse
+                      </span>
+                    </div>
+                  )}
                 </div>
+
+                {/* Alerte pour profils avec peu d'activité */}
+                {profile.total_reviews === 0 && (
+                  <Alert className="border-amber-200 bg-amber-50/30">
+                    <Info className="h-4 w-4 text-amber-600" />
+                    <AlertDescription className="text-amber-700">
+                      Ce vendeur est nouveau sur FasoMarket. Soyez prudent lors de vos transactions 
+                      et privilégiez les rencontres en lieu public.
+                    </AlertDescription>
+                  </Alert>
+                )}
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Statistiques épurées et ciblées */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        {/* Statistiques consolidées */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <Card className="text-center">
             <CardContent className="pt-6 pb-6">
               <Package className="h-8 w-8 mx-auto mb-3 text-primary" />
@@ -327,9 +502,19 @@ const SellerProfile = () => {
               <p className="text-sm text-muted-foreground">Avis reçus</p>
             </CardContent>
           </Card>
+
+          <Card className="text-center">
+            <CardContent className="pt-6 pb-6">
+              <CheckCircle className="h-8 w-8 mx-auto mb-3 text-blue-500" />
+              <div className="text-2xl font-bold text-foreground">
+                {reviewsStats?.responseRate || 0}%
+              </div>
+              <p className="text-sm text-muted-foreground">Taux de réponse</p>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Navigation par onglets simplifiée */}
+        {/* Navigation par onglets avec contenu enrichi */}
         <Tabs defaultValue="listings" className="space-y-6">
           <TabsList className="grid w-full grid-cols-2 max-w-md">
             <TabsTrigger value="listings">
@@ -340,7 +525,7 @@ const SellerProfile = () => {
             </TabsTrigger>
           </TabsList>
 
-          {/* Section des annonces avec présentation améliorée */}
+          {/* Section des annonces avec favoris intégrés */}
           <TabsContent value="listings" className="space-y-6">
             {listingsLoading ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -358,7 +543,7 @@ const SellerProfile = () => {
             ) : listingsError ? (
               <Card>
                 <CardContent className="pt-8 pb-8 text-center">
-                  <Package className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                  <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-red-500" />
                   <h3 className="font-semibold mb-2">Erreur de chargement</h3>
                   <p className="text-muted-foreground">
                     Impossible de charger les annonces pour le moment.
@@ -367,70 +552,110 @@ const SellerProfile = () => {
               </Card>
             ) : listings.length === 0 ? (
               <Card>
-                <CardContent className="pt-12 pb-12 text-center">
+                <CardContent className="pt-16 pb-16 text-center">
                   <Package className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-                  <h3 className="text-lg font-semibold mb-2">Aucune annonce active</h3>
-                  <p className="text-muted-foreground">
-                    Ce vendeur n'a pas d'annonces disponibles actuellement.
+                  <h3 className="text-xl font-semibold mb-2">Aucune annonce active</h3>
+                  <p className="text-muted-foreground max-w-md mx-auto">
+                    Ce vendeur n'a pas d'annonces disponibles actuellement. 
+                    Revenez plus tard pour voir ses nouvelles publications.
                   </p>
                 </CardContent>
               </Card>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {listings.map((listing) => (
-                  <Card key={listing.id} className="group overflow-hidden hover:shadow-lg transition-all duration-300">
-                    <div className="relative aspect-square">
-                      <img
-                        src={listing.images[0] || '/placeholder.svg'}
-                        alt={listing.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                      <Badge 
-                        className="absolute top-3 right-3" 
-                        variant={listing.condition === 'new' ? 'default' : 'secondary'}
-                      >
-                        {listing.condition === 'new' ? 'Neuf' : 'Occasion'}
-                      </Badge>
-                      <div className="absolute bottom-3 left-3">
-                        <Badge variant="outline" className="bg-white/90 text-xs">
-                          {listing.category_name}
+                {listings.map((listing) => {
+                  const isFavorite = favorites.some(fav => fav.listing_id === listing.id);
+                  
+                  return (
+                    <Card key={listing.id} className="group overflow-hidden hover:shadow-lg transition-all duration-300">
+                      <div className="relative aspect-square">
+                        <img
+                          src={listing.images[0] || '/placeholder.svg'}
+                          alt={listing.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                        
+                        {/* Badge de condition */}
+                        <Badge 
+                          className="absolute top-3 right-3" 
+                          variant={listing.condition === 'new' ? 'default' : 'secondary'}
+                        >
+                          {listing.condition === 'new' ? 'Neuf' : 'Occasion'}
                         </Badge>
-                      </div>
-                    </div>
-
-                    <CardContent className="p-4 space-y-3">
-                      <h3 className="font-semibold line-clamp-2 text-foreground">
-                        {listing.title}
-                      </h3>
-                      
-                      <div className="text-xl font-bold text-primary">
-                        {formatPrice(listing.price, listing.currency)}
-                      </div>
-                      
-                      <div className="flex items-center justify-between text-sm text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <MapPin className="h-3 w-3" />
-                          <span className="truncate">{listing.location}</span>
+                        
+                        {/* Bouton favori */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="absolute top-3 left-3 bg-white/90 hover:bg-white"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            handleFavoriteToggle(listing.id);
+                          }}
+                          disabled={favLoading}
+                        >
+                          {isFavorite ? (
+                            <Heart className="h-4 w-4 text-red-500 fill-current" />
+                          ) : (
+                            <HeartOff className="h-4 w-4" />
+                          )}
+                        </Button>
+                        
+                        {/* Badge catégorie */}
+                        <div className="absolute bottom-3 left-3">
+                          <Badge variant="outline" className="bg-white/90 text-xs">
+                            {listing.category_name}
+                          </Badge>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <Eye className="h-3 w-3" />
-                          <span>{listing.views_count}</span>
-                        </div>
                       </div>
 
-                      <Button asChild className="w-full" size="sm">
-                        <Link to={`/listing/${listing.id}`}>
-                          Voir l'annonce
-                        </Link>
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ))}
+                      <CardContent className="p-4 space-y-3">
+                        <h3 className="font-semibold line-clamp-2 text-foreground min-h-[2.5rem]">
+                          {listing.title}
+                        </h3>
+                        
+                        <div className="text-xl font-bold text-primary">
+                          {formatPrice(listing.price, listing.currency)}
+                        </div>
+                        
+                        <div className="flex items-center justify-between text-sm text-muted-foreground">
+                          <div className="flex items-center gap-1">
+                            <MapPin className="h-3 w-3" />
+                            <span className="truncate">{listing.location}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Eye className="h-3 w-3" />
+                            <span>{listing.views_count}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2">
+                          <Button asChild className="flex-1" size="sm">
+                            <Link to={`/listing/${listing.id}`}>
+                              Voir l'annonce
+                            </Link>
+                          </Button>
+                          
+                          {/* Bouton de signalement d'annonce intégré */}
+                          <EnhancedReportDialog
+                            listingId={listing.id}
+                            listingTitle={listing.title}
+                            trigger={
+                              <Button variant="outline" size="sm" className="px-2">
+                                <Flag className="h-4 w-4" />
+                              </Button>
+                            }
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             )}
           </TabsContent>
 
-          {/* Section des avis épurée */}
+          {/* Section des avis avec design amélioré */}
           <TabsContent value="reviews" className="space-y-4">
             {reviewsLoading ? (
               <div className="space-y-4">
@@ -439,15 +664,18 @@ const SellerProfile = () => {
                     <CardContent className="p-6">
                       <div className="flex items-start justify-between mb-4">
                         <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 bg-muted rounded-full animate-pulse"></div>
+                          <div className="h-12 w-12 bg-muted rounded-full animate-pulse"></div>
                           <div className="space-y-2">
-                            <div className="h-4 bg-muted rounded w-24 animate-pulse"></div>
-                            <div className="h-3 bg-muted rounded w-20 animate-pulse"></div>
+                            <div className="h-4 bg-muted rounded w-32 animate-pulse"></div>
+                            <div className="h-3 bg-muted rounded w-24 animate-pulse"></div>
                           </div>
                         </div>
-                        <div className="h-3 bg-muted rounded w-16 animate-pulse"></div>
+                        <div className="h-3 bg-muted rounded w-20 animate-pulse"></div>
                       </div>
-                      <div className="h-16 bg-muted rounded animate-pulse"></div>
+                      <div className="space-y-2">
+                        <div className="h-4 bg-muted rounded animate-pulse"></div>
+                        <div className="h-4 bg-muted rounded w-3/4 animate-pulse"></div>
+                      </div>
                     </CardContent>
                   </Card>
                 ))}
@@ -455,7 +683,7 @@ const SellerProfile = () => {
             ) : reviewsError ? (
               <Card>
                 <CardContent className="pt-8 pb-8 text-center">
-                  <Star className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                  <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-red-500" />
                   <h3 className="font-semibold mb-2">Erreur de chargement</h3>
                   <p className="text-muted-foreground">
                     Impossible de charger les avis pour le moment.
@@ -464,11 +692,12 @@ const SellerProfile = () => {
               </Card>
             ) : reviews.length === 0 ? (
               <Card>
-                <CardContent className="pt-12 pb-12 text-center">
+                <CardContent className="pt-16 pb-16 text-center">
                   <Star className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-                  <h3 className="text-lg font-semibold mb-2">Aucun avis pour le moment</h3>
-                  <p className="text-muted-foreground">
-                    Ce vendeur n'a pas encore reçu d'évaluations d'acheteurs.
+                  <h3 className="text-xl font-semibold mb-2">Aucun avis pour le moment</h3>
+                  <p className="text-muted-foreground max-w-md mx-auto">
+                    Ce vendeur n'a pas encore reçu d'évaluations d'acheteurs. 
+                    Soyez le premier à laisser un avis après un achat.
                   </p>
                 </CardContent>
               </Card>
@@ -479,17 +708,25 @@ const SellerProfile = () => {
                     <CardContent className="p-6">
                       <div className="flex items-start justify-between mb-4">
                         <div className="flex items-center gap-3">
-                          <Avatar className="h-10 w-10">
-                            <AvatarFallback>
+                          <Avatar className="h-12 w-12">
+                            <AvatarFallback className="bg-primary/10">
                               {review.reviewer_name?.charAt(0).toUpperCase() || 'A'}
                             </AvatarFallback>
                           </Avatar>
                           <div>
                             <h4 className="font-semibold text-foreground">
-                              {review.reviewer_name || 'Acheteur anonyme'}
+                              {review.reviewer_name || 'Acheteur vérifié'}
                             </h4>
-                            <div className="flex items-center gap-1 mt-1">
-                              {renderStars(review.rating)}
+                            <div className="flex items-center gap-2 mt-1">
+                              <div className="flex items-center gap-1">
+                                {renderStars(review.rating)}
+                              </div>
+                              {review.transaction_confirmed && (
+                                <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                                  <CheckCircle className="h-3 w-3 mr-1" />
+                                  Achat vérifié
+                                </Badge>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -502,24 +739,94 @@ const SellerProfile = () => {
                       </div>
 
                       {review.comment && (
-                        <p className="text-muted-foreground leading-relaxed mb-3">
-                          {review.comment}
-                        </p>
+                        <div className="mb-4">
+                          <p className="text-muted-foreground leading-relaxed">
+                            "{review.comment}"
+                          </p>
+                        </div>
                       )}
 
                       {review.listing_title && (
                         <div className="text-sm text-muted-foreground border-t pt-3">
-                          Concernant : <span className="font-medium">{review.listing_title}</span>
+                          <div className="flex items-center gap-1">
+                            <Package className="h-3 w-3" />
+                            <span>Concernant : <span className="font-medium">{review.listing_title}</span></span>
+                          </div>
                         </div>
                       )}
                     </CardContent>
                   </Card>
                 ))}
+                
+                {/* Afficher plus d'avis si disponibles */}
+                {reviewsStats && reviewsStats.totalReviews > reviews.length && (
+                  <Card className="border-dashed">
+                    <CardContent className="pt-8 pb-8 text-center">
+                      <p className="text-muted-foreground mb-4">
+                        {reviewsStats.totalReviews - reviews.length} autres avis disponibles
+                      </p>
+                      <Button variant="outline">
+                        Voir tous les avis
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             )}
           </TabsContent>
         </Tabs>
       </main>
+
+      {/* Modal de partage */}
+      <Dialog open={isShareModalOpen} onOpenChange={setIsShareModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Partager ce profil</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="text-sm text-muted-foreground">
+              Partagez le profil de {profile.full_name} avec vos contacts
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <input 
+                value={window.location.href} 
+                readOnly 
+                className="flex-1 px-3 py-2 border border-input rounded-md bg-background text-sm"
+              />
+              <Button onClick={copyProfileLink} size="sm">
+                Copier
+              </Button>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const text = encodeURIComponent(`Découvrez le profil de ${profile.full_name} sur FasoMarket`);
+                  const url = encodeURIComponent(window.location.href);
+                  window.open(`https://wa.me/?text=${text} ${url}`, '_blank');
+                }}
+              >
+                <MessageCircle className="h-4 w-4 mr-2" />
+                WhatsApp
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const text = encodeURIComponent(`Profil ${profile.full_name} sur FasoMarket`);
+                  const url = encodeURIComponent(window.location.href);
+                  window.open(`sms:?body=${text} ${url}`, '_blank');
+                }}
+              >
+                <Phone className="h-4 w-4 mr-2" />
+                SMS
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Footer />
     </div>
   );

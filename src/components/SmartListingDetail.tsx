@@ -1,5 +1,5 @@
 // components/SmartListingDetail.tsx
-// Version mise à jour avec système de messagerie intégré et hook spécialisé pour les invités
+// Version complète avec système de signalement intégré et améliorations UX
 
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -8,32 +8,88 @@ import { useListing } from "@/hooks/useListings";
 import { useSellerProfile } from "@/hooks/useSellerProfile";
 import { useSellerActiveListings } from "@/hooks/useSellerListings";
 import { useSellerReviewsStats } from "@/hooks/useSellerReviews";
-// Import du nouveau hook pour les messages d'invités
 import { useGuestMessages } from '@/hooks/useGuestMessages';
-import ListingDetail from "@/pages/ListingDetail";
+import { useFavorites } from '@/hooks/useFavorites';
+// Suppression de l'import circulaire problématique
+// import ListingDetail from "@/pages/ListingDetail";
 import OwnerListingDetail from "@/components/OwnerListingDetail";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+import { EnhancedReportDialog } from "@/components/EnhancedReportDialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { EnhancedReviewForm, EnhancedReviewsDisplay } from "@/components/EnhancedReviewSystem";
 import { ChatModal } from "@/components/ChatModal";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
-import { Star, Shield, MessageSquare, Phone, MapPin, Clock, Send } from "lucide-react";
+import { 
+  Star, 
+  Shield, 
+  MessageSquare, 
+  Phone, 
+  MapPin, 
+  Clock, 
+  Send, 
+  Flag,
+  Heart,
+  HeartOff,
+  Eye,
+  Share2,
+  MoreVertical,
+  AlertTriangle,
+  CheckCircle,
+  Info,
+  Package,
+  Crown,
+  User
+} from "lucide-react";
 
 const SmartListingDetail = () => {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuthContext();
-  const { listing, loading, error } = useListing(id!);
+  const navigate = useNavigate();
+  
+  // Vérification critique : si pas d'ID, retour immédiat
+  if (!id) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <main className="container mx-auto px-4 py-8">
+          <div className="max-w-2xl mx-auto">
+            <Card>
+              <CardContent className="p-12 text-center space-y-6">
+                <div className="mx-auto w-20 h-20 bg-red-100 rounded-full flex items-center justify-center">
+                  <AlertTriangle className="w-10 h-10 text-red-600" />
+                </div>
+                <div className="space-y-2">
+                  <h1 className="text-2xl font-bold">ID d'annonce manquant</h1>
+                  <p className="text-muted-foreground">
+                    Impossible d'identifier l'annonce à afficher.
+                  </p>
+                </div>
+                <Button onClick={() => navigate('/listings')}>
+                  Voir toutes les annonces
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  const { listing, loading, error } = useListing(id);
   const [viewMode, setViewMode] = useState<'buyer' | 'owner' | 'loading'>('loading');
 
-  // Détermination du mode d'affichage selon l'utilisateur connecté
+  // Détermination intelligente du mode d'affichage selon l'utilisateur connecté
   useEffect(() => {
     if (loading || !id) return;
 
@@ -54,17 +110,28 @@ const SmartListingDetail = () => {
     }
   }, [user, listing, loading, id]);
 
-  // Affichage du loading
+  // Gestion de l'état de chargement avec interface moderne
   if (loading || viewMode === 'loading') {
     return (
       <div className="min-h-screen bg-background">
         <Header />
         <main className="container mx-auto px-4 py-8">
-          <div className="text-center">
-            <div className="animate-pulse space-y-4">
-              <div className="h-8 bg-muted rounded w-3/4 mx-auto"></div>
-              <div className="h-64 bg-muted rounded"></div>
-              <div className="h-32 bg-muted rounded"></div>
+          <div className="max-w-6xl mx-auto">
+            <div className="animate-pulse space-y-8">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-2 space-y-6">
+                  <div className="aspect-video bg-muted rounded-lg" />
+                  <div className="space-y-4">
+                    <div className="h-8 bg-muted rounded w-3/4" />
+                    <div className="h-6 bg-muted rounded w-1/2" />
+                    <div className="h-32 bg-muted rounded" />
+                  </div>
+                </div>
+                <div className="space-y-6">
+                  <div className="h-64 bg-muted rounded-lg" />
+                  <div className="h-48 bg-muted rounded-lg" />
+                </div>
+              </div>
             </div>
           </div>
         </main>
@@ -73,48 +140,65 @@ const SmartListingDetail = () => {
     );
   }
 
-  // Gestion des erreurs
+  // Gestion d'erreur avec recommandations pour l'utilisateur
   if (error || !listing) {
     return (
       <div className="min-h-screen bg-background">
         <Header />
         <main className="container mx-auto px-4 py-8">
-          <Card>
-            <CardContent className="p-8 text-center">
-              <h1 className="text-2xl font-bold mb-4">Annonce introuvable</h1>
-              <p className="text-muted-foreground">
-                Cette annonce n'existe pas ou n'est plus disponible.
-              </p>
-            </CardContent>
-          </Card>
+          <div className="max-w-2xl mx-auto">
+            <Card>
+              <CardContent className="p-12 text-center space-y-6">
+                <div className="mx-auto w-20 h-20 bg-red-100 rounded-full flex items-center justify-center">
+                  <AlertTriangle className="w-10 h-10 text-red-600" />
+                </div>
+                <div className="space-y-2">
+                  <h1 className="text-2xl font-bold">Annonce introuvable</h1>
+                  <p className="text-muted-foreground">
+                    Cette annonce n'existe pas, a été supprimée ou n'est plus disponible.
+                  </p>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <Button onClick={() => window.history.back()} variant="outline">
+                    Retour
+                  </Button>
+                  <Button onClick={() => navigate('/listings')}>
+                    Voir toutes les annonces
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </main>
         <Footer />
       </div>
     );
   }
 
-  // Rendu conditionnel selon le mode
+  // Affichage conditionnel : vue propriétaire vs vue acheteur
   if (viewMode === 'owner') {
     return <OwnerListingDetail />;
   }
 
-  return <BuyerListingDetailWithEnhancedReviewsAndChat listing={listing} />;
+  return <BuyerListingDetailWithEnhancedFeatures listing={listing} />;
 };
 
-// Composant spécialisé pour la vue acheteur avec le nouveau système d'avis et de chat
-interface BuyerListingDetailWithEnhancedReviewsAndChatProps {
+// Composant principal pour la vue acheteur avec toutes les fonctionnalités intégrées
+interface BuyerListingDetailWithEnhancedFeaturesProps {
   listing: any;
 }
 
-const BuyerListingDetailWithEnhancedReviewsAndChat = ({ listing }: BuyerListingDetailWithEnhancedReviewsAndChatProps) => {
+const BuyerListingDetailWithEnhancedFeatures = ({ listing }: BuyerListingDetailWithEnhancedFeaturesProps) => {
   const navigate = useNavigate();
   const { user } = useAuthContext();
   const { toast } = useToast();
   const [reviewsRefreshKey, setReviewsRefreshKey] = useState(0);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   
-  // États pour le système de messagerie
+  // États pour le système de messagerie et interactions
   const [isChatModalOpen, setIsChatModalOpen] = useState(false);
   const [isGuestMessageModalOpen, setIsGuestMessageModalOpen] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [guestMessageData, setGuestMessageData] = useState({
     name: '',
     email: '',
@@ -122,10 +206,11 @@ const BuyerListingDetailWithEnhancedReviewsAndChat = ({ listing }: BuyerListingD
     message: ''
   });
   
-  // Hook spécialisé pour les messages d'invités - remplace l'état sendingGuestMessage
+  // Hook pour les messages d'invités et favoris
   const { sendGuestMessage, loading: guestMessageLoading } = useGuestMessages();
+  const { favorites, addToFavorites, removeFromFavorites, loading: favLoading } = useFavorites();
   
-  // Récupération des données du vendeur
+  // Récupération des données du vendeur avec gestion d'erreur
   const { 
     profile: sellerProfile, 
     loading: profileLoading, 
@@ -147,6 +232,9 @@ const BuyerListingDetailWithEnhancedReviewsAndChat = ({ listing }: BuyerListingD
   const [showPhoneNumber, setShowPhoneNumber] = useState(false);
   const [phoneLoading, setPhoneLoading] = useState(false);
 
+  // Vérifier si l'annonce est dans les favoris
+  const isFavorite = favorites.some(fav => fav.listing_id === listing.id);
+
   const handleReviewSubmitted = () => {
     setReviewsRefreshKey(prev => prev + 1);
   };
@@ -161,16 +249,88 @@ const BuyerListingDetailWithEnhancedReviewsAndChat = ({ listing }: BuyerListingD
       });
       return;
     }
-
     navigate(`/seller-profile/${listing.user_id}`);
   };
 
-  // Fonction pour gérer l'affichage du numéro de téléphone
+  // Gestion des favoris avec retour utilisateur
+  const handleFavoriteToggle = async () => {
+    if (!user) {
+      toast({
+        title: "Connexion requise",
+        description: "Connectez-vous pour ajouter cette annonce à vos favoris.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      if (isFavorite) {
+        await removeFromFavorites(listing.id);
+        toast({
+          title: "Retiré des favoris",
+          description: "L'annonce a été retirée de vos favoris."
+        });
+      } else {
+        await addToFavorites(listing.id);
+        toast({
+          title: "Ajouté aux favoris",
+          description: "L'annonce a été ajoutée à vos favoris."
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Impossible de modifier les favoris pour le moment.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Fonction pour partager l'annonce
+  const handleShare = async () => {
+    const shareData = {
+      title: listing.title,
+      text: `Découvrez cette annonce sur FasoMarket : ${listing.title}`,
+      url: window.location.href
+    };
+
+    if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+      try {
+        await navigator.share(shareData);
+      } catch (error) {
+        // Fallback vers le modal de partage personnalisé
+        setIsShareModalOpen(true);
+      }
+    } else {
+      setIsShareModalOpen(true);
+    }
+  };
+
+  // Fonction pour copier le lien
+  const copyToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      toast({
+        title: "Lien copié",
+        description: "Le lien de l'annonce a été copié dans le presse-papiers."
+      });
+      setIsShareModalOpen(false);
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Impossible de copier le lien.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Fonction pour afficher le numéro de téléphone avec animation
   const handleShowPhoneNumber = async () => {
     setPhoneLoading(true);
     
     try {
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Simulation d'une vérification côté serveur
+      await new Promise(resolve => setTimeout(resolve, 800));
       
       const phoneToShow = listing.contact_phone || listing.profiles?.phone;
       
@@ -185,9 +345,11 @@ const BuyerListingDetailWithEnhancedReviewsAndChat = ({ listing }: BuyerListingD
       
       setShowPhoneNumber(true);
       
+      // Enregistrer la vue du contact côté analytics si nécessaire
       toast({
         title: "Numéro affiché",
-        description: "Vous pouvez maintenant contacter le vendeur.",
+        description: "Vous pouvez maintenant contacter le vendeur directement.",
+        duration: 4000
       });
       
     } catch (error) {
@@ -201,51 +363,72 @@ const BuyerListingDetailWithEnhancedReviewsAndChat = ({ listing }: BuyerListingD
     }
   };
 
-  // Gestion du clic sur "Envoyer un message"
+  // Gestion intelligente du clic sur "Envoyer un message"
   const handleSendMessageClick = () => {
     if (user) {
-      // Utilisateur connecté : ouvrir le chat modal
       setIsChatModalOpen(true);
     } else {
-      // Utilisateur non connecté : ouvrir le modal pour invités
+      // Pré-remplir le message pour les invités
+      setGuestMessageData(prev => ({
+        ...prev,
+        message: `Bonjour, je suis intéressé(e) par votre annonce "${listing.title}" sur FasoMarket. Pourriez-vous me donner plus d'informations ?`
+      }));
       setIsGuestMessageModalOpen(true);
     }
   };
 
-  // Fonction améliorée pour envoyer un message d'invité avec le nouveau hook
+  // Fonction améliorée pour envoyer un message d'invité
   const handleSendGuestMessage = async () => {
-    // Validation des champs obligatoires
     if (!guestMessageData.name || !guestMessageData.email || !guestMessageData.message) {
       toast({
-        title: "Erreur",
-        description: "Veuillez remplir tous les champs obligatoires.",
+        title: "Champs obligatoires manquants",
+        description: "Veuillez remplir au minimum votre nom, email et message.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Validation de l'email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(guestMessageData.email)) {
+      toast({
+        title: "Email invalide",
+        description: "Veuillez saisir une adresse email valide.",
         variant: "destructive"
       });
       return;
     }
 
     try {
-      // Utilisation du hook spécialisé pour les messages d'invités
-      // Ce hook gère automatiquement l'insertion dans une table dédiée avec une structure optimisée
       await sendGuestMessage(listing.id, listing.user_id, {
         name: guestMessageData.name,
         email: guestMessageData.email,
-        phone: guestMessageData.phone || undefined, // Conversion de chaîne vide en undefined
+        phone: guestMessageData.phone || undefined,
         message: guestMessageData.message
       });
 
-      // Réinitialiser le formulaire et fermer le modal en cas de succès
       setGuestMessageData({ name: '', email: '', phone: '', message: '' });
       setIsGuestMessageModalOpen(false);
 
     } catch (error) {
-      // Le hook useGuestMessages gère déjà l'affichage des erreurs via toast
-      // On log l'erreur pour le debugging
       console.error('Error in handleSendGuestMessage:', error);
     }
   };
 
-  // Fonction utilitaire pour formater le numéro de téléphone
+  // Navigation dans les images avec animations
+  const nextImage = () => {
+    setCurrentImageIndex((prev) => 
+      prev === (listing.images?.length || 1) - 1 ? 0 : prev + 1
+    );
+  };
+
+  const prevImage = () => {
+    setCurrentImageIndex((prev) => 
+      prev === 0 ? (listing.images?.length || 1) - 1 : prev - 1
+    );
+  };
+
+  // Formatage intelligent du numéro de téléphone
   const formatPhoneNumber = (phone: string) => {
     const cleanPhone = phone.replace(/\D/g, '');
     
@@ -261,21 +444,19 @@ const BuyerListingDetailWithEnhancedReviewsAndChat = ({ listing }: BuyerListingD
     return phone;
   };
 
-  // Fonction pour calculer la note moyenne avec fallback
+  // Calculs de l'affichage avec fallbacks intelligents
   const getDisplayRating = () => {
     if (reviewsStatsLoading) return "...";
-    if (!reviewsStats || reviewsStats.totalReviews === 0) return "Nouveau";
-    return `${reviewsStats.averageRating.toFixed(1)} ⭐`;
+    if (!reviewsStats || reviewsStats.totalReviews === 0) return "Nouveau vendeur";
+    return `${reviewsStats.averageRating.toFixed(1)} ⭐ (${reviewsStats.totalReviews})`;
   };
 
-  // Fonction pour obtenir le nombre d'annonces avec fallback
   const getDisplayListingsCount = () => {
     if (profileLoading || listingsLoading) return "...";
-    if (sellerProfile) return sellerProfile.total_listings.toString();
-    return activeListingsCount.toString();
+    return (sellerProfile?.total_listings || activeListingsCount).toString();
   };
 
-  // Fonction pour obtenir le badge de confiance du vendeur
+  // Badge de confiance basé sur les performances du vendeur
   const getTrustBadge = () => {
     if (!reviewsStats || reviewsStats.totalReviews === 0) {
       return <Badge variant="secondary">Nouveau vendeur</Badge>;
@@ -283,16 +464,16 @@ const BuyerListingDetailWithEnhancedReviewsAndChat = ({ listing }: BuyerListingD
 
     if (reviewsStats.averageRating >= 4.5 && reviewsStats.totalReviews >= 10) {
       return (
-        <Badge className="bg-green-100 text-green-800 border-green-300">
+        <Badge className="bg-green-100 text-green-800 border-green-300 dark:bg-green-900 dark:text-green-100">
           <Shield className="h-3 w-3 mr-1" />
           Vendeur de confiance
         </Badge>
       );
     }
 
-    if (reviewsStats.averageRating >= 4.0) {
+    if (reviewsStats.averageRating >= 4.0 && reviewsStats.totalReviews >= 5) {
       return (
-        <Badge className="bg-blue-100 text-blue-800 border-blue-300">
+        <Badge className="bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900 dark:text-blue-100">
           <Star className="h-3 w-3 mr-1" />
           Bien noté
         </Badge>
@@ -306,171 +487,341 @@ const BuyerListingDetailWithEnhancedReviewsAndChat = ({ listing }: BuyerListingD
     <div className="min-h-screen bg-background">
       <Header />
       
-      <main className="container mx-auto px-4 py-8 max-w-6xl">
+      <main className="container mx-auto px-4 py-6 max-w-7xl">
+        {/* Barre d'actions rapides */}
+        <div className="flex items-center justify-between mb-6 p-4 bg-card rounded-lg border">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => window.history.back()}
+            >
+              ← Retour
+            </Button>
+            <Separator orientation="vertical" className="h-6" />
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Eye className="h-4 w-4" />
+              <span>{listing.views_count || 0} vues</span>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleFavoriteToggle}
+              disabled={favLoading}
+              className={isFavorite ? "text-red-600 border-red-200" : ""}
+            >
+              {isFavorite ? (
+                <Heart className="h-4 w-4 mr-1 fill-current" />
+              ) : (
+                <HeartOff className="h-4 w-4 mr-1" />
+              )}
+              {favLoading ? "..." : (isFavorite ? "Favoris" : "Ajouter")}
+            </Button>
+            
+            <Button variant="outline" size="sm" onClick={handleShare}>
+              <Share2 className="h-4 w-4 mr-1" />
+              Partager
+            </Button>
+            
+            {/* Bouton de signalement intégré avec style cohérent */}
+            <EnhancedReportDialog
+              listingId={listing.id}
+              listingTitle={listing.title}
+              trigger={
+                <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50">
+                  <Flag className="h-4 w-4 mr-1" />
+                  Signaler
+                </Button>
+              }
+            />
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Contenu principal de l'annonce */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Images de l'annonce */}
+            {/* Galerie d'images améliorée */}
             <Card>
               <CardContent className="p-0">
                 {listing.images && listing.images.length > 0 ? (
-                  <div className="relative aspect-video">
+                  <div className="relative aspect-video group">
                     <img
-                      src={listing.images[0]}
-                      alt={listing.title}
-                      className="w-full h-full object-cover rounded-lg"
+                      src={listing.images[currentImageIndex]?.url || listing.images[currentImageIndex]}
+                      alt={`${listing.title} - Image ${currentImageIndex + 1}`}
+                      className="w-full h-full object-cover rounded-lg transition-opacity duration-300"
+                      onError={(e) => {
+                        e.currentTarget.src = '/placeholder-image.jpg';
+                      }}
                     />
+                    
+                    {/* Navigation des images */}
                     {listing.images.length > 1 && (
-                      <div className="absolute bottom-4 right-4 bg-black/70 text-white text-sm px-2 py-1 rounded">
-                        +{listing.images.length - 1} photos
-                      </div>
+                      <>
+                        <button
+                          onClick={prevImage}
+                          className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/70 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/80"
+                        >
+                          ←
+                        </button>
+                        <button
+                          onClick={nextImage}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/70 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/80"
+                        >
+                          →
+                        </button>
+                        
+                        {/* Indicateur d'images */}
+                        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+                          {listing.images.map((_, index) => (
+                            <button
+                              key={index}
+                              onClick={() => setCurrentImageIndex(index)}
+                              className={`w-3 h-3 rounded-full transition-all ${
+                                index === currentImageIndex ? 'bg-white' : 'bg-white/50'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        
+                        <div className="absolute top-4 right-4 bg-black/70 text-white text-sm px-3 py-1 rounded-full">
+                          {currentImageIndex + 1} / {listing.images.length}
+                        </div>
+                      </>
                     )}
                   </div>
                 ) : (
                   <div className="aspect-video bg-muted flex items-center justify-center rounded-lg">
-                    <p className="text-muted-foreground">Aucune image disponible</p>
+                    <div className="text-center text-muted-foreground">
+                      <Package className="h-12 w-12 mx-auto mb-2" />
+                      <p>Aucune image disponible</p>
+                    </div>
                   </div>
                 )}
               </CardContent>
             </Card>
 
-            {/* Informations de l'annonce */}
+            {/* Informations principales de l'annonce */}
             <Card>
-              <CardContent className="p-6 space-y-4">
-                <h1 className="text-2xl lg:text-3xl font-bold">{listing.title}</h1>
-                
-                <div className="text-3xl font-bold text-primary">
-                  {listing.price?.toLocaleString()} {listing.currency || 'XOF'}
+              <CardContent className="p-6 space-y-6">
+                <div className="space-y-4">
+                  <h1 className="text-2xl lg:text-3xl font-bold leading-tight">
+                    {listing.title}
+                  </h1>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="text-3xl font-bold text-primary">
+                      {listing.price?.toLocaleString('fr-FR')} {listing.currency || 'XOF'}
+                    </div>
+                    
+                    {listing.featured && (
+                      <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300">
+                        <Crown className="h-3 w-3 mr-1" />
+                        En vedette
+                      </Badge>
+                    )}
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="outline" className="flex items-center gap-1">
+                      <Package className="h-3 w-3" />
+                      {listing.categories?.name || 'Non catégorisé'}
+                    </Badge>
+                    <Badge 
+                      variant="outline" 
+                      className={`${
+                        listing.condition === 'new' 
+                          ? 'border-green-300 text-green-700 bg-green-50' 
+                          : 'border-blue-300 text-blue-700 bg-blue-50'
+                      }`}
+                    >
+                      {listing.condition === 'new' ? 'Neuf' : 
+                       listing.condition === 'refurbished' ? 'Reconditionné' : 'Occasion'}
+                    </Badge>
+                    <Badge variant="outline" className="flex items-center gap-1">
+                      <MapPin className="h-3 w-3" />
+                      {listing.location}
+                    </Badge>
+                    <Badge variant="outline" className="flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {new Date(listing.created_at).toLocaleDateString('fr-FR')}
+                    </Badge>
+                  </div>
                 </div>
                 
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant="outline">
-                    {listing.categories?.name || 'Non catégorisé'}
-                  </Badge>
-                  <Badge variant="outline">
-                    {listing.condition === 'new' ? 'Neuf' : 'Occasion'}
-                  </Badge>
-                  <Badge variant="outline" className="flex items-center gap-1">
-                    <MapPin className="h-3 w-3" />
-                    {listing.location}
-                  </Badge>
-                  <Badge variant="outline" className="flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    {new Date(listing.created_at).toLocaleDateString('fr-FR')}
-                  </Badge>
-                </div>
+                <Separator />
                 
-                <div className="border-t pt-4">
-                  <h3 className="font-semibold mb-2">Description</h3>
-                  <p className="text-muted-foreground whitespace-pre-wrap leading-relaxed">
-                    {listing.description}
-                  </p>
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-lg flex items-center gap-2">
+                    <Info className="h-5 w-5" />
+                    Description
+                  </h3>
+                  <div className="prose prose-sm max-w-none">
+                    <p className="text-muted-foreground whitespace-pre-wrap leading-relaxed text-base">
+                      {listing.description}
+                    </p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Avis existants sur le vendeur - Version améliorée */}
-            <EnhancedReviewsDisplay 
-              sellerId={listing.user_id} 
-              compact={true} 
-              key={reviewsRefreshKey}
-            />
+            {/* Système d'avis amélioré */}
+            <div className="space-y-6">
+              <EnhancedReviewsDisplay 
+                sellerId={listing.user_id} 
+                compact={true} 
+                key={reviewsRefreshKey}
+              />
 
-            {/* Formulaire d'avis amélioré */}
-            <EnhancedReviewForm
-              sellerId={listing.user_id}
-              listingId={listing.id}
-              listingTitle={listing.title}
-              onReviewSubmitted={handleReviewSubmitted}
-            />
+              <EnhancedReviewForm
+                sellerId={listing.user_id}
+                listingId={listing.id}
+                listingTitle={listing.title}
+                onReviewSubmitted={handleReviewSubmitted}
+              />
+            </div>
           </div>
 
           {/* Sidebar - Contact et informations vendeur */}
           <div className="space-y-6">
-            {/* Section contact avec messagerie intégrée */}
-            <Card data-contact-section>
+            {/* Section contact principale */}
+            <Card className="border-primary/20">
               <CardContent className="p-6">
                 <h3 className="font-semibold mb-4 flex items-center gap-2">
                   <Phone className="h-5 w-5" />
                   Contacter le vendeur
                 </h3>
                 
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {!showPhoneNumber ? (
-                    <button 
+                    <Button 
                       onClick={handleShowPhoneNumber}
                       disabled={phoneLoading}
-                      className="w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 py-2 px-4 rounded transition-colors flex items-center justify-center gap-2"
+                      className="w-full"
+                      size="lg"
                     >
                       {phoneLoading ? (
                         <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2" />
                           Chargement...
                         </>
                       ) : (
                         <>
-                          <Phone className="h-4 w-4" />
+                          <Phone className="h-4 w-4 mr-2" />
                           Afficher le numéro
                         </>
                       )}
-                    </button>
+                    </Button>
                   ) : (
-                    <div className="w-full p-3 bg-muted rounded border-2 border-primary/20">
+                    <div className="w-full p-4 bg-green-50 border-2 border-green-200 rounded-lg">
                       <div className="text-center">
-                        <p className="text-sm text-muted-foreground mb-1">Numéro de téléphone</p>
-                        <p className="text-lg font-semibold text-primary">
+                        <p className="text-sm text-green-700 mb-2 font-medium">Numéro de téléphone</p>
+                        <p className="text-xl font-bold text-green-800">
                           {formatPhoneNumber(listing.contact_phone || listing.profiles?.phone)}
                         </p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="mt-2 border-green-300 text-green-700 hover:bg-green-100"
+                          onClick={() => window.location.href = `tel:${listing.contact_phone || listing.profiles?.phone}`}
+                        >
+                          Appeler maintenant
+                        </Button>
                       </div>
                     </div>
                   )}
                   
                   {(listing.contact_whatsapp || listing.contact_phone) && (
-                    <button 
+                    <Button 
                       onClick={() => {
                         const whatsappNumber = (listing.contact_whatsapp || listing.contact_phone).replace(/\D/g, '');
                         const message = encodeURIComponent(`Bonjour, je suis intéressé(e) par votre annonce "${listing.title}" sur FasoMarket.`);
                         window.open(`https://wa.me/${whatsappNumber}?text=${message}`, '_blank');
                       }}
-                      className="w-full bg-green-600 text-white hover:bg-green-700 py-2 px-4 rounded transition-colors flex items-center justify-center gap-2"
+                      className="w-full bg-green-600 text-white hover:bg-green-700"
+                      size="lg"
                     >
-                      <MessageSquare className="h-4 w-4" />
-                      Contacter sur WhatsApp
-                    </button>
+                      <MessageSquare className="h-4 w-4 mr-2" />
+                      WhatsApp
+                    </Button>
                   )}
                   
-                  {/* Bouton de messagerie intelligent */}
-                  <button 
+                  <Button 
                     onClick={handleSendMessageClick}
-                    className="w-full border border-input hover:bg-accent py-2 px-4 rounded flex items-center justify-center gap-2 transition-colors"
+                    variant="outline"
+                    className="w-full"
+                    size="lg"
                   >
-                    <MessageSquare className="h-4 w-4" />
-                    {user ? 'Envoyer un message' : 'Envoyer un message (invité)'}
-                  </button>
+                    <MessageSquare className="h-4 w-4 mr-2" />
+                    {user ? 'Message privé' : 'Envoyer un message'}
+                  </Button>
                 </div>
                 
-                <div className="mt-4 text-sm text-muted-foreground space-y-1">
+                {/* Informations sur la réactivité */}
+                <div className="mt-6 pt-4 border-t space-y-2 text-sm text-muted-foreground">
                   <div className="flex items-center gap-2">
                     <Clock className="h-3 w-3" />
                     <span><strong>Temps de réponse :</strong> {
                       profileLoading ? "..." : 
                       sellerProfile?.response_rate >= 90 ? "Quelques heures" : 
-                      sellerProfile?.response_rate >= 70 ? "Quelques heures à 1 jour" : 
+                      sellerProfile?.response_rate >= 70 ? "Moins de 24h" : 
                       "1-2 jours"
                     }</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Clock className="h-3 w-3" />
-                    <span><strong>Disponibilité :</strong> 8h - 18h</span>
+                    <CheckCircle className="h-3 w-3" />
+                    <span><strong>Généralement en ligne :</strong> 9h - 18h</span>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Informations sur le vendeur avec données réelles et badges de confiance */}
+            {/* Profil du vendeur avec signalement intégré */}
             <Card>
               <CardContent className="p-6">
-                <h3 className="font-semibold mb-4">À propos du vendeur</h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold">À propos du vendeur</h3>
+                  
+                  {/* Menu d'options avec signalement de profil */}
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="ghost" size="sm">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-md">
+                      <DialogHeader>
+                        <DialogTitle>Options du profil</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-3">
+                        <Button 
+                          variant="outline" 
+                          className="w-full justify-start"
+                          onClick={handleViewFullProfile}
+                        >
+                          <User className="h-4 w-4 mr-2" />
+                          Voir le profil complet
+                        </Button>
+                        
+                        <EnhancedReportDialog
+                          profileId={listing.user_id}
+                          profileName={sellerProfile?.full_name || listing.profiles?.full_name}
+                          trigger={
+                            <Button 
+                              variant="outline" 
+                              className="w-full justify-start text-red-600 border-red-200 hover:bg-red-50"
+                            >
+                              <Flag className="h-4 w-4 mr-2" />
+                              Signaler ce profil
+                            </Button>
+                          }
+                        />
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
                 
                 <div className="flex items-center gap-3 mb-4">
                   <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center overflow-hidden">
@@ -494,7 +845,7 @@ const BuyerListingDetailWithEnhancedReviewsAndChat = ({ listing }: BuyerListingD
                       <span>Membre depuis {new Date(sellerProfile?.created_at || listing.created_at).getFullYear()}</span>
                       {sellerProfile?.is_verified && (
                         <Badge variant="secondary" className="text-xs">
-                          <Shield className="h-3 w-3 mr-1" />
+                          <CheckCircle className="h-3 w-3 mr-1" />
                           Vérifié
                         </Badge>
                       )}
@@ -502,10 +853,11 @@ const BuyerListingDetailWithEnhancedReviewsAndChat = ({ listing }: BuyerListingD
                   </div>
                 </div>
 
-                {/* Badge de confiance basé sur les avis */}
-                <div className="mb-4">
-                  {getTrustBadge()}
-                </div>
+                {getTrustBadge() && (
+                  <div className="mb-4">
+                    {getTrustBadge()}
+                  </div>
+                )}
                 
                 {/* Statistiques du vendeur */}
                 <div className="grid grid-cols-2 gap-4 text-sm mb-4">
@@ -519,42 +871,20 @@ const BuyerListingDetailWithEnhancedReviewsAndChat = ({ listing }: BuyerListingD
                   </div>
                 </div>
                 
-                {/* Statistiques détaillées des avis si disponibles */}
-                {reviewsStats && reviewsStats.totalReviews > 0 && (
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Total des avis :</span>
-                      <span className="font-medium">{reviewsStats.totalReviews}</span>
-                    </div>
-                    {reviewsStats.verifiedPurchasesCount > 0 && (
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Achats vérifiés :</span>
-                        <span className="font-medium text-green-600">{reviewsStats.verifiedPurchasesCount}</span>
-                      </div>
-                    )}
-                    {reviewsStats.responseRate > 0 && (
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Taux de réponse :</span>
-                        <span className="font-medium">{reviewsStats.responseRate}%</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-                
-                {/* Bio du vendeur si disponible */}
+                {/* Bio du vendeur */}
                 {sellerProfile?.bio && (
-                  <div className="mt-4 p-3 bg-muted/30 rounded text-sm">
+                  <div className="mb-4 p-3 bg-muted/30 rounded text-sm">
                     <p className="italic text-muted-foreground">"{sellerProfile.bio}"</p>
                   </div>
                 )}
                 
-                {/* Bouton pour voir le profil complet */}
-                <button 
+                <Button 
                   onClick={handleViewFullProfile}
-                  className="w-full mt-4 border border-input hover:bg-accent py-2 px-4 rounded text-sm transition-colors"
+                  variant="outline"
+                  className="w-full"
                 >
                   Voir le profil complet
-                </button>
+                </Button>
               </CardContent>
             </Card>
 
@@ -565,25 +895,25 @@ const BuyerListingDetailWithEnhancedReviewsAndChat = ({ listing }: BuyerListingD
                   <Shield className="h-5 w-5" />
                   Conseils de sécurité
                 </h3>
-                <ul className="text-sm space-y-2 text-amber-700">
+                <ul className="text-sm space-y-3 text-amber-700">
                   <li className="flex items-start gap-2">
-                    <span className="text-amber-600 mt-1">•</span>
-                    <span>Rencontrez toujours en lieu public et fréquenté</span>
+                    <CheckCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <span>Rencontrez toujours en lieu public et sécurisé</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-amber-600 mt-1">•</span>
-                    <span>Examinez minutieusement avant de payer</span>
+                    <CheckCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <span>Examinez l'article avant de finaliser l'achat</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-amber-600 mt-1">•</span>
+                    <CheckCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
                     <span>Ne payez jamais à l'avance sans voir l'article</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-amber-600 mt-1">•</span>
-                    <span>Laissez un avis honnête après votre achat</span>
+                    <CheckCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <span>Faites confiance à votre instinct</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-amber-600 mt-1">•</span>
+                    <Flag className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
                     <span>Signalez tout comportement suspect</span>
                   </li>
                 </ul>
@@ -606,16 +936,63 @@ const BuyerListingDetailWithEnhancedReviewsAndChat = ({ listing }: BuyerListingD
         />
       )}
 
-      {/* Modal de message pour invités avec intégration du nouveau hook */}
+      {/* Modal de partage */}
+      <Dialog open={isShareModalOpen} onOpenChange={setIsShareModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Partager cette annonce</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex items-center space-x-2">
+              <Input 
+                value={window.location.href} 
+                readOnly 
+                className="flex-1"
+              />
+              <Button onClick={copyToClipboard} size="sm">
+                Copier
+              </Button>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const text = encodeURIComponent(`Découvrez cette annonce sur FasoMarket : ${listing.title}`);
+                  const url = encodeURIComponent(window.location.href);
+                  window.open(`https://wa.me/?text=${text} ${url}`, '_blank');
+                }}
+              >
+                WhatsApp
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const text = encodeURIComponent(`Découvrez cette annonce : ${listing.title}`);
+                  const url = encodeURIComponent(window.location.href);
+                  window.open(`sms:?body=${text} ${url}`, '_blank');
+                }}
+              >
+                SMS
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de message pour invités */}
       <Dialog open={isGuestMessageModalOpen} onOpenChange={setIsGuestMessageModalOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Envoyer un message</DialogTitle>
+            <DialogTitle>Envoyer un message au vendeur</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="text-sm text-muted-foreground">
-              Vous n'êtes pas connecté. Laissez vos coordonnées pour que le vendeur puisse vous recontacter.
-            </div>
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription className="text-sm">
+                Vous n'êtes pas connecté. Laissez vos coordonnées pour que le vendeur puisse vous recontacter.
+              </AlertDescription>
+            </Alert>
             
             <div className="grid gap-4">
               <div>
@@ -655,8 +1032,8 @@ const BuyerListingDetailWithEnhancedReviewsAndChat = ({ listing }: BuyerListingD
                   id="guest-message"
                   value={guestMessageData.message}
                   onChange={(e) => setGuestMessageData(prev => ({ ...prev, message: e.target.value }))}
-                  placeholder={`Bonjour, je suis intéressé(e) par votre annonce "${listing.title}". Pourriez-vous me donner plus d'informations ?`}
                   rows={4}
+                  className="resize-none"
                 />
               </div>
             </div>

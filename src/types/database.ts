@@ -88,13 +88,20 @@ export interface Report {
   id: string;
   listing_id: string | null;
   user_id: string | null;
-  reporter_id: string;
+  reporter_id: string | null; // Maintenant optionnel
   reason: string;
   description: string | null;
   status: 'pending' | 'reviewed' | 'resolved' | 'dismissed';
   created_at: string;
   updated_at: string;
+  
+  // Nouveaux champs pour les signalements invités
+  guest_name: string | null;
+  guest_email: string | null;
+  guest_phone: string | null;
+  report_type: 'listing' | 'profile';
 
+  
   listing?: { title: string; user_id: string; status: string };
   reported_user?: { full_name: string | null; email: string };
   reporter?: { full_name: string | null; email: string };
