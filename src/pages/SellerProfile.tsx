@@ -47,6 +47,7 @@ import { useSellerListings } from '@/hooks/useSellerListings';
 import { useSellerReviews } from '@/hooks/useSellerReviews';
 import { useFavorites } from '@/hooks/useFavorites';
 
+
 const SellerProfile = () => {
   const { sellerId } = useParams<{ sellerId: string }>();
   const navigate = useNavigate();

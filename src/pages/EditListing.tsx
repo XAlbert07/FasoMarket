@@ -1,7 +1,7 @@
 // pages/EditListing.tsx
 // Page complète pour éditer une annonce existante
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { useListing } from "@/hooks/useListings";
@@ -27,10 +27,11 @@ import {
   X, 
   AlertTriangle,
   MapPin,
-  DollarSign,
   Package,
   FileText,
-  Phone
+  Phone,
+  Plus,
+  Image as ImageIcon
 } from "lucide-react";
 
 const BURKINA_LOCATIONS = [
@@ -49,12 +50,14 @@ const EditListing = () => {
   const { categories, loading: categoriesLoading } = useCategories();
   const { updateListing, loading: updateLoading } = useCreateListing();
 
+  // Référence pour l'input file caché
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // États pour le formulaire
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     price: '',
-    currency: 'XOF',
     category_id: '',
     location: '',
     condition: 'used' as 'new' | 'used' | 'refurbished',
@@ -67,6 +70,7 @@ const EditListing = () => {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [hasChanges, setHasChanges] = useState(false);
   const [imageToRemove, setImageToRemove] = useState<string[]>([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
 
   // Charger les données de l'annonce dans le formulaire
   useEffect(() => {
@@ -82,12 +86,11 @@ const EditListing = () => {
         return;
       }
 
-      // Remplir le formulaire avec les données existantes
+      // Remplir le formulaire avec les données existantes (sans la devise)
       setFormData({
         title: listing.title || '',
         description: listing.description || '',
         price: listing.price?.toString() || '',
-        currency: listing.currency || 'XOF',
         category_id: listing.category_id || '',
         location: listing.location || '',
         condition: listing.condition || 'used',
@@ -99,14 +102,13 @@ const EditListing = () => {
     }
   }, [listing, user, navigate, toast]);
 
-  // Détecter les changements dans le formulaire
+  // Détecter les changements dans le formulaire (sans la devise)
   useEffect(() => {
     if (listing) {
       const hasFormChanges = 
         formData.title !== (listing.title || '') ||
         formData.description !== (listing.description || '') ||
         formData.price !== (listing.price?.toString() || '') ||
-        formData.currency !== (listing.currency || 'XOF') ||
         formData.category_id !== (listing.category_id || '') ||
         formData.location !== (listing.location || '') ||
         formData.condition !== (listing.condition || 'used') ||
@@ -131,6 +133,82 @@ const EditListing = () => {
         return newErrors;
       });
     }
+  };
+
+  // Fonction pour gérer l'upload d'images
+  const handleImageUpload = async (files: FileList) => {
+    if (!files || files.length === 0) return;
+
+    // Vérifier que l'on ne dépasse pas 5 images au total
+    if (formData.images.length + files.length > 5) {
+      toast({
+        title: "Trop d'images",
+        description: "Vous ne pouvez pas avoir plus de 5 images par annonce",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setUploadingImages(true);
+    const newImages: string[] = [];
+
+    try {
+      // Simuler l'upload - en réalité vous devriez utiliser votre service d'upload
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        // Vérifications de base
+        if (!file.type.startsWith('image/')) {
+          toast({
+            title: "Format non supporté",
+            description: `Le fichier ${file.name} n'est pas une image`,
+            variant: "destructive"
+          });
+          continue;
+        }
+
+        if (file.size > 5 * 1024 * 1024) { // 5MB max
+          toast({
+            title: "Fichier trop volumineux",
+            description: `L'image ${file.name} dépasse 5MB`,
+            variant: "destructive"
+          });
+          continue;
+        }
+
+        // Créer un URL temporaire pour la prévisualisation
+        // En production, vous devriez uploader vers votre serveur/cloud
+        const imageUrl = URL.createObjectURL(file);
+        newImages.push(imageUrl);
+      }
+
+      // Ajouter les nouvelles images
+      setFormData(prev => ({
+        ...prev,
+        images: [...prev.images, ...newImages]
+      }));
+
+      if (newImages.length > 0) {
+        toast({
+          title: "Images ajoutées",
+          description: `${newImages.length} image(s) ajoutée(s) avec succès`,
+        });
+      }
+    } catch (error) {
+      console.error('Erreur lors de l\'upload:', error);
+      toast({
+        title: "Erreur d'upload",
+        description: "Impossible d'ajouter les images",
+        variant: "destructive"
+      });
+    } finally {
+      setUploadingImages(false);
+    }
+  };
+
+  // Gestionnaire pour ouvrir le sélecteur de fichiers
+  const handleAddImages = () => {
+    fileInputRef.current?.click();
   };
 
   const validateForm = () => {
@@ -212,7 +290,7 @@ const EditListing = () => {
         title: formData.title.trim(),
         description: formData.description.trim(),
         price: parseFloat(formData.price),
-        currency: formData.currency,
+        currency: 'FCFA', // Devise fixe pour le marché local burkinabé
         category_id: formData.category_id,
         location: formData.location.trim(),
         condition: formData.condition,
@@ -318,6 +396,16 @@ const EditListing = () => {
       
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
+          {/* Input file caché pour l'upload d'images */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={(e) => e.target.files && handleImageUpload(e.target.files)}
+            className="hidden"
+          />
+
           {/* En-tête */}
           <div className="flex items-center justify-between mb-8">
             <div>
@@ -407,7 +495,7 @@ const EditListing = () => {
                   </CardContent>
                 </Card>
 
-                {/* Prix et catégorie */}
+                {/* Prix et catégorie - Section modifiée */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
@@ -458,43 +546,25 @@ const EditListing = () => {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="price">Prix *</Label>
-                        <div className="relative">
-                          <DollarSign className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                          <Input
-                            id="price"
-                            type="number"
-                            value={formData.price}
-                            onChange={(e) => handleInputChange('price', e.target.value)}
-                            placeholder="500000"
-                            min="0"
-                            step="1000"
-                            className={`pl-10 ${formErrors.price ? "border-red-500" : ""}`}
-                          />
-                        </div>
-                        {formErrors.price && (
-                          <p className="text-red-500 text-sm mt-1">{formErrors.price}</p>
-                        )}
-                      </div>
-
-                      <div>
-                        <Label htmlFor="currency">Devise</Label>
-                        <Select
-                          value={formData.currency}
-                          onValueChange={(value) => handleInputChange('currency', value)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="XOF">XOF (Franc CFA)</SelectItem>
-                            <SelectItem value="EUR">EUR (Euro)</SelectItem>
-                            <SelectItem value="USD">USD (Dollar)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+                    {/* Section prix simplifiée - sans devise et sans icône dollar */}
+                    <div>
+                      <Label htmlFor="price">Prix en FCFA *</Label>
+                      <Input
+                        id="price"
+                        type="number"
+                        value={formData.price}
+                        onChange={(e) => handleInputChange('price', e.target.value)}
+                        placeholder="500000"
+                        min="0"
+                        step="1000"
+                        className={formErrors.price ? "border-red-500" : ""}
+                      />
+                      {formErrors.price && (
+                        <p className="text-red-500 text-sm mt-1">{formErrors.price}</p>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Entrez le prix en Francs CFA (XOF)
+                      </p>
                     </div>
                   </CardContent>
                 </Card>
@@ -586,19 +656,20 @@ const EditListing = () => {
                 </Card>
               </div>
 
-              {/* Sidebar - Images et actions */}
+              {/* Sidebar - Images et actions - Section modifiée */}
               <div className="space-y-6">
-                {/* Images actuelles */}
+                {/* Gestion des images améliorée */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <Upload className="h-5 w-5" />
-                      Images actuelles
+                      <ImageIcon className="h-5 w-5" />
+                      Photos de l'annonce
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    {formData.images.length > 0 ? (
-                      <div className="grid grid-cols-2 gap-3">
+                    {/* Grille des images existantes */}
+                    {formData.images.length > 0 && (
+                      <div className="grid grid-cols-2 gap-3 mb-4">
                         {formData.images.map((image, index) => (
                           <div key={index} className="relative group">
                             <img
@@ -618,12 +689,46 @@ const EditListing = () => {
                           </div>
                         ))}
                       </div>
-                    ) : (
-                      <div className="text-center py-6 text-muted-foreground">
-                        <Upload className="h-8 w-8 mx-auto mb-2" />
-                        <p className="text-sm">Aucune image</p>
-                      </div>
                     )}
+
+                    {/* Bouton d'ajout d'images */}
+                    <div className="space-y-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full"
+                        onClick={handleAddImages}
+                        disabled={uploadingImages || formData.images.length >= 5}
+                      >
+                        {uploadingImages ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent mr-2" />
+                            Upload en cours...
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="h-4 w-4 mr-2" />
+                            {formData.images.length === 0 ? "Ajouter des photos" : "Ajouter plus de photos"}
+                          </>
+                        )}
+                      </Button>
+
+                      {/* Informations sur les images */}
+                      <div className="text-xs text-muted-foreground space-y-1">
+                        <p>• {formData.images.length}/5 photos ajoutées</p>
+                        <p>• Formats supportés: JPG, PNG, JPEG</p>
+                        <p>• Taille max: 5MB par image</p>
+                      </div>
+
+                      {/* Message si aucune image */}
+                      {formData.images.length === 0 && (
+                        <div className="text-center py-4 bg-gray-50 rounded border-2 border-dashed">
+                          <Upload className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                          <p className="text-sm text-gray-500">Aucune photo ajoutée</p>
+                          <p className="text-xs text-gray-400">Cliquez sur "Ajouter des photos" pour commencer</p>
+                        </div>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
 

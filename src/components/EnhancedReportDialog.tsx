@@ -1,5 +1,8 @@
+// EnhancedReportDialog.tsx
+
 import { useState } from 'react';
 import { useAuthContext } from '@/contexts/AuthContext';
+import { useReports } from '@/hooks/useReports';
 import {
   Dialog,
   DialogContent,
@@ -16,10 +19,8 @@ import { Flag, AlertTriangle, User, Package, Shield, Info, Phone, Mail } from 'l
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { supabase } from '@/lib/supabase';
-import { useToast } from '@/hooks/use-toast';
 
-// Interface pour les props du composant principal
+// Interface pour les props du composant
 interface EnhancedReportDialogProps {
   listingId?: string;
   listingTitle?: string;
@@ -29,19 +30,7 @@ interface EnhancedReportDialogProps {
   className?: string;
 }
 
-// Interface pour les données de signalement
-interface ReportFormData {
-  reason: string;
-  description?: string;
-  guestInfo?: {
-    name: string;
-    email: string;
-    phone?: string;
-  };
-}
-
 // Configuration des motifs de signalement pour les annonces
-// Chaque motif inclut une icône et une description détaillée pour guider l'utilisateur
 const listingReasons = [
   { 
     value: 'fake', 
@@ -155,149 +144,62 @@ export const EnhancedReportDialog = ({
   trigger,
   className
 }: EnhancedReportDialogProps) => {
-  // États pour la gestion du dialogue et du formulaire
+  // États pour l'interface utilisateur
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('');
   const [description, setDescription] = useState('');
-  const [loading, setLoading] = useState(false);
-  
-  // État pour les informations des utilisateurs invités
   const [guestInfo, setGuestInfo] = useState({
     name: '',
     email: '',
     phone: ''
   });
   
-  // Hooks pour l'authentification et les notifications
+  // Hooks
   const { user } = useAuthContext();
-  const { toast } = useToast();
+  const { submitReport, isSubmitting, validateGuestInfo } = useReports();
   
-  // Détermination du type de signalement basé sur les props reçues
+  // Détermination du type de signalement
   const isProfileReport = Boolean(profileId);
   const isListingReport = Boolean(listingId);
   const reasons = isProfileReport ? profileReasons : listingReasons;
   
-  // Validation des props - une sécurité importante pour éviter les erreurs d'utilisation
+  // Validation des props
   if (!isProfileReport && !isListingReport) {
     console.warn('EnhancedReportDialog: Vous devez spécifier soit listingId soit profileId');
     return null;
   }
 
-  // Fonction pour réinitialiser complètement le formulaire
-  // Cette fonction assure que chaque ouverture du dialogue commence avec un état propre
+  // Réinitialisation du formulaire
   const resetForm = () => {
     setReason('');
     setDescription('');
     setGuestInfo({ name: '', email: '', phone: '' });
   };
 
-  // Logique principale de soumission du signalement
-  // Cette fonction gère à la fois les utilisateurs connectés et les invités
+  // Gestion de la soumission
   const handleSubmit = async () => {
-    if (!reason) {
-      toast({
-        title: "Motif requis",
-        description: "Veuillez sélectionner un motif de signalement.",
-        variant: "destructive"
-      });
-      return;
-    }
+    const success = await submitReport({
+      listingId,
+      listingTitle,
+      profileId,
+      profileName,
+      reason,
+      description,
+      guestInfo: !user ? guestInfo : undefined
+    }, user?.id);
 
-    // Validation spécifique pour les utilisateurs invités
-    if (!user && (!guestInfo.name.trim() || !guestInfo.email.trim())) {
-      toast({
-        title: "Informations manquantes",
-        description: "Veuillez renseigner au moins votre nom et email.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setLoading(true);
-    
-    try {
-      // Vérification des signalements en double pour les utilisateurs connectés
-      if (user) {
-        const { data: existingReport } = await supabase
-          .from('reports')
-          .select('id')
-          .eq(isListingReport ? 'listing_id' : 'user_id', isListingReport ? listingId : profileId)
-          .eq('reporter_id', user.id)
-          .maybeSingle();
-
-        if (existingReport) {
-          toast({
-            title: "Déjà signalé",
-            description: `Vous avez déjà signalé ${isProfileReport ? 'ce profil' : 'cette annonce'}.`,
-            variant: "destructive"
-          });
-          return;
-        }
-      }
-
-      // Préparation des données à insérer en base
-      // Cette structure s'adapte automatiquement au type d'utilisateur et de signalement
-      const reportPayload = {
-        listing_id: isListingReport ? listingId : null,
-        user_id: isProfileReport ? profileId : null,
-        reporter_id: user?.id || null,
-        reason,
-        description: description.trim() || null,
-        status: 'pending' as const,
-        report_type: isProfileReport ? 'profile' : 'listing',
-        
-        // Inclusion des données invité uniquement si nécessaire
-        ...(reportData.guestInfo && !user && {
-          guest_name: guestInfo.name.trim(),
-          guest_email: guestInfo.email.trim(),
-          guest_phone: guestInfo.phone.trim() || null,
-        })
-      };
-
-      // Soumission du signalement à Supabase
-      const { error } = await supabase
-        .from('reports')
-        .insert(reportPayload);
-
-      if (error) {
-        console.error('Report submission error:', error);
-        throw error;
-      }
-
-      // Messages de succès contextuels selon le type de signalement et d'utilisateur
-      const entityType = isProfileReport ? 'profil' : 'annonce';
-      const userType = user ? 'Votre signalement' : 'Votre signalement anonyme';
-      const entityName = isProfileReport ? profileName : listingTitle;
-      
-      toast({
-        title: "Signalement envoyé",
-        description: `${userType} concernant ${entityType === 'annonce' ? 'l\'' : 'le '}${entityType} "${entityName || 'cet élément'}" a été transmis à notre équipe de modération.`,
-        duration: 6000
-      });
-
-      // Fermeture du dialogue et réinitialisation après succès
+    if (success) {
       setOpen(false);
       resetForm();
-
-    } catch (error) {
-      console.error('Error submitting report:', error);
-      
-      toast({
-        title: "Erreur lors du signalement",
-        description: "Une erreur s'est produite. Veuillez réessayer dans quelques instants.",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
     }
   };
 
-  // Dérivation de données pour l'interface utilisateur
+  // Variables dérivées pour l'interface
   const selectedReason = reasons.find(r => r.value === reason);
-  const isGuestFormValid = !user ? (guestInfo.name.trim() && guestInfo.email.trim()) : true;
-  const canSubmit = reason && isGuestFormValid && !loading;
+  const isGuestFormValid = !user ? validateGuestInfo(guestInfo) : true;
+  const canSubmit = reason && isGuestFormValid && !isSubmitting;
 
-  // Fonction de gestion de la fermeture qui assure la propreté de l'état
+  // Gestion de la fermeture du dialogue
   const handleDialogChange = (newOpen: boolean) => {
     setOpen(newOpen);
     if (!newOpen) resetForm();
@@ -326,7 +228,7 @@ export const EnhancedReportDialog = ({
           </DialogTitle>
         </DialogHeader>
 
-        {/* Bannière d'information contextuelle pour rassurer l'utilisateur */}
+        {/* Bannière d'information */}
         <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
           <div className="flex items-start gap-3">
             <Info className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
@@ -348,7 +250,7 @@ export const EnhancedReportDialog = ({
         
         <div className="space-y-6">
           
-          {/* Section des motifs avec interface intuitive */}
+          {/* Section des motifs */}
           <div className="space-y-4">
             <Label className="text-base font-semibold flex items-center gap-2">
               Motif du signalement *
@@ -392,7 +294,7 @@ export const EnhancedReportDialog = ({
             </RadioGroup>
           </div>
 
-          {/* Aperçu de la sélection pour confirmation visuelle */}
+          {/* Aperçu de la sélection */}
           {selectedReason && (
             <Alert className={`border-l-4 ${
               selectedReason.severity === 'high' ? 'border-l-red-500 bg-red-50/30' : 
@@ -412,7 +314,7 @@ export const EnhancedReportDialog = ({
             </Alert>
           )}
 
-          {/* Section de description avec compteur de caractères */}
+          {/* Section de description */}
           <div className="space-y-3">
             <Label htmlFor="description" className="text-base font-medium flex items-center justify-between">
               <span>Description détaillée {reason === 'other' && <Badge variant="destructive" className="text-xs ml-2">Obligatoire</Badge>}</span>
@@ -434,7 +336,7 @@ export const EnhancedReportDialog = ({
             </div>
           </div>
 
-          {/* Formulaire pour les utilisateurs invités avec validation en temps réel */}
+          {/* Formulaire pour les invités */}
           {!user && (
             <>
               <Separator />
@@ -503,12 +405,12 @@ export const EnhancedReportDialog = ({
             </>
           )}
 
-          {/* Boutons d'action avec états visuels clairs */}
+          {/* Boutons d'action */}
           <div className="flex flex-col sm:flex-row justify-end gap-3 pt-6 border-t">
             <Button
               variant="outline"
               onClick={() => setOpen(false)}
-              disabled={loading}
+              disabled={isSubmitting}
               className="order-2 sm:order-1"
             >
               Annuler
@@ -518,7 +420,7 @@ export const EnhancedReportDialog = ({
               disabled={!canSubmit}
               className="bg-red-600 hover:bg-red-700 min-w-[120px] order-1 sm:order-2"
             >
-              {loading ? (
+              {isSubmitting ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2" />
                   Envoi en cours...
@@ -532,7 +434,7 @@ export const EnhancedReportDialog = ({
             </Button>
           </div>
           
-          {/* Indication de validation pour rassurer l'utilisateur */}
+          {/* Indication de validation */}
           {!canSubmit && (
             <div className="text-center">
               <p className="text-xs text-muted-foreground">

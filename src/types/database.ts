@@ -1,32 +1,21 @@
-// ========================================
-// FASOMARKET - BASE DE DONNÉES TYPE-SAFE
-// ========================================
+// types/database.ts
+// Types étendus pour FasoMarket avec support des actions administratives
 
 // ========================================
-// TABLES ACTUELLES
+// TYPES DE BASE (EXISTANTS)
 // ========================================
 
 export interface Profile {
-  id: string; // auth.users.id
+  id: string;
   email: string;
   full_name: string | null;
   phone: string | null;
-  bio: string | null; // Nouveau champ ajouté
-  location: string | null; // Nouveau champ ajouté
-  avatar_url: string | null; // Nouveau champ ajouté
-  role: 'merchant' | 'admin'; // Seuls ces deux rôles
+  bio: string | null;
+  location: string | null;
+  avatar_url: string | null;
+  role: 'merchant' | 'admin';
   created_at: string;
   updated_at: string | null;
-}
-
-export interface Category {
-  id: string; // UUID
-  name: string;
-  slug: string;
-  description: string | null;
-  icon: string | null;
-  parent_id: string | null;
-  created_at: string;
 }
 
 export interface Listing {
@@ -35,8 +24,8 @@ export interface Listing {
   description: string;
   price: number;
   currency: string;
-  category_id: string; // UUID
-  user_id: string; // UUID
+  category_id: string;
+  user_id: string;
   location: string;
   condition: 'new' | 'used' | 'refurbished';
   status: 'active' | 'sold' | 'expired' | 'suspended';
@@ -49,132 +38,366 @@ export interface Listing {
   created_at: string;
   updated_at: string;
   expires_at: string | null;
-
-  profiles?: {
-    full_name: string | null;
-    phone: string | null;
-    email: string;
-  };
-  categories?: {
-    name: string;
-    icon: string | null;
-    slug: string;
-  };
-}
-
-export interface Message {
-  id: string;
-  listing_id: string;
-  sender_id: string;
-  receiver_id: string;
-  content: string;
-  read: boolean;
-  created_at: string;
-
-  sender?: { full_name: string | null; email: string };
-  receiver?: { full_name: string | null; email: string };
-  listing?: { title: string; price: number; currency: string; images: string[] };
-}
-
-export interface Favorite {
-  id: string;
-  user_id: string;
-  listing_id: string;
-  created_at: string;
-  listing?: Listing;
 }
 
 export interface Report {
   id: string;
   listing_id: string | null;
   user_id: string | null;
-  reporter_id: string | null; // Maintenant optionnel
+  reporter_id: string | null;
   reason: string;
   description: string | null;
-  status: 'pending' | 'reviewed' | 'resolved' | 'dismissed';
+  status: 'pending' | 'in_review' | 'resolved' | 'dismissed';
   created_at: string;
   updated_at: string;
   
-  // Nouveaux champs pour les signalements invités
+  // Support des signalements invités
   guest_name: string | null;
   guest_email: string | null;
   guest_phone: string | null;
   report_type: 'listing' | 'profile';
-
-  
-  listing?: { title: string; user_id: string; status: string };
-  reported_user?: { full_name: string | null; email: string };
-  reporter?: { full_name: string | null; email: string };
 }
 
 // ========================================
-// TABLES FUTURES (V2)
+// NOUVEAUX TYPES POUR LES ACTIONS ADMINISTRATIVES
 // ========================================
 
-export interface Review {
-  id: string;
-  merchant_id: string;
-  reviewer_id: string;
-  listing_id: string | null;
-  rating: number;
-  comment: string | null;
-  transaction_confirmed: boolean;
-  status: 'active' | 'hidden' | 'reported';
-  created_at: string;
-  updated_at: string;
-
-  merchant?: { full_name: string | null; email: string };
-  reviewer?: { full_name: string | null };
-  listing?: { title: string; price: number };
-}
-
-export interface Notification {
+export interface UserSanction {
   id: string;
   user_id: string;
-  type: 'message' | 'listing_expired' | 'account_warning' | 'system' | 'review_received';
-  title: string;
-  content: string;
-  read: boolean;
-  action_url: string | null;
-  related_id: string | null;
-  created_at: string;
-  expires_at: string | null;
-
-  user?: { full_name: string | null; email: string };
-}
-
-export interface Transaction {
-  id: string;
-  listing_id: string;
-  buyer_id: string | null;
-  seller_id: string;
-  amount: number;
-  currency: string;
-  payment_method: 'cash' | 'mobile_money' | 'bank_transfer' | 'other';
-  status: 'pending' | 'completed' | 'cancelled' | 'disputed';
-  transaction_date: string;
+  admin_id: string;
+  sanction_type: 'warning' | 'suspension' | 'permanent_ban';
+  reason: string;
+  description: string | null;
+  duration_days: number | null;
+  effective_from: string;
+  effective_until: string | null;
+  status: 'active' | 'expired' | 'revoked';
   created_at: string;
   updated_at: string;
+  revoked_at: string | null;
+  revoked_by: string | null;
+  revoked_reason: string | null;
+  related_report_id: string | null;
+}
 
-  listing?: { title: string; price: number };
-  buyer?: { full_name: string | null; email: string };
-  seller?: { full_name: string | null; email: string };
+export interface AdminAction {
+  id: string;
+  admin_id: string;
+  action_type: string;
+  target_type: 'user' | 'listing' | 'report';
+  target_id: string;
+  reason: string;
+  notes: string | null;
+  metadata: Record<string, any> | null;
+  created_at: string;
+  ip_address: string | null;
+  user_agent: string | null;
 }
 
 // ========================================
-// CONSTANTES
+// TYPES ÉTENDUS POUR L'INTERFACE ADMIN
 // ========================================
 
-export const USER_ROLES = { MERCHANT: 'merchant', ADMIN: 'admin' } as const;
-export const LISTING_STATUS = { ACTIVE: 'active', SOLD: 'sold', EXPIRED: 'expired', SUSPENDED: 'suspended' } as const;
-export const LISTING_CONFIG = { MAX_IMAGES: 8, MAX_TITLE_LENGTH: 100, MAX_DESCRIPTION_LENGTH: 2000, DEFAULT_CURRENCY: 'CFA', EXPIRY_DAYS: 30 } as const;
+export interface AdminReport extends Report {
+  // Données enrichies pour l'affichage
+  listing_title?: string;
+  listing_price?: number;
+  listing_status?: string;
+  reported_user_name?: string;
+  reported_user_email?: string;
+  reporter_name?: string;
+  reporter_email?: string;
+  reporter_type: 'registered' | 'guest';
+  
+  // Métadonnées calculées
+  priority: 'low' | 'medium' | 'high';
+  response_time_hours?: number;
+  escalation_level: number;
+  related_reports_count?: number;
+}
 
-export interface SearchFilters {
-  query?: string;
-  category?: string;
-  location?: string;
-  priceMin?: number;
-  priceMax?: number;
-  condition?: 'new' | 'used' | 'refurbished';
-  sortBy?: 'date' | 'price_asc' | 'price_desc' | 'views';
+export interface ReportAction {
+  type: 'approve' | 'dismiss' | 'escalate' | 'ban_user' | 'suspend_user' | 'warn_user' | 'remove_listing' | 'suspend_listing';
+  reason: string;
+  notes?: string;
+  duration?: number; // En jours pour les sanctions temporaires
+}
+
+export interface AdminActionResult {
+  success: boolean;
+  message: string;
+  actionId?: string;
+  details?: Record<string, any>;
+}
+
+// ========================================
+// TYPES POUR L'INTERFACE DE SIGNALEMENT
+// ========================================
+
+export interface GuestReportInfo {
+  name: string;
+  email: string;
+  phone?: string;
+}
+
+export interface ReportSubmissionData {
+  listingId?: string;
+  listingTitle?: string;
+  profileId?: string;
+  profileName?: string;
+  reason: string;
+  description: string;
+  guestInfo?: GuestReportInfo;
+}
+
+// ========================================
+// TYPES POUR LES FILTRES ET RECHERCHES
+// ========================================
+
+export interface ReportFilters {
+  status?: 'all' | 'pending' | 'in_review' | 'resolved' | 'dismissed';
+  reportType?: 'all' | 'listing' | 'profile';
+  priority?: 'all' | 'low' | 'medium' | 'high';
+  dateRange?: 'all' | '24h' | '7d' | '30d';
+  assignedTo?: 'all' | 'unassigned' | string;
+}
+
+export interface AdminFilters {
+  status?: string;
+  role?: 'all' | 'merchant' | 'admin';
+  sanctioned?: 'all' | 'active' | 'none';
+  dateRange?: 'all' | '24h' | '7d' | '30d';
+}
+
+// ========================================
+// TYPES POUR LES STATISTIQUES ADMIN
+// ========================================
+
+export interface ReportStats {
+  total: number;
+  pending: number;
+  inReview: number;
+  resolved: number;
+  dismissed: number;
+  averageResponseTime: number;
+  resolutionRate: number;
+  topReasons: Array<{ reason: string; count: number }>;
+}
+
+export interface AdminDashboardStats {
+  totalUsers: number;
+  totalListings: number;
+  totalReports: number;
+  pendingReports: number;
+  activeSanctions: number;
+  weeklyGrowth: {
+    users: number;
+    listings: number;
+    reports: number;
+  };
+  systemHealth: {
+    responseTime: number;
+    resolutionRate: number;
+    uptime: number;
+  };
+}
+
+// ========================================
+// TYPES POUR LES HOOKS ADMIN
+// ========================================
+
+export interface UseAdminReportsReturn {
+  // Données
+  reports: AdminReport[];
+  loading: boolean;
+  error: string | null;
+  
+  // Actions
+  handleReportAction: (reportId: string, action: ReportAction) => Promise<boolean>;
+  refreshReports: () => Promise<void>;
+  
+  // Utilitaires
+  getPriorityColor: (priority: string) => string;
+  getStatusColor: (status: string) => string;
+  formatResponseTime: (hours: number) => string;
+  
+  // Compteurs
+  pendingCount: number;
+  highPriorityCount: number;
+  overdueCount: number;
+}
+
+export interface UseAdminUsersReturn {
+  users: Profile[];
+  loading: boolean;
+  error: string | null;
+  activeUsersCount: number;
+  suspendedUsersCount: number;
+  refreshUsers: () => Promise<void>;
+  banUser: (userId: string, reason: string, duration?: number) => Promise<boolean>;
+  unbanUser: (userId: string, reason: string) => Promise<boolean>;
+}
+
+// ========================================
+// TYPES POUR LES COMPOSANTS UI
+// ========================================
+
+export interface ActionModalProps {
+  report: AdminReport | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onAction: (reportId: string, action: ReportAction) => Promise<boolean>;
+}
+
+export interface AdminTableProps {
+  data: any[];
+  columns: Array<{
+    key: string;
+    label: string;
+    render?: (value: any, item: any) => React.ReactNode;
+  }>;
+  loading?: boolean;
+  onRowClick?: (item: any) => void;
+  emptyMessage?: string;
+}
+
+// ========================================
+// ÉNUMÉRATIONS ET CONSTANTES
+// ========================================
+
+export const REPORT_STATUSES = {
+  PENDING: 'pending',
+  IN_REVIEW: 'in_review',
+  RESOLVED: 'resolved',
+  DISMISSED: 'dismissed'
+} as const;
+
+export const SANCTION_TYPES = {
+  WARNING: 'warning',
+  SUSPENSION: 'suspension',
+  PERMANENT_BAN: 'permanent_ban'
+} as const;
+
+export const ACTION_TYPES = {
+  APPROVE: 'approve',
+  DISMISS: 'dismiss',
+  ESCALATE: 'escalate',
+  BAN_USER: 'ban_user',
+  SUSPEND_USER: 'suspend_user',
+  WARN_USER: 'warn_user',
+  REMOVE_LISTING: 'remove_listing',
+  SUSPEND_LISTING: 'suspend_listing'
+} as const;
+
+export const PRIORITY_LEVELS = {
+  LOW: 'low',
+  MEDIUM: 'medium',
+  HIGH: 'high'
+} as const;
+
+// ========================================
+// TYPES POUR LES PERMISSIONS
+// ========================================
+
+export interface AdminPermissions {
+  canViewReports: boolean;
+  canManageReports: boolean;
+  canBanUsers: boolean;
+  canDeleteListings: boolean;
+  canViewAnalytics: boolean;
+  canManageAdmins: boolean;
+}
+
+export interface UserContext {
+  user: Profile | null;
+  permissions: AdminPermissions | null;
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
+}
+
+// ========================================
+// TYPES POUR L'AUDIT ET LA TRAÇABILITÉ
+// ========================================
+
+export interface AuditLog {
+  id: string;
+  admin_id: string;
+  action_type: string;
+  target_type: string;
+  target_id: string;
+  old_values: Record<string, any> | null;
+  new_values: Record<string, any> | null;
+  reason: string;
+  created_at: string;
+  ip_address: string | null;
+}
+
+// ========================================
+// TYPES POUR LES NOTIFICATIONS SYSTÈME
+// ========================================
+
+export interface SystemNotification {
+  id: string;
+  type: 'info' | 'warning' | 'error' | 'success';
+  title: string;
+  message: string;
+  persistent: boolean;
+  created_at: string;
+  expires_at: string | null;
+  read: boolean;
+}
+
+// ========================================
+// UNION TYPES ET GUARDS
+// ========================================
+
+export type ReportStatus = typeof REPORT_STATUSES[keyof typeof REPORT_STATUSES];
+export type SanctionType = typeof SANCTION_TYPES[keyof typeof SANCTION_TYPES];
+export type ActionType = typeof ACTION_TYPES[keyof typeof ACTION_TYPES];
+export type PriorityLevel = typeof PRIORITY_LEVELS[keyof typeof PRIORITY_LEVELS];
+
+// Type guards pour la sécurité des types
+export const isValidReportStatus = (status: string): status is ReportStatus => {
+  return Object.values(REPORT_STATUSES).includes(status as ReportStatus);
+};
+
+export const isValidActionType = (action: string): action is ActionType => {
+  return Object.values(ACTION_TYPES).includes(action as ActionType);
+};
+
+// ========================================
+// TYPES POUR LA BASE DE DONNÉES SUPABASE
+// ========================================
+
+export interface Database {
+  public: {
+    Tables: {
+      profiles: {
+        Row: Profile;
+        Insert: Omit<Profile, 'id' | 'created_at'> & { id?: string; created_at?: string };
+        Update: Partial<Omit<Profile, 'id'>>;
+      };
+      listings: {
+        Row: Listing;
+        Insert: Omit<Listing, 'id' | 'created_at' | 'updated_at'> & { id?: string; created_at?: string; updated_at?: string };
+        Update: Partial<Omit<Listing, 'id'>>;
+      };
+      reports: {
+        Row: Report;
+        Insert: Omit<Report, 'id' | 'created_at' | 'updated_at'> & { id?: string; created_at?: string; updated_at?: string };
+        Update: Partial<Omit<Report, 'id'>>;
+      };
+      user_sanctions: {
+        Row: UserSanction;
+        Insert: Omit<UserSanction, 'id' | 'created_at' | 'updated_at'> & { id?: string; created_at?: string; updated_at?: string };
+        Update: Partial<Omit<UserSanction, 'id'>>;
+      };
+      admin_actions: {
+        Row: AdminAction;
+        Insert: Omit<AdminAction, 'id' | 'created_at'> & { id?: string; created_at?: string };
+        Update: Partial<Omit<AdminAction, 'id'>>;
+      };
+    };
+  };
 }

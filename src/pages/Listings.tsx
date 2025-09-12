@@ -218,7 +218,7 @@ const Listings = () => {
                     
                     <div className="flex items-center justify-between">
                       <span className="text-xl font-bold text-primary">
-                        {listing.price.toLocaleString()} XOF
+                        {listing.price.toLocaleString()} F CFA
                       </span>
                       <Badge variant="secondary">{listing.category}</Badge>
                     </div>

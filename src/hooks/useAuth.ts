@@ -1,13 +1,10 @@
-// useAuth.ts - Version complète pour FasoMarket avec fonctionnalités de sécurité avancées
-// Cette version intègre toutes les fonctionnalités nécessaires pour les modales de sécurité
-
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { User, Session, AuthError } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { useToast } from '@/hooks/use-toast'
 
 // ========================================
-// INTERFACES ET TYPES
+// INTERFACES ET TYPES (inchangés)
 // ========================================
 
 export interface UserProfile {
@@ -23,137 +20,419 @@ export interface UserProfile {
   updated_at: string | null
 }
 
-// Interface pour les sessions actives - données réelles de Supabase
-export interface ActiveSession {
-  id: string
-  user_id: string
-  ip_address: string
-  user_agent: string
-  created_at: string
-  updated_at: string
-  is_current?: boolean // Calculé côté client
-}
-
-// Interface pour les facteurs MFA
-export interface MFAFactor {
-  id: string
-  type: 'totp' // Time-based One-Time Password
-  status: 'verified' | 'unverified'
-  created_at: string
-  updated_at: string
-}
-
-// Interface pour les codes de récupération (backup codes)
-export interface BackupCode {
-  code: string
-  used: boolean
-}
-
-// Interface principale du contexte d'authentification étendu
 export interface AuthContextType {
-  // États de base
   user: User | null
   profile: UserProfile | null
   session: Session | null
   loading: boolean
   
-  // Méthodes d'authentification de base
   signUp: (email: string, password: string, fullName: string, phone?: string) => Promise<void>
   signIn: (email: string, password: string) => Promise<void>
   signOut: () => Promise<void>
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>
-  
-  // NOUVELLES MÉTHODES DE SÉCURITÉ AVANCÉE
-  // Gestion des mots de passe
-  changePassword: (currentPassword: string, newPassword: string) => Promise<void>
-  resetPassword: (email: string) => Promise<void>
-  
-  // Authentification à deux facteurs (2FA/MFA)
-  setupMFA: () => Promise<{ qr_code: string; secret: string; backup_codes: string[] }>
-  verifyMFA: (code: string) => Promise<BackupCode[]>
-  disableMFA: () => Promise<void>
-  getMFAStatus: () => Promise<{ enabled: boolean; factors: MFAFactor[] }>
-  
-  // Gestion des sessions
-  getActiveSessions: () => Promise<ActiveSession[]>
-  revokeSession: (sessionId: string) => Promise<void>
-  revokeAllOtherSessions: () => Promise<void>
 }
 
 // ========================================
-// HOOK PRINCIPAL AVEC SÉCURITÉ AVANCÉE
+// SYSTÈME DE LOGGING AMÉLIORÉ
+// ========================================
+
+const createLogger = (context: string) => {
+  return {
+    info: (message: string, data?: any) => {
+      console.log(`🔵 [${context}] ${message}`, data ? data : '')
+    },
+    success: (message: string, data?: any) => {
+      console.log(`✅ [${context}] ${message}`, data ? data : '')
+    },
+    warning: (message: string, data?: any) => {
+      console.warn(`⚠️ [${context}] ${message}`, data ? data : '')
+    },
+    error: (message: string, error?: any) => {
+      console.error(`❌ [${context}] ${message}`, error ? error : '')
+    },
+    debug: (message: string, data?: any) => {
+      console.log(`🔍 [${context}] ${message}`, data ? data : '')
+    }
+  }
+}
+
+// ========================================
+// HOOK PRINCIPAL AVEC PRÉVENTION DES COLLISIONS
 // ========================================
 
 export const useAuth = (): AuthContextType => {
-  // États de base (inchangés)
+  const logger = createLogger('AUTH_HOOK')
+  
+  // États de base
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
   const { toast } = useToast()
 
+  // Système anti-collision pour la récupération de profil
+  const profileFetchRef = useRef<{
+    isActive: boolean
+    currentUserId: string | null
+    abortController: AbortController | null
+  }>({
+    isActive: false,
+    currentUserId: null,
+    abortController: null
+  })
+
+  // Surveillance des changements d'état avec diagnostic intelligent
+  useEffect(() => {
+    const stateSnapshot = {
+      hasUser: !!user,
+      userEmail: user?.email || 'N/A',
+      hasProfile: !!profile,
+      profileRole: profile?.role || 'N/A',
+      hasSession: !!session,
+      loading,
+      timestamp: new Date().toISOString()
+    }
+    
+    logger.debug('État de l\'authentification mis à jour', stateSnapshot)
+    
+    // Diagnostics intelligents pour détecter les états problématiques
+    if (loading && user && !profile && !profileFetchRef.current.isActive) {
+      logger.warning('Utilisateur connecté sans profil et sans récupération en cours - possible problème')
+    }
+    
+    if (!loading && user && !profile) {
+      logger.error('État final incohérent: utilisateur sans profil après chargement')
+    }
+    
+  }, [user, profile, session, loading])
+
   // ========================================
-  // EFFETS ET INITIALISATION (inchangés)
+  // FONCTION DE RÉCUPÉRATION DE PROFIL ANTI-COLLISION
   // ========================================
   
-  useEffect(() => {
-    // Récupération de la session initiale
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        fetchProfile(session.user.id)
-      } else {
-        setLoading(false)
-      }
-    })
+  const fetchProfile = async (userId: string, source: string = 'unknown') => {
+    const profileLogger = createLogger('FETCH_PROFILE')
+    
+    // Vérification anti-collision : si une récupération est déjà en cours pour le même utilisateur
+    if (profileFetchRef.current.isActive && profileFetchRef.current.currentUserId === userId) {
+      profileLogger.warning(`Récupération déjà en cours pour l'utilisateur ${userId} (source: ${source}) - ignoré`)
+      return
+    }
 
-    // Écoute des changements d'état d'authentification
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      
-      if (session?.user) {
-        await fetchProfile(session.user.id)
-      } else {
-        setProfile(null)
-        setLoading(false)
-      }
-    })
+    // Annulation de toute récupération précédente pour un utilisateur différent
+    if (profileFetchRef.current.isActive && profileFetchRef.current.currentUserId !== userId) {
+      profileLogger.info('Annulation de la récupération précédente (changement d\'utilisateur)')
+      profileFetchRef.current.abortController?.abort()
+    }
 
-    return () => subscription.unsubscribe()
-  }, [])
+    // Activation du verrou de protection
+    const abortController = new AbortController()
+    profileFetchRef.current = {
+      isActive: true,
+      currentUserId: userId,
+      abortController
+    }
 
-  // ========================================
-  // MÉTHODES DE BASE (inchangées)
-  // ========================================
-
-  const fetchProfile = async (userId: string) => {
     try {
+      profileLogger.info(`[${source}] Démarrage sécurisé de la récupération du profil pour: ${userId}`)
+      
+      // Configuration du timeout avec signal d'annulation
+      const timeoutId = setTimeout(() => {
+        profileLogger.warning('Timeout de 12 secondes atteint - annulation de la requête')
+        abortController.abort()
+      }, 12000)
+
+      // Requête avec possibilité d'annulation
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
+        .abortSignal(abortController.signal)
         .single()
 
-      if (error) {
-        console.error('Erreur lors de la récupération du profil:', error)
-      } else {
-        setProfile(data)
+      // Nettoyage du timeout si la requête aboutit avant
+      clearTimeout(timeoutId)
+
+      // Vérification que la requête n'a pas été annulée
+      if (abortController.signal.aborted) {
+        profileLogger.info('Récupération annulée (timeout ou nouvelle requête)')
+        return
       }
-    } catch (error) {
-      console.error('Erreur lors de la récupération du profil:', error)
+
+      // Traitement intelligent des résultats
+      if (error) {
+        profileLogger.error('Erreur Supabase lors de la récupération', {
+          code: error.code,
+          message: error.message
+        })
+        
+        // Gestion spécialisée selon le type d'erreur
+        if (error.code === 'PGRST116') {
+          profileLogger.info('Profil inexistant - création d\'un profil par défaut')
+          
+          const defaultProfile: UserProfile = {
+            id: userId,
+            email: user?.email || '',
+            full_name: user?.user_metadata?.full_name || null,
+            phone: user?.user_metadata?.phone || null,
+            bio: null,
+            location: null,
+            avatar_url: null,
+            role: 'merchant',
+            created_at: new Date().toISOString(),
+            updated_at: null
+          }
+          
+          setProfile(defaultProfile)
+          profileLogger.success('Profil par défaut appliqué')
+          
+          // Tentative de sauvegarde asynchrone (non-bloquante)
+          supabase
+            .from('profiles')
+            .insert(defaultProfile)
+            .then(({ error: insertError }) => {
+              if (insertError) {
+                profileLogger.warning('Sauvegarde du profil par défaut échouée', insertError)
+              } else {
+                profileLogger.success('Profil par défaut sauvegardé en base')
+              }
+            })
+            
+        } else {
+          profileLogger.error('Erreur non récupérable')
+          setProfile(null)
+          
+          if (error.message.includes('JWT')) {
+            toast({
+              title: "Session expirée",
+              description: "Veuillez vous reconnecter.",
+              variant: "destructive"
+            })
+          }
+        }
+        
+      } else {
+        // Succès : validation et application des données
+        profileLogger.success('Données de profil reçues avec succès')
+        profileLogger.debug('Contenu du profil', {
+          id: data.id,
+          email: data.email,
+          role: data.role,
+          hasName: !!data.full_name
+        })
+        
+        // Validation des données critiques
+        if (!data.id || !data.email) {
+          profileLogger.warning('Profil incomplet reçu - application malgré tout')
+        }
+        
+        setProfile(data)
+        profileLogger.success('Profil mis à jour dans l\'état React')
+      }
+      
+    } catch (exception) {
+      // Gestion intelligente des exceptions
+      if (exception instanceof Error) {
+        if (exception.name === 'AbortError') {
+          profileLogger.info('Récupération annulée volontairement (normal)')
+          return
+        }
+        
+        profileLogger.error('Exception lors de la récupération', {
+          name: exception.name,
+          message: exception.message
+        })
+        
+        if (exception.message.includes('fetch')) {
+          toast({
+            title: "Problème de connexion",
+            description: "Vérifiez votre connexion internet.",
+            variant: "destructive"
+          })
+        }
+      } else {
+        profileLogger.error('Exception non identifiée', exception)
+      }
+      
+      setProfile(null)
+      
     } finally {
+      // Libération du verrou uniquement si cette requête est toujours active
+      if (profileFetchRef.current.currentUserId === userId) {
+        profileFetchRef.current = {
+          isActive: false,
+          currentUserId: null,
+          abortController: null
+        }
+        profileLogger.debug(`[${source}] Libération du verrou de récupération`)
+      }
+      
       setLoading(false)
     }
   }
 
+  // ========================================
+  // INITIALISATION COORDONNÉE SANS COLLISION
+  // ========================================
+  
+  useEffect(() => {
+    const initLogger = createLogger('INITIALIZATION')
+    
+    initLogger.info('🚀 Démarrage de l\'initialisation coordonnée de l\'authentification')
+    
+    // Variable de contrôle pour éviter les états de course
+    let initializationCompleted = false
+    
+    // Étape 1: Vérification de session existante
+    initLogger.info('Étape 1: Vérification de session persistante')
+    
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (initializationCompleted) {
+        initLogger.warning('Initialisation déjà terminée - ignoré')
+        return
+      }
+      
+      if (error) {
+        initLogger.error('Erreur lors de la récupération de session', error)
+        setLoading(false)
+        initializationCompleted = true
+        return
+      }
+      
+      if (session) {
+        initLogger.success('Session persistante trouvée', {
+          userId: session.user.id,
+          email: session.user.email,
+          expires: new Date(session.expires_at * 1000).toLocaleString()
+        })
+        
+        // Mise à jour immédiate des états
+        setSession(session)
+        setUser(session.user)
+        
+        // Calcul du temps de validité restant
+        const timeUntilExpiry = (session.expires_at * 1000) - Date.now()
+        const minutesLeft = Math.floor(timeUntilExpiry / (1000 * 60))
+        
+        if (minutesLeft <= 0) {
+          initLogger.warning('Session trouvée mais expirée')
+          setLoading(false)
+        } else {
+          initLogger.info(`Session valide pendant encore ${minutesLeft} minutes`)
+          
+          // Déclenchement unique de la récupération de profil
+          fetchProfile(session.user.id, 'INITIALIZATION')
+        }
+        
+      } else {
+        initLogger.info('Aucune session persistante - utilisateur non connecté')
+        setSession(null)
+        setUser(null)
+        setProfile(null)
+        setLoading(false)
+      }
+      
+      initializationCompleted = true
+    })
+    
+    // Étape 2: Configuration de l'écouteur d'événements (sans collision)
+    initLogger.info('Étape 2: Configuration de l\'écouteur d\'événements')
+    
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      const eventLogger = createLogger(`AUTH_EVENT_${event}`)
+      
+      eventLogger.info(`Événement d'authentification: ${event}`, {
+        hasSession: !!session,
+        userId: session?.user?.id || 'N/A'
+      })
+      
+      // Mise à jour systématique des états de base
+      setSession(session)
+      setUser(session?.user ?? null)
+      
+      // Traitement intelligent selon l'événement
+      switch (event) {
+        case 'SIGNED_IN':
+          eventLogger.success('Nouvelle connexion détectée')
+          if (session?.user) {
+            // Léger délai pour laisser l'initialisation se terminer
+            setTimeout(() => {
+              if (!profileFetchRef.current.isActive) {
+                fetchProfile(session.user.id, 'SIGNED_IN')
+              } else {
+                eventLogger.info('Récupération déjà en cours - SIGNED_IN ignoré')
+              }
+            }, 200)
+          }
+          break
+          
+        case 'SIGNED_OUT':
+          eventLogger.success('Déconnexion détectée')
+          setProfile(null)
+          setLoading(false)
+          
+          // Annulation de toute récupération en cours
+          if (profileFetchRef.current.isActive) {
+            profileFetchRef.current.abortController?.abort()
+          }
+          break
+          
+        case 'TOKEN_REFRESHED':
+          eventLogger.info('Token rafraîchi automatiquement')
+          
+          // Récupération de profil uniquement s'il est manquant
+          if (session?.user && !profile && !profileFetchRef.current.isActive) {
+            eventLogger.info('Profil manquant après rafraîchissement - récupération')
+            fetchProfile(session.user.id, 'TOKEN_REFRESH')
+          }
+          break
+          
+        case 'INITIAL_SESSION':
+          // Cet événement est maintenant géré uniquement si l'initialisation principale a échoué
+          if (!initializationCompleted && session?.user) {
+            eventLogger.info('Session initiale via événement (fallback)')
+            fetchProfile(session.user.id, 'INITIAL_SESSION_FALLBACK')
+          } else {
+            eventLogger.debug('INITIAL_SESSION ignoré - initialisation déjà gérée')
+          }
+          break
+          
+        default:
+          eventLogger.warning(`Événement non géré: ${event}`)
+      }
+      
+      eventLogger.debug('Traitement de l\'événement terminé')
+    })
+
+    initLogger.success('Écouteur d\'événements configuré')
+    
+    // Fonction de nettoyage
+    return () => {
+      initLogger.info('Nettoyage: arrêt de l\'écouteur et annulation des requêtes')
+      subscription.unsubscribe()
+      
+      // Annulation de toute récupération de profil en cours
+      if (profileFetchRef.current.isActive) {
+        profileFetchRef.current.abortController?.abort()
+      }
+    }
+  }, []) // Dépendances vides = exécution unique au montage
+
+  // ========================================
+  // MÉTHODES D'AUTHENTIFICATION SIMPLIFIÉES
+  // ========================================
+
   const signUp = async (email: string, password: string, fullName: string, phone?: string) => {
+    const signupLogger = createLogger('SIGNUP')
+    
     try {
       setLoading(true)
-      console.log('🚀 Démarrage du processus de création de compte marchand pour:', email)
+      signupLogger.info('Création de compte marchand', { email, fullName })
+      
+      // Validations côté client
+      if (!email.includes('@')) throw new Error('Email invalide')
+      if (password.length < 6) throw new Error('Mot de passe trop court')
+      if (fullName.trim().length < 2) throw new Error('Nom trop court')
       
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -169,60 +448,82 @@ export const useAuth = (): AuthContextType => {
 
       if (error) throw error
 
-      if (data.user) {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert({
-            id: data.user.id,
-            email: data.user.email!,
-            full_name: fullName,
-            phone: phone || null,
-            role: 'merchant'
-          })
+      signupLogger.success('Compte créé avec succès', { userId: data.user?.id })
 
-        if (profileError) {
-          console.error('❌ Erreur lors de la création du profil marchand:', profileError)
+      // Création du profil (non-bloquante)
+      if (data.user) {
+        const profileData = {
+          id: data.user.id,
+          email: data.user.email!,
+          full_name: fullName,
+          phone: phone || null,
+          role: 'merchant' as const
         }
+        
+        supabase
+          .from('profiles')
+          .insert(profileData)
+          .then(({ error: profileError }) => {
+            if (profileError) {
+              signupLogger.warning('Création de profil échouée', profileError)
+            } else {
+              signupLogger.success('Profil créé en base')
+            }
+          })
       }
 
       toast({
-        title: "Compte marchand créé !",
-        description: "Veuillez vérifier votre email pour confirmer votre compte.",
+        title: "Compte créé !",
+        description: "Vérifiez votre email pour confirmer votre compte.",
       })
+
     } catch (error) {
       const authError = error as AuthError
+      signupLogger.error('Échec de création de compte', authError)
+      
       let errorMessage = authError.message
       if (authError.message.includes('already registered')) {
         errorMessage = "Cette adresse email est déjà utilisée."
       }
       
       toast({
-        title: "Erreur de création de compte",
+        title: "Erreur de création",
         description: errorMessage,
         variant: "destructive"
       })
-      throw error
-    } finally {
+      
       setLoading(false)
+      throw error
     }
   }
 
   const signIn = async (email: string, password: string) => {
+    const signinLogger = createLogger('SIGNIN')
+    
     try {
       setLoading(true)
-      const { error } = await supabase.auth.signInWithPassword({
+      signinLogger.info('Tentative de connexion', { email })
+      
+      if (!email || !password) throw new Error('Email et mot de passe requis')
+      
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
       if (error) throw error
 
+      signinLogger.success('Connexion réussie', { userId: data.user?.id })
+
       toast({
         title: "Connexion réussie !",
         description: "Bienvenue sur FasoMarket.",
       })
+
     } catch (error) {
       const authError = error as AuthError
+      signinLogger.error('Échec de connexion', authError)
+      
       let errorMessage = authError.message
       if (authError.message.includes('Invalid login credentials')) {
         errorMessage = "Email ou mot de passe incorrect."
@@ -233,23 +534,33 @@ export const useAuth = (): AuthContextType => {
         description: errorMessage,
         variant: "destructive"
       })
-      throw error
-    } finally {
+      
       setLoading(false)
+      throw error
     }
   }
 
   const signOut = async () => {
+    const signoutLogger = createLogger('SIGNOUT')
+    
     try {
+      signoutLogger.info('Déconnexion en cours')
+      
       const { error } = await supabase.auth.signOut()
+      
       if (error) throw error
 
+      signoutLogger.success('Déconnexion réussie')
+      
       toast({
         title: "Déconnexion",
-        description: "Vous avez été déconnexé avec succès.",
+        description: "Vous avez été déconnecté avec succès.",
       })
+
     } catch (error) {
       const authError = error as AuthError
+      signoutLogger.error('Erreur de déconnexion', authError)
+      
       toast({
         title: "Erreur",
         description: authError.message,
@@ -259,532 +570,70 @@ export const useAuth = (): AuthContextType => {
   }
 
   const updateProfile = async (updates: Partial<UserProfile>) => {
-    if (!user) return
+    const updateLogger = createLogger('UPDATE_PROFILE')
+    
+    if (!user) {
+      updateLogger.error('Aucun utilisateur connecté')
+      return
+    }
 
     try {
+      updateLogger.info('Mise à jour du profil', { userId: user.id, fields: Object.keys(updates) })
+      
+      const updateData = {
+        ...updates,
+        updated_at: new Date().toISOString(),
+      }
+      
       const { error } = await supabase
         .from('profiles')
-        .update({
-          ...updates,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq('id', user.id)
 
       if (error) throw error
 
       setProfile(prev => prev ? { ...prev, ...updates } : null)
+      updateLogger.success('Profil mis à jour avec succès')
       
       toast({
         title: "Profil mis à jour",
         description: "Vos informations ont été mises à jour avec succès.",
       })
+
     } catch (error) {
+      updateLogger.error('Échec de mise à jour', error)
+      
       toast({
         title: "Erreur",
         description: "Impossible de mettre à jour le profil.",
         variant: "destructive"
       })
+      
       throw error
     }
   }
 
   // ========================================
-  // NOUVELLES MÉTHODES DE SÉCURITÉ AVANCÉE
+  // RETOUR DE L'INTERFACE
   // ========================================
 
-  /**
-   * Changement de mot de passe avec vérification de l'ancien mot de passe
-   * Utilise l'API Supabase Auth pour une sécurité maximale
-   */
-  const changePassword = async (currentPassword: string, newPassword: string): Promise<void> => {
-    if (!user) {
-      throw new Error("Aucun utilisateur connecté")
-    }
-
-    try {
-      console.log('🔒 Changement de mot de passe pour l\'utilisateur:', user.email)
-
-      // Étape 1: Vérifier le mot de passe actuel en tentant une re-authentification
-      // Ceci est une mesure de sécurité importante pour s'assurer que l'utilisateur
-      // connaît bien son mot de passe actuel
-      const { error: verifyError } = await supabase.auth.signInWithPassword({
-        email: user.email!,
-        password: currentPassword,
-      })
-
-      if (verifyError) {
-        throw new Error("Mot de passe actuel incorrect")
-      }
-
-      // Étape 2: Changer le mot de passe
-      // Supabase gère automatiquement le hachage et la sécurisation du nouveau mot de passe
-      const { error: updateError } = await supabase.auth.updateUser({
-        password: newPassword
-      })
-
-      if (updateError) {
-        throw updateError
-      }
-
-      console.log('✅ Mot de passe changé avec succès')
-      
-      toast({
-        title: "Mot de passe modifié",
-        description: "Votre mot de passe a été changé avec succès.",
-      })
-
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Erreur lors du changement de mot de passe"
-      console.error('❌ Erreur changement mot de passe:', error)
-      
-      toast({
-        title: "Erreur",
-        description: errorMessage,
-        variant: "destructive"
-      })
-      throw error
-    }
-  }
-
-  /**
-   * Demande de réinitialisation de mot de passe par email
-   * Utile pour les utilisateurs qui ont oublié leur mot de passe
-   */
-  const resetPassword = async (email: string): Promise<void> => {
-    try {
-      console.log('📧 Demande de réinitialisation de mot de passe pour:', email)
-      
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`
-      })
-
-      if (error) throw error
-
-      toast({
-        title: "Email envoyé",
-        description: "Un lien de réinitialisation a été envoyé à votre adresse email.",
-      })
-
-    } catch (error) {
-      const authError = error as AuthError
-      toast({
-        title: "Erreur",
-        description: authError.message,
-        variant: "destructive"
-      })
-      throw error
-    }
-  }
-
-  /**
-   * Configuration initiale de l'authentification multi-facteurs (MFA)
-   * Génère un QR code et des codes de sauvegarde
-   */
-  const setupMFA = async (): Promise<{ qr_code: string; secret: string; backup_codes: string[] }> => {
-    if (!user) {
-      throw new Error("Aucun utilisateur connecté")
-    }
-
-    try {
-      console.log('🔐 Configuration MFA pour l\'utilisateur:', user.email)
-
-      // Étape 1: Enrôler un nouveau facteur TOTP (Time-based One-Time Password)
-      const { data: factor, error: enrollError } = await supabase.auth.mfa.enroll({
-        factorType: 'totp',
-      })
-
-      if (enrollError || !factor) {
-        throw enrollError || new Error("Erreur lors de l'enrôlement MFA")
-      }
-
-      // Étape 2: Générer des codes de sauvegarde
-      // Ces codes permettront à l'utilisateur d'accéder à son compte même s'il perd
-      // son dispositif d'authentification
-      const backupCodes = Array.from({ length: 8 }, () => {
-        const part1 = Math.random().toString(36).substring(2, 6).toUpperCase()
-        const part2 = Math.random().toString(36).substring(2, 6).toUpperCase()
-        return `${part1}-${part2}`
-      })
-
-      // Étape 3: Stocker les codes de sauvegarde dans la base de données
-      // En production, ces codes doivent être chiffrés
-      const { error: backupError } = await supabase
-        .from('user_backup_codes')
-        .insert(
-          backupCodes.map(code => ({
-            user_id: user.id,
-            code: code,
-            used: false,
-            created_at: new Date().toISOString()
-          }))
-        )
-
-      if (backupError) {
-        console.error('⚠️ Erreur lors de la sauvegarde des codes de récupération:', backupError)
-        // On continue quand même, les codes peuvent être régénérés
-      }
-
-      console.log('✅ Configuration MFA initialisée avec succès')
-
-      return {
-        qr_code: factor.totp.qr_code,
-        secret: factor.totp.secret,
-        backup_codes: backupCodes
-      }
-
-    } catch (error) {
-      console.error('❌ Erreur lors de la configuration MFA:', error)
-      const errorMessage = error instanceof Error ? error.message : "Erreur lors de la configuration 2FA"
-      
-      toast({
-        title: "Erreur 2FA",
-        description: errorMessage,
-        variant: "destructive"
-      })
-      throw error
-    }
-  }
-
-  /**
-   * Vérification du code TOTP pour finaliser l'activation MFA
-   * Cette fonction confirme que l'utilisateur a bien configuré son application
-   */
-  const verifyMFA = async (code: string): Promise<BackupCode[]> => {
-    if (!user) {
-      throw new Error("Aucun utilisateur connecté")
-    }
-
-    try {
-      console.log('🔍 Vérification du code MFA pour l\'utilisateur:', user.email)
-
-      // Récupérer les facteurs en attente de vérification
-      const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors()
-      
-      if (factorsError || !factors) {
-        throw factorsError || new Error("Erreur lors de la récupération des facteurs MFA")
-      }
-
-      // Trouver le facteur TOTP non vérifié
-      const totpFactor = factors.totp.find(factor => factor.status === 'unverified')
-      
-      if (!totpFactor) {
-        throw new Error("Aucun facteur TOTP en attente de vérification")
-      }
-
-      // Vérifier le code TOTP
-      const { data: challenge, error: challengeError } = await supabase.auth.mfa.challenge({
-        factorId: totpFactor.id
-      })
-
-      if (challengeError || !challenge) {
-        throw challengeError || new Error("Erreur lors de la création du challenge MFA")
-      }
-
-      const { error: verifyError } = await supabase.auth.mfa.verify({
-        factorId: totpFactor.id,
-        challengeId: challenge.id,
-        code: code
-      })
-
-      if (verifyError) {
-        throw verifyError
-      }
-
-      // Récupérer les codes de sauvegarde pour les afficher à l'utilisateur
-      const { data: backupCodesData, error: backupCodesError } = await supabase
-        .from('user_backup_codes')
-        .select('code, used')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: true })
-
-      const backupCodes: BackupCode[] = backupCodesData || []
-
-      console.log('✅ MFA activé avec succès')
-      
-      toast({
-        title: "2FA activé",
-        description: "L'authentification à deux facteurs a été activée avec succès.",
-      })
-
-      return backupCodes
-
-    } catch (error) {
-      console.error('❌ Erreur lors de la vérification MFA:', error)
-      const errorMessage = error instanceof Error ? error.message : "Code de vérification incorrect"
-      
-      toast({
-        title: "Erreur de vérification",
-        description: errorMessage,
-        variant: "destructive"
-      })
-      throw error
-    }
-  }
-
-  /**
-   * Désactivation de l'authentification multi-facteurs
-   * Supprime tous les facteurs et codes de sauvegarde
-   */
-  const disableMFA = async (): Promise<void> => {
-    if (!user) {
-      throw new Error("Aucun utilisateur connecté")
-    }
-
-    try {
-      console.log('🔓 Désactivation MFA pour l\'utilisateur:', user.email)
-
-      // Récupérer tous les facteurs actifs
-      const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors()
-      
-      if (factorsError) {
-        throw factorsError
-      }
-
-      // Supprimer tous les facteurs TOTP
-      if (factors?.totp) {
-        for (const factor of factors.totp) {
-          const { error: unenrollError } = await supabase.auth.mfa.unenroll({
-            factorId: factor.id
-          })
-          
-          if (unenrollError) {
-            console.error('Erreur lors de la suppression du facteur:', unenrollError)
-          }
-        }
-      }
-
-      // Supprimer les codes de sauvegarde de la base de données
-      const { error: deleteBackupError } = await supabase
-        .from('user_backup_codes')
-        .delete()
-        .eq('user_id', user.id)
-
-      if (deleteBackupError) {
-        console.error('Erreur lors de la suppression des codes de sauvegarde:', deleteBackupError)
-      }
-
-      console.log('✅ MFA désactivé avec succès')
-      
-      toast({
-        title: "2FA désactivé",
-        description: "L'authentification à deux facteurs a été désactivée.",
-      })
-
-    } catch (error) {
-      console.error('❌ Erreur lors de la désactivation MFA:', error)
-      const errorMessage = error instanceof Error ? error.message : "Erreur lors de la désactivation 2FA"
-      
-      toast({
-        title: "Erreur",
-        description: errorMessage,
-        variant: "destructive"
-      })
-      throw error
-    }
-  }
-
-  /**
-   * Récupération du statut MFA de l'utilisateur
-   * Indique si la 2FA est activée et quels facteurs sont disponibles
-   */
-  const getMFAStatus = async (): Promise<{ enabled: boolean; factors: MFAFactor[] }> => {
-    if (!user) {
-      throw new Error("Aucun utilisateur connecté")
-    }
-
-    try {
-      const { data: factors, error } = await supabase.auth.mfa.listFactors()
-      
-      if (error) {
-        throw error
-      }
-
-      const mfaFactors: MFAFactor[] = factors?.totp?.map(factor => ({
-        id: factor.id,
-        type: 'totp',
-        status: factor.status,
-        created_at: factor.created_at,
-        updated_at: factor.updated_at
-      })) || []
-
-      const enabled = mfaFactors.some(factor => factor.status === 'verified')
-
-      return { enabled, factors: mfaFactors }
-
-    } catch (error) {
-      console.error('❌ Erreur lors de la récupération du statut MFA:', error)
-      return { enabled: false, factors: [] }
-    }
-  }
-
-  /**
-   * Récupération de toutes les sessions actives de l'utilisateur
-   * Note: Supabase ne fournit pas encore d'API native pour cela,
-   * cette fonction utilise une approche alternative
-   */
-  const getActiveSessions = async (): Promise<ActiveSession[]> => {
-    if (!user) {
-      throw new Error("Aucun utilisateur connecté")
-    }
-
-    try {
-      console.log('📋 Récupération des sessions actives pour:', user.email)
-
-      // Approche 1: Utiliser une table personnalisée pour tracker les sessions
-      // En production, vous devriez créer une table 'user_sessions' et la maintenir
-      // via des triggers ou des fonctions edge
-      const { data: sessionsData, error: sessionsError } = await supabase
-        .from('user_sessions')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('updated_at', { ascending: false })
-
-      if (sessionsError) {
-        console.error('Erreur lors de la récupération des sessions:', sessionsError)
-        // Fallback: retourner la session courante seulement
-        return [{
-          id: session?.access_token.substring(0, 8) || 'current',
-          user_id: user.id,
-          ip_address: 'Inconnue',
-          user_agent: navigator.userAgent,
-          created_at: user.created_at,
-          updated_at: new Date().toISOString(),
-          is_current: true
-        }]
-      }
-
-      // Marquer la session courante
-      const sessions: ActiveSession[] = (sessionsData || []).map(sessionData => ({
-        ...sessionData,
-        is_current: sessionData.id === session?.access_token.substring(0, 8)
-      }))
-
-      return sessions
-
-    } catch (error) {
-      console.error('❌ Erreur lors de la récupération des sessions:', error)
-      throw error
-    }
-  }
-
-  /**
-   * Révocation d'une session spécifique
-   * Force la déconnexion d'un appareil particulier
-   */
-  const revokeSession = async (sessionId: string): Promise<void> => {
-    if (!user) {
-      throw new Error("Aucun utilisateur connecté")
-    }
-
-    try {
-      console.log('🗑️ Révocation de la session:', sessionId)
-
-      // Supprimer la session de notre table de tracking
-      const { error: deleteError } = await supabase
-        .from('user_sessions')
-        .delete()
-        .eq('id', sessionId)
-        .eq('user_id', user.id)
-
-      if (deleteError) {
-        throw deleteError
-      }
-
-      // Note: Supabase ne permet pas encore de révoquer des sessions spécifiques
-      // via l'API client. Cette fonctionnalité nécessite une implémentation
-      // côté serveur avec l'Admin API
-
-      console.log('✅ Session révoquée avec succès')
-      
-      toast({
-        title: "Session déconnectée",
-        description: "La session a été déconnectée avec succès.",
-      })
-
-    } catch (error) {
-      console.error('❌ Erreur lors de la révocation de session:', error)
-      const errorMessage = error instanceof Error ? error.message : "Erreur lors de la déconnexion"
-      
-      toast({
-        title: "Erreur",
-        description: errorMessage,
-        variant: "destructive"
-      })
-      throw error
-    }
-  }
-
-  /**
-   * Révocation de toutes les autres sessions (sauf la courante)
-   * Utile en cas de compromission suspectée du compte
-   */
-  const revokeAllOtherSessions = async (): Promise<void> => {
-    if (!user || !session) {
-      throw new Error("Aucun utilisateur connecté")
-    }
-
-    try {
-      console.log('🧹 Révocation de toutes les autres sessions pour:', user.email)
-
-      const currentSessionId = session.access_token.substring(0, 8)
-
-      // Supprimer toutes les autres sessions de notre table de tracking
-      const { error: deleteError } = await supabase
-        .from('user_sessions')
-        .delete()
-        .eq('user_id', user.id)
-        .neq('id', currentSessionId)
-
-      if (deleteError) {
-        throw deleteError
-      }
-
-      console.log('✅ Toutes les autres sessions ont été révoquées')
-      
-      toast({
-        title: "Sessions déconnectées",
-        description: "Toutes les autres sessions ont été déconnectées.",
-      })
-
-    } catch (error) {
-      console.error('❌ Erreur lors de la révocation des sessions:', error)
-      const errorMessage = error instanceof Error ? error.message : "Erreur lors de la déconnexion des sessions"
-      
-      toast({
-        title: "Erreur",
-        description: errorMessage,
-        variant: "destructive"
-      })
-      throw error
-    }
-  }
-
-  // ========================================
-  // RETOUR DE L'INTERFACE COMPLÈTE
-  // ========================================
+  const returnLogger = createLogger('AUTH_HOOK_RETURN')
+  returnLogger.debug('Retour des valeurs du hook', {
+    hasUser: !!user,
+    hasProfile: !!profile,
+    hasSession: !!session,
+    loading,
+    profileFetchActive: profileFetchRef.current.isActive
+  })
 
   return {
-    // États de base
     user,
     profile,
     session,
     loading,
-    
-    // Méthodes de base
     signUp,
     signIn,
     signOut,
     updateProfile,
-    
-    // Nouvelles méthodes de sécurité avancée
-    changePassword,
-    resetPassword,
-    setupMFA,
-    verifyMFA,
-    disableMFA,
-    getMFAStatus,
-    getActiveSessions,
-    revokeSession,
-    revokeAllOtherSessions,
   }
 }
