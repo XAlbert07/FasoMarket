@@ -1,5 +1,5 @@
 // components/OwnerListingDetail.tsx
-// Version corrigée - Utilise les vraies données de l'annonce
+// Version modifiée avec gestion des suspensions administratives
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { Header } from "@/components/Header";
@@ -23,12 +23,15 @@ import {
   AlertTriangle,
   BarChart3,
   Users,
-  MapPin
+  MapPin,
+  Shield,
+  Clock
 } from "lucide-react";
 import { useListing } from "@/hooks/useListings";
 import { useToast } from "@/hooks/use-toast";
 import { formatPrice, formatRelativeTime } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
+import { useAuthContext } from "@/contexts/AuthContext";
 
 // Interface pour les statistiques réelles de l'annonce
 interface RealListingStats {
@@ -59,6 +62,7 @@ const OwnerListingDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuthContext();
   const { listing, loading, error, refetch } = useListing(id!);
   
   // États pour les vraies données
@@ -68,7 +72,78 @@ const OwnerListingDetail = () => {
   const [contactsLoading, setContactsLoading] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
-  // Fonction pour récupérer les vraies statistiques depuis Supabase
+  // ========================================
+  // NOUVELLE LOGIQUE : Vérification des droits de réactivation
+  // ========================================
+
+  /**
+   * Détermine si l'utilisateur peut réactiver son annonce suspendue
+   * Basé sur le type de suspension (user vs admin vs system)
+   */
+  const canUserReactivateListing = (): boolean => {
+    if (!listing || listing.status !== 'suspended') {
+      return false;
+    }
+
+    // Si le champ suspension_type n'existe pas ou est null, on considère que c'est une suspension utilisateur (rétrocompatibilité)
+    if (!listing.suspension_type || listing.suspension_type === 'user') {
+      return true;
+    }
+
+    // Les suspensions admin et system ne peuvent pas être levées par l'utilisateur
+    if (listing.suspension_type === 'admin' || listing.suspension_type === 'system') {
+      return false;
+    }
+
+    return true;
+  };
+
+  /**
+   * Obtient un message explicatif sur pourquoi l'annonce est suspendue
+   * et si l'utilisateur peut la réactiver ou non
+   */
+  const getSuspensionMessage = (): { message: string; canReactivate: boolean; isAdminAction: boolean } => {
+    if (!listing || listing.status !== 'suspended') {
+      return { message: '', canReactivate: false, isAdminAction: false };
+    }
+
+    const canReactivate = canUserReactivateListing();
+    const suspensionType = listing.suspension_type || 'user';
+
+    switch (suspensionType) {
+      case 'admin':
+        const untilDate = listing.suspended_until 
+          ? new Date(listing.suspended_until).toLocaleDateString('fr-FR')
+          : 'une durée indéterminée';
+        
+        const reason = listing.suspension_reason 
+          ? ` Raison : ${listing.suspension_reason}`
+          : '';
+
+        return {
+          message: `Votre annonce a été suspendue par l'administration jusqu'au ${untilDate}.${reason} Vous ne pouvez pas la réactiver vous-même.`,
+          canReactivate: false,
+          isAdminAction: true
+        };
+
+      case 'system':
+        return {
+          message: `Votre annonce a été automatiquement suspendue par le système (détection de contenu problématique, signalements multiples, etc.). Contactez le support pour plus d'informations.`,
+          canReactivate: false,
+          isAdminAction: false
+        };
+
+      case 'user':
+      default:
+        return {
+          message: `Vous avez mis votre annonce en pause. Vous pouvez la réactiver à tout moment.`,
+          canReactivate: true,
+          isAdminAction: false
+        };
+    }
+  };
+
+  // Fonction pour récupérer les vraies statistiques depuis Supabase (inchangée)
   const fetchRealStats = useCallback(async () => {
     if (!listing?.id) return;
     
@@ -119,7 +194,7 @@ const OwnerListingDetail = () => {
     }
   }, [listing?.id, listing?.user_id, listing?.views_count, listing?.status, toast]);
 
-  // Fonction pour récupérer les vrais contacts/messages
+  // Fonction pour récupérer les vrais contacts/messages (inchangée)
   const fetchRealContacts = useCallback(async () => {
     if (!listing?.id) return;
     
@@ -220,9 +295,16 @@ const OwnerListingDetail = () => {
     }
   }, [listing, fetchRealStats, fetchRealContacts]);
 
-  // Fonction réelle pour mettre en pause une annonce
+  // ========================================
+  // FONCTION MODIFIÉE : Suspension volontaire par l'utilisateur
+  // ========================================
+
+  /**
+   * L'utilisateur suspend volontairement sa propre annonce
+   * Marque le type de suspension comme 'user' pour permettre la réactivation
+   */
   const handlePauseListing = async () => {
-    if (!listing?.id) return;
+    if (!listing?.id || !user?.id) return;
     
     setIsUpdatingStatus(true);
     try {
@@ -230,6 +312,10 @@ const OwnerListingDetail = () => {
         .from('listings')
         .update({ 
           status: 'suspended',
+          // MODIFICATION : Marquer explicitement comme suspension utilisateur
+          suspension_type: 'user',
+          suspended_by: user.id,  // L'utilisateur lui-même
+          suspension_reason: 'Pause volontaire par le propriétaire',
           updated_at: new Date().toISOString()
         })
         .eq('id', listing.id)
@@ -241,7 +327,7 @@ const OwnerListingDetail = () => {
       
       toast({
         title: "Annonce mise en pause",
-        description: "Votre annonce n'est plus visible par les acheteurs"
+        description: "Votre annonce n'est plus visible par les acheteurs. Vous pouvez la réactiver à tout moment."
       });
     } catch (error) {
       console.error('Erreur pause:', error);
@@ -255,9 +341,29 @@ const OwnerListingDetail = () => {
     }
   };
 
-  // Fonction réelle pour réactiver une annonce
+  // ========================================
+  // FONCTION MODIFIÉE : Réactivation avec vérification des droits
+  // ========================================
+
+  /**
+   * Réactive une annonce suspendue UNIQUEMENT si l'utilisateur en a le droit
+   * Vérifie le type de suspension avant d'autoriser la réactivation
+   */
   const handleResumeListing = async () => {
-    if (!listing?.id) return;
+    if (!listing?.id || !user?.id) return;
+
+    // NOUVELLE VÉRIFICATION : L'utilisateur peut-il réactiver cette annonce ?
+    if (!canUserReactivateListing()) {
+      const suspensionInfo = getSuspensionMessage();
+      
+      toast({
+        title: "Réactivation impossible",
+        description: suspensionInfo.message,
+        variant: "destructive"
+      });
+      
+      return; // Arrêter l'exécution ici
+    }
     
     setIsUpdatingStatus(true);
     try {
@@ -265,11 +371,16 @@ const OwnerListingDetail = () => {
         .from('listings')
         .update({ 
           status: 'active',
+          // MODIFICATION : Nettoyer les champs de suspension lors de la réactivation
+          suspension_type: null,
+          suspended_by: null,
+          suspension_reason: null,
+          suspended_until: null,
           updated_at: new Date().toISOString(),
           expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // +30 jours
         })
         .eq('id', listing.id)
-        .eq('user_id', listing.user_id);
+        .eq('user_id', listing.user_id); // Sécurité
 
       if (error) throw error;
 
@@ -291,12 +402,12 @@ const OwnerListingDetail = () => {
     }
   };
 
-  // Navigation vers la page d'édition
+  // Navigation vers la page d'édition (inchangée)
   const handleEditListing = () => {
     navigate(`/edit-listing/${id}`);
   };
 
-  // Fonction réelle pour supprimer une annonce
+  // Fonction réelle pour supprimer une annonce (inchangée)
   const handleDeleteListing = async () => {
     if (!listing?.id) return;
 
@@ -349,7 +460,7 @@ const OwnerListingDetail = () => {
     }
   };
 
-  // Fonction pour marquer un message comme lu
+  // Fonction pour marquer un message comme lu (inchangée)
   const markContactAsRead = async (contactId: string, contactMethod: string) => {
     try {
       if (contactMethod === 'message') {
@@ -406,6 +517,11 @@ const OwnerListingDetail = () => {
     );
   }
 
+  // ========================================
+  // NOUVELLE LOGIQUE D'AFFICHAGE : Obtenir les infos de suspension
+  // ========================================
+  const suspensionInfo = getSuspensionMessage();
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -422,7 +538,7 @@ const OwnerListingDetail = () => {
             </p>
           </div>
           
-          {/* Actions principales du propriétaire */}
+          {/* Actions principales du propriétaire - MODIFIÉES pour tenir compte des suspensions admin */}
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={handleEditListing}>
               <Edit className="h-4 w-4 mr-2" />
@@ -439,17 +555,18 @@ const OwnerListingDetail = () => {
                 <Pause className="h-4 w-4 mr-2" />
                 {isUpdatingStatus ? "..." : "Mettre en pause"}
               </Button>
-            ) : (
+            ) : listing.status === 'suspended' ? (
               <Button 
                 variant="outline" 
                 size="sm" 
                 onClick={handleResumeListing}
-                disabled={isUpdatingStatus}
+                disabled={isUpdatingStatus || !suspensionInfo.canReactivate}
+                title={!suspensionInfo.canReactivate ? "Cette annonce a été suspendue par l'administration" : "Réactiver votre annonce"}
               >
                 <Play className="h-4 w-4 mr-2" />
                 {isUpdatingStatus ? "..." : "Réactiver"}
               </Button>
-            )}
+            ) : null}
             
             <Button 
               variant="outline" 
@@ -463,24 +580,56 @@ const OwnerListingDetail = () => {
           </div>
         </div>
 
-        {/* Alerte de statut si nécessaire */}
+        {/* ALERTE MODIFIÉE : Affichage intelligent selon le type de suspension */}
         {listing.status !== 'active' && (
           <div className="mb-6">
-            <Card className="border-yellow-200 bg-yellow-50 dark:bg-yellow-950">
+            <Card className={`${
+              suspensionInfo.isAdminAction 
+                ? 'border-red-200 bg-red-50 dark:bg-red-950' 
+                : 'border-yellow-200 bg-yellow-50 dark:bg-yellow-950'
+            }`}>
               <CardContent className="p-4">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 text-yellow-600" />
-                  <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                    <strong>Annonce {listing.status === 'suspended' ? 'en pause' : listing.status} :</strong> 
-                    Votre annonce n'est actuellement pas visible par les acheteurs.
-                  </p>
+                <div className="flex items-start gap-3">
+                  {suspensionInfo.isAdminAction ? (
+                    <Shield className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+                  ) : (
+                    <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                  )}
+                  
+                  <div className="flex-1">
+                    <div className={`text-sm ${
+                      suspensionInfo.isAdminAction 
+                        ? 'text-red-800 dark:text-red-200' 
+                        : 'text-yellow-800 dark:text-yellow-200'
+                    }`}>
+                      <strong>
+                        {suspensionInfo.isAdminAction ? 'Suspension administrative :' : 'Annonce en pause :'}
+                      </strong>
+                      <p className="mt-1">{suspensionInfo.message}</p>
+                      
+                      {/* Affichage des détails supplémentaires pour les suspensions admin */}
+                      {suspensionInfo.isAdminAction && listing.moderation_notes && (
+                        <div className="mt-2 p-2 bg-red-100 dark:bg-red-900 rounded text-xs">
+                          <strong>Note de modération :</strong> {listing.moderation_notes}
+                        </div>
+                      )}
+                      
+                      {/* Affichage de la date de fin de suspension */}
+                      {listing.suspended_until && (
+                        <div className="mt-2 flex items-center gap-1 text-xs">
+                          <Clock className="h-3 w-3" />
+                          Suspension levée automatiquement le {new Date(listing.suspended_until).toLocaleDateString('fr-FR')} à {new Date(listing.suspended_until).toLocaleTimeString('fr-FR')}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
           </div>
         )}
 
-        {/* Statistiques réelles */}
+        {/* Statistiques réelles (inchangées) */}
         {statsLoading ? (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             {[...Array(4)].map((_, i) => (
@@ -574,8 +723,15 @@ const OwnerListingDetail = () => {
                           {listing.condition === 'new' ? 'Neuf' : 
                            listing.condition === 'refurbished' ? 'Reconditionné' : 'Occasion'}
                         </Badge>
-                        <Badge variant={listing.status === 'active' ? 'default' : 'secondary'}>
+                        
+                        {/* BADGE MODIFIÉ : Affichage différencié selon le type de suspension */}
+                        <Badge variant={
+                          listing.status === 'active' ? 'default' : 
+                          listing.status === 'suspended' && listing.suspension_type === 'admin' ? 'destructive' :
+                          'secondary'
+                        }>
                           {listing.status === 'active' ? 'Actif' : 
+                           listing.status === 'suspended' && listing.suspension_type === 'admin' ? 'Suspendu par admin' :
                            listing.status === 'suspended' ? 'En pause' :
                            listing.status === 'sold' ? 'Vendu' : 'Expiré'}
                         </Badge>
@@ -620,11 +776,48 @@ const OwnerListingDetail = () => {
                         <p className="font-medium font-mono text-xs">{listing.id}</p>
                       </div>
                     </div>
+
+                    {/* SECTION AJOUTÉE : Informations de suspension détaillées */}
+                    {listing.status === 'suspended' && (
+                      <>
+                        <Separator />
+                        <div className="bg-muted p-4 rounded-lg">
+                          <h4 className="font-semibold mb-2 flex items-center gap-2">
+                            <Shield className="h-4 w-4" />
+                            Informations de suspension
+                          </h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                            <div>
+                              <span className="text-muted-foreground">Type de suspension :</span>
+                              <p className="font-medium">
+                                {listing.suspension_type === 'admin' ? 'Administrative' :
+                                 listing.suspension_type === 'system' ? 'Automatique' :
+                                 'Volontaire'}
+                              </p>
+                            </div>
+                            {listing.suspended_until && (
+                              <div>
+                                <span className="text-muted-foreground">Suspendu jusqu'au :</span>
+                                <p className="font-medium">
+                                  {new Date(listing.suspended_until).toLocaleString('fr-FR')}
+                                </p>
+                              </div>
+                            )}
+                            {listing.suspension_reason && (
+                              <div className="md:col-span-2">
+                                <span className="text-muted-foreground">Raison :</span>
+                                <p className="font-medium">{listing.suspension_reason}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </CardContent>
                 </Card>
               </div>
 
-              {/* Actions rapides */}
+              {/* Actions rapides - MODIFIÉES */}
               <div className="space-y-6">
                 <Card>
                   <CardHeader>
@@ -643,28 +836,42 @@ const OwnerListingDetail = () => {
                       </Link>
                     </Button>
                     
-                    <Button 
-                      variant="outline" 
-                      className="w-full"
-                      onClick={listing.status === 'active' ? handlePauseListing : handleResumeListing}
-                      disabled={isUpdatingStatus}
-                    >
-                      {listing.status === 'active' ? (
-                        <>
-                          <Pause className="h-4 w-4 mr-2" />
-                          Mettre en pause
-                        </>
-                      ) : (
-                        <>
-                          <Play className="h-4 w-4 mr-2" />
-                          Réactiver
-                        </>
-                      )}
-                    </Button>
+                    {/* BOUTON MODIFIÉ : Logique conditionnelle pour les suspensions */}
+                    {listing.status === 'active' ? (
+                      <Button 
+                        variant="outline" 
+                        className="w-full"
+                        onClick={handlePauseListing}
+                        disabled={isUpdatingStatus}
+                      >
+                        <Pause className="h-4 w-4 mr-2" />
+                        Mettre en pause
+                      </Button>
+                    ) : listing.status === 'suspended' && suspensionInfo.canReactivate ? (
+                      <Button 
+                        variant="outline" 
+                        className="w-full"
+                        onClick={handleResumeListing}
+                        disabled={isUpdatingStatus}
+                      >
+                        <Play className="h-4 w-4 mr-2" />
+                        Réactiver
+                      </Button>
+                    ) : listing.status === 'suspended' && !suspensionInfo.canReactivate ? (
+                      <Button 
+                        variant="outline" 
+                        className="w-full"
+                        disabled
+                        title="Cette annonce a été suspendue par l'administration"
+                      >
+                        <Shield className="h-4 w-4 mr-2" />
+                        Suspension administrative
+                      </Button>
+                    ) : null}
                   </CardContent>
                 </Card>
 
-                {/* Performance réelle */}
+                {/* Performance réelle (inchangée) */}
                 <Card>
                   <CardHeader>
                     <CardTitle>Performance actuelle</CardTitle>
@@ -708,11 +915,38 @@ const OwnerListingDetail = () => {
                     )}
                   </CardContent>
                 </Card>
+
+                {/* CARTE AJOUTÉE : Aide et support pour les suspensions admin */}
+                {listing.status === 'suspended' && listing.suspension_type === 'admin' && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-orange-600">Besoin d'aide ?</CardTitle>
+                    </CardHeader>
+                    <CardContent className="text-sm space-y-3">
+                      <p>Votre annonce a été suspendue par notre équipe de modération.</p>
+                      <p>Si vous pensez qu'il s'agit d'une erreur, vous pouvez :</p>
+                      <div className="space-y-2">
+                        <Button variant="outline" size="sm" className="w-full" asChild>
+                          <Link to="/help-support">
+                            <MessageCircle className="h-4 w-4 mr-2" />
+                            Contacter le support
+                          </Link>
+                        </Button>
+                        <Button variant="outline" size="sm" className="w-full" asChild>
+                          <Link to="/legal-notice">
+                            <Eye className="h-4 w-4 mr-2" />
+                            Voir nos règles
+                          </Link>
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             </div>
           </TabsContent>
 
-          {/* Gestion des vrais contacts */}
+          {/* Gestion des vrais contacts (inchangée) */}
           <TabsContent value="contacts" className="space-y-6">
             <Card>
               <CardHeader>
@@ -840,7 +1074,7 @@ const OwnerListingDetail = () => {
             </Card>
           </TabsContent>
 
-          {/* Aperçu public */}
+          {/* Aperçu public (inchangé) */}
           <TabsContent value="preview" className="space-y-6">
             <Card>
               <CardHeader>

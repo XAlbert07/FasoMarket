@@ -14,6 +14,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useGuestMessages } from '@/hooks/useGuestMessages';
 import { 
   MapPin, 
   Calendar, 
@@ -371,7 +372,7 @@ const SellerProfile = () => {
                     <Phone className="h-4 w-4 mr-2" />
                     Contacter
                   </Button>
-                  <Button variant="outline" size="lg" className="w-full">
+                  <Button variant="outline" size="lg" className="w-full" >
                     <MessageCircle className="h-4 w-4 mr-2" />
                     Message
                   </Button>

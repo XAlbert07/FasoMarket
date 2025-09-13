@@ -1,14 +1,15 @@
-// hooks/useAdminReports.ts
-// Version complète avec implémentation des actions administratives
+// hooks/useAdminReports.ts - CORRECTION FINALE avec logique réparée et debuggage complet
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useToast } from '@/hooks/use-toast'
 import { useAuthContext } from '@/contexts/AuthContext'
 
-// ========================================
-// INTERFACES ÉTENDUES POUR L'ADMINISTRATION
-// ========================================
+export interface AdminActionResult {
+  success: boolean
+  message: string
+  actionId?: string
+}
 
 export interface AdminReport {
   id: string
@@ -20,14 +21,11 @@ export interface AdminReport {
   status: 'pending' | 'in_review' | 'resolved' | 'dismissed'
   created_at: string
   updated_at: string
-  
-  // Champs pour signalements invités
   guest_name?: string | null
   guest_email?: string | null
   guest_phone?: string | null
   report_type: 'listing' | 'profile'
   
-  // Données enrichies pour l'affichage
   listing_title?: string
   listing_price?: number
   listing_status?: string
@@ -45,38 +43,23 @@ export interface ReportAction {
   type: 'approve' | 'dismiss' | 'escalate' | 'ban_user' | 'suspend_user' | 'warn_user' | 'remove_listing' | 'suspend_listing'
   reason: string
   notes?: string
-  duration?: number // En jours pour les sanctions temporaires
+  duration?: number
 }
-
-export interface AdminActionResult {
-  success: boolean
-  message: string
-  actionId?: string
-}
-
-// ========================================
-// HOOK PRINCIPAL AVEC ACTIONS COMPLÈTES
-// ========================================
 
 export const useAdminReports = () => {
   const [reports, setReports] = useState<AdminReport[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const { toast } = useToast()
-  const { user } = useAuthContext() // Pour identifier l'admin qui effectue l'action
+  const { user } = useAuthContext()
 
-  // ========================================
-  // RÉCUPÉRATION DES SIGNALEMENTS
-  // ========================================
-  
   const fetchReports = async () => {
-    console.log('🔍 [ADMIN_REPORTS] Récupération des signalements')
+    console.log('🔍 [ADMIN_REPORTS] Début de la récupération des signalements')
     
     try {
       setLoading(true)
       setError(null)
 
-      // Requête principale pour récupérer les signalements avec leurs données liées
       const { data: baseReports, error: baseError } = await supabase
         .from('reports')
         .select(`
@@ -84,10 +67,10 @@ export const useAdminReports = () => {
           listing:listings(
             id, title, price, status, user_id
           ),
-          reported_user:profiles!user_id(
+          reported_user:profiles!reports_user_id_fkey(
             id, full_name, email
           ),
-          reporter:profiles!reporter_id(
+          reporter:profiles!reports_reporter_id_fkey(
             id, full_name, email
           )
         `)
@@ -103,45 +86,47 @@ export const useAdminReports = () => {
         return
       }
 
-      // Enrichissement des données
       const enrichedReports: AdminReport[] = baseReports.map(report => {
-        // Calcul de la priorité basée sur le motif
         let priority: 'low' | 'medium' | 'high' = 'medium'
-        const reasonLower = report.reason.toLowerCase()
+        const reasonLower = (report.reason || '').toLowerCase()
         
         if (reasonLower.includes('fraude') || 
             reasonLower.includes('arnaque') ||
             reasonLower.includes('violence') ||
-            reasonLower.includes('menace')) {
+            reasonLower.includes('menace') ||
+            reasonLower.includes('contenu inapproprié')) {
           priority = 'high'
         } else if (reasonLower.includes('spam') ||
-                   reasonLower.includes('doublon')) {
+                   reasonLower.includes('doublon') ||
+                   reasonLower.includes('prix incorrect')) {
           priority = 'low'
         }
 
-        // Calcul du temps de réponse
         const createdAt = new Date(report.created_at)
         const now = new Date()
         const responseTimeHours = Math.round((now.getTime() - createdAt.getTime()) / (1000 * 60 * 60))
 
+        const listing = Array.isArray(report.listing) ? report.listing[0] : report.listing
+        const reportedUser = Array.isArray(report.reported_user) ? report.reported_user[0] : report.reported_user
+        const reporter = Array.isArray(report.reporter) ? report.reporter[0] : report.reporter
+
         return {
           ...report,
-          listing_title: report.listing?.title || null,
-          listing_price: report.listing?.price || null,
-          listing_status: report.listing?.status || null,
-          reported_user_name: report.reported_user?.full_name || 'Utilisateur inconnu',
-          reported_user_email: report.reported_user?.email || null,
-          reporter_name: report.reporter?.full_name || report.guest_name || 'Anonyme',
-          reporter_email: report.reporter?.email || report.guest_email || null,
+          listing_title: listing?.title || null,
+          listing_price: listing?.price || null,
+          listing_status: listing?.status || null,
+          reported_user_name: reportedUser?.full_name || 'Utilisateur inconnu',
+          reported_user_email: reportedUser?.email || null,
+          reporter_name: reporter?.full_name || report.guest_name || 'Anonyme',
+          reporter_email: reporter?.email || report.guest_email || null,
           reporter_type: report.reporter_id ? 'registered' : 'guest',
           priority,
           response_time_hours: responseTimeHours,
           escalation_level: priority === 'high' ? 2 : (priority === 'medium' ? 1 : 0),
           report_type: report.report_type || 'listing'
-        }
+        } as AdminReport
       })
 
-      // Tri par priorité puis par date
       enrichedReports.sort((a, b) => {
         const priorityOrder = { high: 3, medium: 2, low: 1 }
         const priorityDiff = priorityOrder[b.priority] - priorityOrder[a.priority]
@@ -152,7 +137,7 @@ export const useAdminReports = () => {
       })
 
       setReports(enrichedReports)
-      console.log(`✅ [ADMIN_REPORTS] ${enrichedReports.length} signalements chargés`)
+      console.log(`✅ [ADMIN_REPORTS] ${enrichedReports.length} signalements enrichis et triés`)
 
     } catch (error) {
       console.error('❌ [ADMIN_REPORTS] Erreur lors de la récupération:', error)
@@ -161,7 +146,7 @@ export const useAdminReports = () => {
       
       toast({
         title: "Erreur de chargement",
-        description: "Impossible de charger les signalements.",
+        description: "Impossible de charger les signalements. Vérifiez votre connexion.",
         variant: "destructive"
       })
     } finally {
@@ -169,10 +154,7 @@ export const useAdminReports = () => {
     }
   }
 
-  // ========================================
-  // ACTIONS ADMINISTRATIVES COMPLÈTES
-  // ========================================
-  
+  // FONCTION CORRIGÉE AVEC DEBUG COMPLET
   const handleReportAction = async (reportId: string, action: ReportAction): Promise<boolean> => {
     if (!user) {
       toast({
@@ -183,15 +165,102 @@ export const useAdminReports = () => {
       return false
     }
 
-    console.log(`🔧 [ADMIN_REPORTS] Action ${action.type} sur signalement ${reportId}`)
+    console.log(`🔧 [ADMIN_REPORTS] ==> DÉBUT ACTION ${action.type.toUpperCase()} sur signalement ${reportId}`)
+    console.log(`📋 [DEBUG] Données de l'action:`, { action, reportId, adminId: user.id })
     
     try {
       const report = reports.find(r => r.id === reportId)
       if (!report) {
-        throw new Error('Signalement non trouvé')
+        throw new Error('Signalement non trouvé dans la liste locale')
       }
 
-      // 1. Mise à jour du statut du signalement
+      console.log(`📊 [DEBUG] Signalement trouvé:`, {
+        id: report.id,
+        report_type: report.report_type,
+        listing_id: report.listing_id,
+        user_id: report.user_id,
+        listing_title: report.listing_title,
+        reported_user_name: report.reported_user_name
+      })
+
+      // ÉTAPE 1: Détermination correcte du target_type et target_id
+      let targetType: 'user' | 'listing' | 'report'
+      let targetId: string
+      let targetUserId: string | null = null // ID de l'utilisateur à sanctionner
+
+      console.log(`🎯 [DEBUG] Analyse du type d'action: ${action.type}`)
+
+      switch (action.type) {
+        case 'ban_user':
+        case 'suspend_user': 
+        case 'warn_user':
+          targetType = 'user'
+          console.log(`👤 [DEBUG] Action utilisateur détectée`)
+          
+          if (report.report_type === 'listing') {
+            console.log(`📦 [DEBUG] Signalement d'annonce - recherche du propriétaire`)
+            
+            if (!report.listing_id) {
+              throw new Error('ID de l\'annonce manquant dans le signalement')
+            }
+
+            // Récupérer l'ID du propriétaire de l'annonce
+            const { data: listingData, error: listingError } = await supabase
+              .from('listings')
+              .select('user_id, title')
+              .eq('id', report.listing_id)
+              .single()
+              
+            console.log(`🔍 [DEBUG] Résultat recherche propriétaire:`, { listingData, listingError })
+              
+            if (listingError || !listingData) {
+              console.error('❌ [DEBUG] Impossible de trouver l\'annonce:', listingError)
+              throw new Error('Impossible de trouver le propriétaire de l\'annonce')
+            }
+            
+            targetId = listingData.user_id
+            targetUserId = listingData.user_id
+            console.log(`✅ [DEBUG] Propriétaire de l'annonce trouvé: ${targetUserId}`)
+          } else {
+            // Pour un signalement de profil, on cible l'utilisateur signalé
+            console.log(`👤 [DEBUG] Signalement de profil`)
+            
+            if (!report.user_id) {
+              throw new Error('ID de l\'utilisateur signalé manquant')
+            }
+            
+            targetId = report.user_id
+            targetUserId = report.user_id
+            console.log(`✅ [DEBUG] Utilisateur signalé: ${targetUserId}`)
+          }
+          break
+
+        case 'remove_listing':
+        case 'suspend_listing':
+          targetType = 'listing'
+          console.log(`📦 [DEBUG] Action sur annonce détectée`)
+          
+          if (!report.listing_id) {
+            throw new Error('ID de l\'annonce manquant pour cette action')
+          }
+          
+          targetId = report.listing_id
+          console.log(`✅ [DEBUG] Annonce ciblée: ${targetId}`)
+          break
+
+        case 'approve':
+        case 'dismiss':
+        case 'escalate':
+        default:
+          targetType = 'report'
+          targetId = reportId
+          console.log(`📋 [DEBUG] Action sur signalement: ${targetId}`)
+          break
+      }
+
+      console.log(`🎯 [DEBUG] Cible finale: ${targetType}:${targetId}`, { targetUserId })
+
+      // ÉTAPE 2: Mise à jour du statut du signalement
       let newStatus: 'pending' | 'in_review' | 'resolved' | 'dismissed' = 'resolved'
       
       switch (action.type) {
@@ -208,6 +277,8 @@ export const useAdminReports = () => {
           newStatus = 'resolved'
       }
 
+      console.log(`📝 [DEBUG] Mise à jour du statut du signalement vers: ${newStatus}`)
+
       const { error: updateError } = await supabase
         .from('reports')
         .update({
@@ -216,59 +287,73 @@ export const useAdminReports = () => {
         })
         .eq('id', reportId)
 
-      if (updateError) throw updateError
+      if (updateError) {
+        console.error('❌ [DEBUG] Erreur mise à jour signalement:', updateError)
+        throw updateError
+      }
 
-      // 2. Exécution de l'action spécifique selon le type
+      console.log(`✅ [DEBUG] Statut du signalement mis à jour`)
+
+      // ÉTAPE 3: Exécution de l'action spécifique
       let actionResult: AdminActionResult = { success: true, message: 'Action appliquée avec succès' }
+
+      console.log(`⚡ [DEBUG] Exécution de l'action spécifique: ${action.type}`)
 
       switch (action.type) {
         case 'ban_user':
-          if (report.user_id) {
-            actionResult = await banUser(report.user_id, action.duration || 30, action.reason, action.notes, reportId)
+          if (!targetUserId) {
+            throw new Error('ID utilisateur manquant pour le bannissement')
           }
+          console.log(`🚫 [DEBUG] Bannissement de l'utilisateur: ${targetUserId}`)
+          actionResult = await banUser(targetUserId, action.duration || 365, action.reason, action.notes, reportId)
           break
           
         case 'suspend_user':
-          if (report.user_id) {
-            actionResult = await suspendUser(report.user_id, action.duration || 7, action.reason, action.notes, reportId)
+          if (!targetUserId) {
+            throw new Error('ID utilisateur manquant pour la suspension')
           }
+          console.log(`⏸️ [DEBUG] Suspension de l'utilisateur: ${targetUserId}`)
+          actionResult = await suspendUser(targetUserId, action.duration || 7, action.reason, action.notes, reportId)
           break
           
         case 'warn_user':
-          if (report.user_id) {
-            actionResult = await warnUser(report.user_id, action.reason, action.notes, reportId)
+          if (!targetUserId) {
+            throw new Error('ID utilisateur manquant pour l\'avertissement')
           }
+          console.log(`⚠️ [DEBUG] Avertissement pour l'utilisateur: ${targetUserId}`)
+          actionResult = await warnUser(targetUserId, action.reason, action.notes, reportId)
           break
           
         case 'remove_listing':
-          if (report.listing_id) {
-            actionResult = await removeListing(report.listing_id, action.reason, action.notes, reportId)
-          }
+          console.log(`🗑️ [DEBUG] Suppression de l'annonce: ${targetId}`)
+          actionResult = await removeListing(targetId, action.reason, action.notes, reportId)
           break
           
         case 'suspend_listing':
-          if (report.listing_id) {
-            actionResult = await suspendListing(report.listing_id, action.reason, action.notes, reportId)
-          }
+          console.log(`⏸️ [DEBUG] Suspension de l'annonce: ${targetId}`)
+          actionResult = await suspendListing(targetId, action.duration || 7, action.reason, action.notes, reportId)
           break
       }
+
+      console.log(`🎯 [DEBUG] Résultat de l'action:`, actionResult)
 
       if (!actionResult.success) {
         throw new Error(actionResult.message)
       }
 
-      // 3. Enregistrement de l'action administrative pour audit
+      // ÉTAPE 4: Enregistrement de l'action pour audit
+      console.log(`📝 [DEBUG] Enregistrement de l'audit`)
       await logAdminAction({
         adminId: user.id,
         actionType: action.type,
-        targetType: report.report_type === 'listing' ? 'listing' : 'user',
-        targetId: report.listing_id || report.user_id || '',
+        targetType: targetType,
+        targetId: targetId,
         reason: action.reason,
         notes: action.notes,
         reportId: reportId
       })
 
-      // 4. Mise à jour de l'état local
+      // ÉTAPE 5: Mise à jour de l'état local
       setReports(prev => prev.map(r => 
         r.id === reportId 
           ? { ...r, status: newStatus, updated_at: new Date().toISOString() }
@@ -280,10 +365,25 @@ export const useAdminReports = () => {
         description: actionResult.message,
       })
 
+      console.log(`✅ [ADMIN_REPORTS] ==> FIN ACTION ${action.type.toUpperCase()} - SUCCÈS`)
+      
+      // ÉTAPE 6: Rafraîchissement pour vérifier les changements
+      setTimeout(async () => {
+        console.log(`🔄 [DEBUG] Rafraîchissement des données dans 2 secondes`)
+        await fetchReports()
+      }, 2000)
+
       return true
 
     } catch (error) {
-      console.error(`❌ [ADMIN_REPORTS] Erreur action ${action.type}:`, error)
+      console.error(`❌ [ADMIN_REPORTS] ==> ÉCHEC ACTION ${action.type.toUpperCase()}:`, error)
+      console.error(`💥 [DEBUG] Détails de l'erreur:`, {
+        error: error instanceof Error ? error.message : error,
+        stack: error instanceof Error ? error.stack : undefined,
+        reportId,
+        action,
+        user: user?.id
+      })
       
       toast({
         title: "Erreur lors de l'action",
@@ -295,13 +395,7 @@ export const useAdminReports = () => {
     }
   }
 
-  // ========================================
-  // FONCTIONS D'ACTIONS SPÉCIFIQUES
-  // ========================================
-  
-  /**
-   * Bannir définitivement un utilisateur
-   */
+  // FONCTIONS D'ACTION CORRIGÉES AVEC DEBUG
   const banUser = async (
     userId: string, 
     durationDays: number, 
@@ -310,48 +404,138 @@ export const useAdminReports = () => {
     reportId?: string
   ): Promise<AdminActionResult> => {
     try {
-      // Création de la sanction
+      console.log(`🔒 [BAN_USER] ==> DÉBUT - Utilisateur: ${userId}, Durée: ${durationDays} jours`)
+
+      if (!userId) {
+        throw new Error('ID utilisateur requis pour le bannissement')
+      }
+
+      // Vérification que l'utilisateur existe
+      const { data: userCheck, error: userCheckError } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .eq('id', userId)
+        .single()
+
+      console.log(`👤 [BAN_USER] Vérification utilisateur:`, { userCheck, userCheckError })
+
+      if (userCheckError || !userCheck) {
+        throw new Error(`Utilisateur introuvable: ${userId}`)
+      }
+
+      console.log(`✅ [BAN_USER] Utilisateur trouvé: ${userCheck.full_name}`)
+
+      const effectiveUntil = durationDays >= 365 
+        ? null 
+        : new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString()
+
+      console.log(`📅 [BAN_USER] Date d'expiration calculée:`, effectiveUntil)
+
+      // 1. Création de la sanction
+      console.log(`📝 [BAN_USER] Création de la sanction`)
       const { data: sanction, error: sanctionError } = await supabase
         .from('user_sanctions')
         .insert({
           user_id: userId,
           admin_id: user!.id,
-          sanction_type: durationDays > 365 ? 'permanent_ban' : 'suspension',
+          sanction_type: durationDays >= 365 ? 'permanent_ban' : 'suspension',
           reason,
           description: notes,
-          duration_days: durationDays > 365 ? null : durationDays,
-          effective_until: durationDays > 365 ? null : new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString(),
+          duration_days: durationDays >= 365 ? null : durationDays,
+          effective_until: effectiveUntil,
           related_report_id: reportId
         })
         .select()
         .single()
 
-      if (sanctionError) throw sanctionError
+      console.log(`📝 [BAN_USER] Résultat création sanction:`, { sanction, sanctionError })
 
-      // Désactivation de toutes les annonces actives de l'utilisateur
-      const { error: listingsError } = await supabase
+      if (sanctionError) {
+        console.error('❌ [BAN_USER] Erreur création sanction:', sanctionError)
+        throw sanctionError
+      }
+
+      // 2. MISE À JOUR DU PROFIL UTILISATEUR - CRITIQUE
+      console.log(`👤 [BAN_USER] Mise à jour du profil utilisateur`)
+      const { data: profileUpdate, error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          suspended_until: effectiveUntil,
+          suspension_reason: reason,
+          is_banned: durationDays >= 365,
+          ban_reason: durationDays >= 365 ? reason : null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId)
+        .select('id, suspended_until, is_banned')
+
+      console.log(`👤 [BAN_USER] Résultat mise à jour profil:`, { profileUpdate, profileError })
+
+      if (profileError) {
+        console.error('❌ [BAN_USER] Erreur critique - mise à jour profil:', profileError)
+        throw new Error(`Impossible de mettre à jour le profil: ${profileError.message}`)
+      }
+
+      if (!profileUpdate || profileUpdate.length === 0) {
+        console.error('❌ [BAN_USER] Aucune ligne affectée lors de la mise à jour du profil')
+        throw new Error('La mise à jour du profil utilisateur a échoué')
+      }
+
+      console.log(`✅ [BAN_USER] Profil mis à jour avec succès:`, profileUpdate[0])
+
+      // 3. SUSPENSION DES ANNONCES DE L'UTILISATEUR
+      console.log(`📦 [BAN_USER] Suspension des annonces de l'utilisateur`)
+      const { data: listingsUpdate, error: listingsError } = await supabase
         .from('listings')
         .update({ 
           status: 'suspended',
+          suspended_until: effectiveUntil,
+          suspension_reason: `Utilisateur sanctionné: ${reason}`,
           updated_at: new Date().toISOString()
         })
         .eq('user_id', userId)
-        .in('status', ['active'])
+        .eq('status', 'active') // Ne suspendre que les annonces actives
+        .select('id, title, status')
+
+      console.log(`📦 [BAN_USER] Résultat suspension annonces:`, { 
+        listingsUpdate, 
+        listingsError,
+        nombreAnnencesSuspendues: listingsUpdate?.length || 0
+      })
 
       if (listingsError) {
-        console.warn('Erreur lors de la suspension des annonces:', listingsError)
+        console.warn('⚠️ [BAN_USER] Erreur suspension des annonces (non critique):', listingsError)
       }
 
-      const sanctionType = durationDays > 365 ? 'banni définitivement' : `suspendu pour ${durationDays} jours`
+      // 4. VÉRIFICATION FINALE
+      console.log(`🔍 [BAN_USER] Vérification finale de l'état de l'utilisateur`)
+      const { data: finalCheck, error: finalCheckError } = await supabase
+        .from('profiles')
+        .select('id, full_name, suspended_until, suspension_reason, is_banned')
+        .eq('id', userId)
+        .single()
+
+      console.log(`🔍 [BAN_USER] État final de l'utilisateur:`, { finalCheck, finalCheckError })
+
+      const sanctionType = durationDays >= 365 ? 'banni définitivement' : `suspendu pour ${durationDays} jours`
+      const successMessage = `L'utilisateur ${userCheck.full_name} a été ${sanctionType} avec succès.`
+      
+      console.log(`✅ [BAN_USER] ==> SUCCÈS - ${successMessage}`)
       
       return {
         success: true,
-        message: `L'utilisateur a été ${sanctionType} avec succès.`,
+        message: successMessage,
         actionId: sanction.id
       }
 
     } catch (error) {
-      console.error('Erreur lors du bannissement:', error)
+      console.error('❌ [BAN_USER] ==> ÉCHEC - Erreur complète:', {
+        error: error instanceof Error ? error.message : error,
+        userId,
+        durationDays,
+        reason
+      })
+      
       return {
         success: false,
         message: error instanceof Error ? error.message : 'Erreur lors du bannissement'
@@ -359,9 +543,6 @@ export const useAdminReports = () => {
     }
   }
 
-  /**
-   * Suspendre temporairement un utilisateur
-   */
   const suspendUser = async (
     userId: string,
     durationDays: number,
@@ -369,13 +550,10 @@ export const useAdminReports = () => {
     notes?: string,
     reportId?: string
   ): Promise<AdminActionResult> => {
-    // Utilise la même logique que banUser mais avec une durée limitée
-    return banUser(userId, durationDays, reason, notes, reportId)
+    console.log(`⏸️ [SUSPEND_USER] Redirection vers banUser avec durée limitée`)
+    return banUser(userId, Math.min(durationDays, 90), reason, notes, reportId)
   }
 
-  /**
-   * Avertir un utilisateur sans sanction
-   */
   const warnUser = async (
     userId: string,
     reason: string,
@@ -383,6 +561,8 @@ export const useAdminReports = () => {
     reportId?: string
   ): Promise<AdminActionResult> => {
     try {
+      console.log(`⚠️ [WARN_USER] ==> DÉBUT - Utilisateur: ${userId}`)
+
       const { data: warning, error: warningError } = await supabase
         .from('user_sanctions')
         .insert({
@@ -396,11 +576,14 @@ export const useAdminReports = () => {
         .select()
         .single()
 
-      if (warningError) throw warningError
+      console.log(`⚠️ [WARN_USER] Résultat:`, { warning, warningError })
 
-      // TODO: Ici vous pourriez envoyer une notification à l'utilisateur
-      // ou créer un système de messages internes
+      if (warningError) {
+        console.error('❌ [WARN_USER] Erreur:', warningError)
+        throw warningError
+      }
 
+      console.log(`✅ [WARN_USER] ==> SUCCÈS`)
       return {
         success: true,
         message: 'Un avertissement a été envoyé à l\'utilisateur.',
@@ -408,7 +591,7 @@ export const useAdminReports = () => {
       }
 
     } catch (error) {
-      console.error('Erreur lors de l\'avertissement:', error)
+      console.error('❌ [WARN_USER] ==> ÉCHEC:', error)
       return {
         success: false,
         message: error instanceof Error ? error.message : 'Erreur lors de l\'avertissement'
@@ -416,9 +599,61 @@ export const useAdminReports = () => {
     }
   }
 
-  /**
-   * Supprimer définitivement une annonce
-   */
+const suspendListing = async (
+  listingId: string,
+  durationDays: number,
+  reason: string,
+  notes?: string,
+  reportId?: string
+): Promise<AdminActionResult> => {
+  try {
+    console.log(`⏸️ [SUSPEND_LISTING] ==> DÉBUT - Annonce: ${listingId}, Durée: ${durationDays} jours`)
+
+    const suspendedUntil = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString()
+    console.log(`📅 [SUSPEND_LISTING] Date d'expiration:`, suspendedUntil)
+    console.log(`👤 [SUSPEND_LISTING] Utilisateur admin:`, user?.id)
+
+    const { data: updateResult, error: suspendError } = await supabase
+      .from('listings')
+      .update({
+        status: 'suspended',
+        suspended_until: suspendedUntil,
+        suspension_reason: reason,
+        suspension_type: 'admin',        // NOUVEAU : Marquer comme suspension admin
+        suspended_by: user!.id,          // NOUVEAU : ID de l'admin qui suspend
+        moderation_notes: notes,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', listingId)
+      .select('id, title, status, suspended_until, suspension_type')
+
+    console.log(`⏸️ [SUSPEND_LISTING] Résultat:`, { updateResult, suspendError })
+
+    if (suspendError) {
+      console.error('❌ [SUSPEND_LISTING] Erreur:', suspendError)
+      throw suspendError
+    }
+
+    if (!updateResult || updateResult.length === 0) {
+      throw new Error('Aucune annonce n\'a été modifiée - vérifiez l\'ID')
+    }
+
+    console.log(`✅ [SUSPEND_LISTING] ==> SUCCÈS - Suspension administrative appliquée`)
+    return {
+      success: true,
+      message: `L'annonce a été suspendue par l'administration pour ${durationDays} jour(s).`,
+      actionId: listingId
+    }
+
+  } catch (error) {
+    console.error('❌ [SUSPEND_LISTING] ==> ÉCHEC:', error)
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Erreur lors de la suspension'
+    }
+  }
+}
+
   const removeListing = async (
     listingId: string,
     reason: string,
@@ -426,17 +661,31 @@ export const useAdminReports = () => {
     reportId?: string
   ): Promise<AdminActionResult> => {
     try {
-      // Archivage plutôt que suppression pure pour garder une trace
-      const { error: removeError } = await supabase
+      console.log(`🗑️ [REMOVE_LISTING] ==> DÉBUT - Annonce: ${listingId}`)
+
+      const { data: updateResult, error: removeError } = await supabase
         .from('listings')
         .update({
-          status: 'suspended', // Vous pourriez créer un statut 'removed' si nécessaire
+          status: 'suspended', // Suppression logique
+          suspension_reason: reason,
+          moderation_notes: notes,
           updated_at: new Date().toISOString()
         })
         .eq('id', listingId)
+        .select('id, title, status')
 
-      if (removeError) throw removeError
+      console.log(`🗑️ [REMOVE_LISTING] Résultat:`, { updateResult, removeError })
 
+      if (removeError) {
+        console.error('❌ [REMOVE_LISTING] Erreur:', removeError)
+        throw removeError
+      }
+
+      if (!updateResult || updateResult.length === 0) {
+        throw new Error('Aucune annonce n\'a été modifiée')
+      }
+
+      console.log(`✅ [REMOVE_LISTING] ==> SUCCÈS`)
       return {
         success: true,
         message: 'L\'annonce a été supprimée avec succès.',
@@ -444,7 +693,7 @@ export const useAdminReports = () => {
       }
 
     } catch (error) {
-      console.error('Erreur lors de la suppression:', error)
+      console.error('❌ [REMOVE_LISTING] ==> ÉCHEC:', error)
       return {
         success: false,
         message: error instanceof Error ? error.message : 'Erreur lors de la suppression'
@@ -452,44 +701,6 @@ export const useAdminReports = () => {
     }
   }
 
-  /**
-   * Suspendre temporairement une annonce
-   */
-  const suspendListing = async (
-    listingId: string,
-    reason: string,
-    notes?: string,
-    reportId?: string
-  ): Promise<AdminActionResult> => {
-    try {
-      const { error: suspendError } = await supabase
-        .from('listings')
-        .update({
-          status: 'suspended',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', listingId)
-
-      if (suspendError) throw suspendError
-
-      return {
-        success: true,
-        message: 'L\'annonce a été suspendue avec succès.',
-        actionId: listingId
-      }
-
-    } catch (error) {
-      console.error('Erreur lors de la suspension:', error)
-      return {
-        success: false,
-        message: error instanceof Error ? error.message : 'Erreur lors de la suspension'
-      }
-    }
-  }
-
-  /**
-   * Enregistrer l'action administrative pour audit
-   */
   const logAdminAction = async (actionData: {
     adminId: string
     actionType: string
@@ -500,6 +711,8 @@ export const useAdminReports = () => {
     reportId?: string
   }) => {
     try {
+      console.log(`📝 [LOG_ACTION] Enregistrement:`, actionData)
+
       await supabase
         .from('admin_actions')
         .insert({
@@ -511,31 +724,28 @@ export const useAdminReports = () => {
           notes: actionData.notes,
           metadata: actionData.reportId ? { related_report_id: actionData.reportId } : null
         })
+
+      console.log(`✅ [LOG_ACTION] Action enregistrée`)
     } catch (error) {
-      console.warn('Erreur lors de l\'enregistrement de l\'audit:', error)
-      // L'audit ne doit pas faire échouer l'action principale
+      console.warn('⚠️ [LOG_ACTION] Erreur (non bloquante):', error)
     }
   }
 
-  // ========================================
-  // FONCTIONS UTILITAIRES
-  // ========================================
-  
   const getPriorityColor = (priority: string) => {
     const colors = {
-      high: 'text-red-600 bg-red-50',
-      medium: 'text-yellow-600 bg-yellow-50', 
-      low: 'text-green-600 bg-green-50'
+      high: 'text-red-600 bg-red-50 border-red-200',
+      medium: 'text-yellow-600 bg-yellow-50 border-yellow-200', 
+      low: 'text-green-600 bg-green-50 border-green-200'
     }
     return colors[priority as keyof typeof colors] || colors.medium
   }
 
   const getStatusColor = (status: string) => {
     const colors = {
-      pending: 'text-orange-600 bg-orange-50',
-      in_review: 'text-blue-600 bg-blue-50',
-      resolved: 'text-green-600 bg-green-50',
-      dismissed: 'text-gray-600 bg-gray-50'
+      pending: 'text-orange-600 bg-orange-50 border-orange-200',
+      in_review: 'text-blue-600 bg-blue-50 border-blue-200',
+      resolved: 'text-green-600 bg-green-50 border-green-200',
+      dismissed: 'text-gray-600 bg-gray-50 border-gray-200'
     }
     return colors[status as keyof typeof colors] || colors.pending
   }
@@ -550,48 +760,52 @@ export const useAdminReports = () => {
     }
   }
 
-  // ========================================
-  // EFFET D'INITIALISATION
-  // ========================================
-  
   useEffect(() => {
+    console.log('🚀 [ADMIN_REPORTS] Initialisation du hook')
     fetchReports()
     
-    // Rafraîchissement automatique toutes les 5 minutes
-    const interval = setInterval(fetchReports, 5 * 60 * 1000)
-    return () => clearInterval(interval)
+    const interval = setInterval(() => {
+      console.log('🔄 [ADMIN_REPORTS] Rafraîchissement automatique')
+      fetchReports()
+    }, 5 * 60 * 1000)
+    
+    return () => {
+      console.log('🧹 [ADMIN_REPORTS] Nettoyage du hook')
+      clearInterval(interval)
+    }
   }, [])
 
-  // ========================================
-  // RETOUR DU HOOK
-  // ========================================
-  
   return {
-    // Données principales
     reports,
     loading,
     error,
     
-    // Actions principales
     handleReportAction,
     refreshReports: fetchReports,
     
-    // Utilitaires pour l'interface
     getPriorityColor,
     getStatusColor,
     formatResponseTime,
     
-    // Compteurs pour l'interface
     pendingCount: reports.filter(r => r.status === 'pending').length,
     highPriorityCount: reports.filter(r => r.priority === 'high').length,
     overdueCount: reports.filter(r => 
       r.status === 'pending' && r.response_time_hours && r.response_time_hours > 24
-    ).length
+    ).length,
+    
+    totalReports: reports.length,
+    resolvedCount: reports.filter(r => r.status === 'resolved').length,
+    dismissedCount: reports.filter(r => r.status === 'dismissed').length,
+    inReviewCount: reports.filter(r => r.status === 'in_review').length,
+    
+    averageResponseTime: reports.length > 0 
+      ? reports.reduce((sum, r) => sum + (r.response_time_hours || 0), 0) / reports.length 
+      : 0,
+    resolutionRate: reports.length > 0 
+      ? ((reports.filter(r => ['resolved', 'dismissed'].includes(r.status)).length) / reports.length) * 100 
+      : 0,
+    
+    isHealthy: !loading && !error && reports.length >= 0,
+    lastRefresh: new Date().toISOString()
   }
 }
-
-
-
-
-
-

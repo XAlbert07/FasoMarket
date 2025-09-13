@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useToast } from '@/hooks/use-toast'
 
 // ========================================
-// INTERFACES ET TYPES (inchangés)
+// INTERFACES ET TYPES (avec ajouts pour suspension)
 // ========================================
 
 export interface UserProfile {
@@ -18,6 +18,19 @@ export interface UserProfile {
   role: 'merchant' | 'admin'
   created_at: string
   updated_at: string | null
+  // Nouveaux champs pour la gestion des suspensions
+  suspended_until: string | null
+  suspension_reason: string | null
+  is_banned: boolean | null
+  ban_reason: string | null
+}
+
+// Interface pour le résultat de vérification de suspension
+export interface SuspensionCheckResult {
+  canAccess: boolean
+  reason?: 'banned' | 'suspended'
+  message?: string
+  suspendedUntil?: Date
 }
 
 export interface AuthContextType {
@@ -33,7 +46,7 @@ export interface AuthContextType {
 }
 
 // ========================================
-// SYSTÈME DE LOGGING AMÉLIORÉ
+// SYSTÈME DE LOGGING AMÉLIORÉ (inchangé)
 // ========================================
 
 const createLogger = (context: string) => {
@@ -57,20 +70,20 @@ const createLogger = (context: string) => {
 }
 
 // ========================================
-// HOOK PRINCIPAL AVEC PRÉVENTION DES COLLISIONS
+// HOOK PRINCIPAL AVEC VÉRIFICATION DE SUSPENSION
 // ========================================
 
 export const useAuth = (): AuthContextType => {
   const logger = createLogger('AUTH_HOOK')
   
-  // États de base
+  // États de base (inchangés)
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
   const { toast } = useToast()
 
-  // Système anti-collision pour la récupération de profil
+  // Système anti-collision pour la récupération de profil (inchangé)
   const profileFetchRef = useRef<{
     isActive: boolean
     currentUserId: string | null
@@ -81,7 +94,84 @@ export const useAuth = (): AuthContextType => {
     abortController: null
   })
 
-  // Surveillance des changements d'état avec diagnostic intelligent
+  // ========================================
+  // NOUVELLE FONCTION : VÉRIFICATION DE SUSPENSION
+  // ========================================
+  
+  const checkUserSuspension = async (userId: string): Promise<SuspensionCheckResult> => {
+    const suspensionLogger = createLogger('SUSPENSION_CHECK')
+    
+    try {
+      suspensionLogger.info('Vérification du statut de suspension', { userId })
+      
+      // Récupération des informations de suspension depuis la base de données
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('suspended_until, suspension_reason, is_banned, ban_reason')
+        .eq('id', userId)
+        .single()
+      
+      if (error) {
+        suspensionLogger.error('Erreur lors de la vérification de suspension', error)
+        // En cas d'erreur, on autorise l'accès par défaut (principe de moindre frustration)
+        return { canAccess: true }
+      }
+      
+      const now = new Date()
+      
+      // Vérification du bannissement permanent (priorité la plus haute)
+      if (profile.is_banned) {
+        suspensionLogger.warning('Utilisateur banni détecté', { 
+          userId, 
+          banReason: profile.ban_reason 
+        })
+        
+        return {
+          canAccess: false,
+          reason: 'banned',
+          message: `Votre compte a été banni définitivement. ${profile.ban_reason ? 'Raison: ' + profile.ban_reason : ''}`
+        }
+      }
+      
+      // Vérification de la suspension temporaire
+      if (profile.suspended_until) {
+        const suspensionEnd = new Date(profile.suspended_until)
+        
+        suspensionLogger.debug('Suspension temporaire trouvée', {
+          userId,
+          suspensionEnd: suspensionEnd.toISOString(),
+          currentTime: now.toISOString(),
+          isStillSuspended: now < suspensionEnd
+        })
+        
+        if (now < suspensionEnd) {
+          suspensionLogger.warning('Utilisateur encore suspendu', { 
+            userId, 
+            suspendedUntil: suspensionEnd 
+          })
+          
+          return {
+            canAccess: false,
+            reason: 'suspended',
+            message: `Votre compte est suspendu jusqu'au ${suspensionEnd.toLocaleDateString('fr-FR')}. ${profile.suspension_reason ? 'Raison: ' + profile.suspension_reason : ''}`,
+            suspendedUntil: suspensionEnd
+          }
+        } else {
+          suspensionLogger.info('Suspension expirée - utilisateur peut accéder', { userId })
+        }
+      }
+      
+      suspensionLogger.success('Utilisateur autorisé à accéder', { userId })
+      return { canAccess: true }
+      
+    } catch (error) {
+      suspensionLogger.error('Exception lors de la vérification de suspension', error)
+      // En cas d'exception, on autorise l'accès par défaut
+      return { canAccess: true }
+    }
+  }
+
+  // Surveillance des changements d'état avec diagnostic intelligent (inchangé)
   useEffect(() => {
     const stateSnapshot = {
       hasUser: !!user,
@@ -107,7 +197,7 @@ export const useAuth = (): AuthContextType => {
   }, [user, profile, session, loading])
 
   // ========================================
-  // FONCTION DE RÉCUPÉRATION DE PROFIL ANTI-COLLISION
+  // FONCTION DE RÉCUPÉRATION DE PROFIL ANTI-COLLISION (mise à jour)
   // ========================================
   
   const fetchProfile = async (userId: string, source: string = 'unknown') => {
@@ -142,10 +232,10 @@ export const useAuth = (): AuthContextType => {
         abortController.abort()
       }, 12000)
 
-      // Requête avec possibilité d'annulation
+      // Requête avec possibilité d'annulation - MISE À JOUR : ajout des champs de suspension
       const { data, error } = await supabase
         .from('profiles')
-        .select('*')
+        .select('*, suspended_until, suspension_reason, is_banned, ban_reason')
         .eq('id', userId)
         .abortSignal(abortController.signal)
         .single()
@@ -180,7 +270,12 @@ export const useAuth = (): AuthContextType => {
             avatar_url: null,
             role: 'merchant',
             created_at: new Date().toISOString(),
-            updated_at: null
+            updated_at: null,
+            // Nouveaux champs par défaut
+            suspended_until: null,
+            suspension_reason: null,
+            is_banned: null,
+            ban_reason: null
           }
           
           setProfile(defaultProfile)
@@ -218,7 +313,10 @@ export const useAuth = (): AuthContextType => {
           id: data.id,
           email: data.email,
           role: data.role,
-          hasName: !!data.full_name
+          hasName: !!data.full_name,
+          // Ajout du debug pour les champs de suspension
+          isBanned: data.is_banned,
+          suspendedUntil: data.suspended_until
         })
         
         // Validation des données critiques
@@ -231,7 +329,7 @@ export const useAuth = (): AuthContextType => {
       }
       
     } catch (exception) {
-      // Gestion intelligente des exceptions
+      // Gestion intelligente des exceptions (inchangée)
       if (exception instanceof Error) {
         if (exception.name === 'AbortError') {
           profileLogger.info('Récupération annulée volontairement (normal)')
@@ -272,7 +370,7 @@ export const useAuth = (): AuthContextType => {
   }
 
   // ========================================
-  // INITIALISATION COORDONNÉE SANS COLLISION
+  // INITIALISATION COORDONNÉE SANS COLLISION (inchangée)
   // ========================================
   
   useEffect(() => {
@@ -419,7 +517,7 @@ export const useAuth = (): AuthContextType => {
   }, []) // Dépendances vides = exécution unique au montage
 
   // ========================================
-  // MÉTHODES D'AUTHENTIFICATION SIMPLIFIÉES
+  // MÉTHODES D'AUTHENTIFICATION AVEC VÉRIFICATION DE SUSPENSION
   // ========================================
 
   const signUp = async (email: string, password: string, fullName: string, phone?: string) => {
@@ -450,14 +548,19 @@ export const useAuth = (): AuthContextType => {
 
       signupLogger.success('Compte créé avec succès', { userId: data.user?.id })
 
-      // Création du profil (non-bloquante)
+      // Création du profil (non-bloquante) - MISE À JOUR : ajout des champs de suspension
       if (data.user) {
         const profileData = {
           id: data.user.id,
           email: data.user.email!,
           full_name: fullName,
           phone: phone || null,
-          role: 'merchant' as const
+          role: 'merchant' as const,
+          // Nouveaux champs initialisés à des valeurs sûres
+          suspended_until: null,
+          suspension_reason: null,
+          is_banned: false,
+          ban_reason: null
         }
         
         supabase
@@ -497,6 +600,10 @@ export const useAuth = (): AuthContextType => {
     }
   }
 
+  // ========================================
+  // FONCTION SIGNIN MODIFIÉE AVEC VÉRIFICATION DE SUSPENSION
+  // ========================================
+  
   const signIn = async (email: string, password: string) => {
     const signinLogger = createLogger('SIGNIN')
     
@@ -506,6 +613,7 @@ export const useAuth = (): AuthContextType => {
       
       if (!email || !password) throw new Error('Email et mot de passe requis')
       
+      // Première étape : authentification avec Supabase
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -513,7 +621,46 @@ export const useAuth = (): AuthContextType => {
 
       if (error) throw error
 
-      signinLogger.success('Connexion réussie', { userId: data.user?.id })
+      signinLogger.success('Authentification Supabase réussie', { userId: data.user?.id })
+
+      // Deuxième étape : vérification immédiate du statut de suspension
+      if (data.user) {
+        signinLogger.info('Vérification du statut de suspension avant finalisation de la connexion')
+        
+        const suspensionCheck = await checkUserSuspension(data.user.id)
+        
+        if (!suspensionCheck.canAccess) {
+          signinLogger.warning('Accès refusé pour cause de suspension/bannissement', {
+            userId: data.user.id,
+            reason: suspensionCheck.reason,
+            message: suspensionCheck.message
+          })
+          
+          // Déconnexion immédiate et forcée de l'utilisateur suspendu/banni
+          await supabase.auth.signOut()
+          signinLogger.info('Déconnexion forcée effectuée')
+          
+          // Remise à zéro des états pour éviter tout état inconsistant
+          setUser(null)
+          setProfile(null)
+          setSession(null)
+          setLoading(false)
+          
+          // Affichage d'un message d'erreur personnalisé selon le type de sanction
+          toast({
+            title: suspensionCheck.reason === 'banned' ? "Compte banni" : "Compte suspendu",
+            description: suspensionCheck.message,
+            variant: "destructive"
+          })
+          
+          // Lancement d'une erreur avec le message personnalisé pour interrompre le processus
+          throw new Error(suspensionCheck.message)
+        }
+        
+        signinLogger.success('Utilisateur autorisé - finalisation de la connexion')
+      }
+
+      signinLogger.success('Connexion complètement réussie', { userId: data.user?.id })
 
       toast({
         title: "Connexion réussie !",
@@ -525,8 +672,13 @@ export const useAuth = (): AuthContextType => {
       signinLogger.error('Échec de connexion', authError)
       
       let errorMessage = authError.message
+      
+      // Gestion spécialisée des messages d'erreur
       if (authError.message.includes('Invalid login credentials')) {
         errorMessage = "Email ou mot de passe incorrect."
+      } else if (authError.message.includes('suspendu') || authError.message.includes('banni')) {
+        // Pour les erreurs de suspension/bannissement, on garde le message original
+        errorMessage = authError.message
       }
       
       toast({
@@ -614,7 +766,7 @@ export const useAuth = (): AuthContextType => {
   }
 
   // ========================================
-  // RETOUR DE L'INTERFACE
+  // RETOUR DE L'INTERFACE (inchangé)
   // ========================================
 
   const returnLogger = createLogger('AUTH_HOOK_RETURN')

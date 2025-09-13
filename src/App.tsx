@@ -28,12 +28,15 @@ import HowToPublish from "./pages/HowToPublish";
 import MyListings from "./pages/MyListings";
 import SellerProfile from "./pages/SellerProfile";
 import EditListing from "./pages/EditListing";
+import { SuspensionGuard } from '@/components/SuspensionGuard'
+
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
+      <SuspensionGuard>
       <TooltipProvider>
         <Toaster />
         <Sonner />
@@ -112,6 +115,7 @@ const App = () => (
           </Routes>
         </BrowserRouter>
       </TooltipProvider>
+      </SuspensionGuard>
     </AuthProvider>
   </QueryClientProvider>
 );

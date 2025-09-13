@@ -1,22 +1,43 @@
-// hooks/useAdminListings.ts
-// Hook spécialisé pour la gestion administrative des annonces
+// hooks/useAdminListings.ts - Version corrigée avec gestion des suspensions temporaires
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useToast } from '@/hooks/use-toast'
-import { Listing } from '@/types/database'
+import { useAuthContext } from '@/contexts/AuthContext'
 
-// ========================================
-// INTERFACES POUR LA GESTION DES ANNONCES
-// ========================================
-
-export interface AdminListing extends Listing {
+// Interfaces pour la gestion administrative des annonces
+export interface AdminListing {
+  id: string
+  title: string
+  description: string
+  price: number
+  currency: string
+  category_id: string
+  user_id: string
+  location: string
+  condition: 'new' | 'used' | 'refurbished'
+  status: 'active' | 'sold' | 'expired' | 'suspended'
+  images: string[]
+  contact_phone: string | null
+  contact_email: string | null
+  contact_whatsapp: string | null
+  featured: boolean
+  views_count: number
+  created_at: string
+  updated_at: string
+  expires_at: string | null
+  
+  // Nouvelles colonnes pour la modération
+  suspended_until: string | null
+  suspension_reason: string | null
+  moderation_notes: string | null
+  quality_score: number
+  
   // Données enrichies pour l'administration
   merchant_name: string
   merchant_email: string
   merchant_phone?: string
   category_name: string
-  quality_score: number
   
   // Métriques d'engagement
   favorites_count: number
@@ -33,7 +54,8 @@ export interface AdminListing extends Listing {
   needs_review: boolean
   is_featured: boolean
   risk_level: 'low' | 'medium' | 'high'
-  moderation_notes?: string
+  is_temporarily_suspended: boolean
+  suspension_expires_in_days?: number
 }
 
 export interface ListingFilters {
@@ -46,30 +68,30 @@ export interface ListingFilters {
   riskLevel?: 'all' | 'low' | 'medium' | 'high'
   dateRange?: 'all' | '24h' | '7d' | '30d'
   sortBy?: 'date' | 'price' | 'views' | 'reports' | 'quality'
+  isSuspended?: 'all' | 'suspended' | 'active'
 }
 
 export interface ListingAction {
-  type: 'approve' | 'suspend' | 'feature' | 'unfeature' | 'delete' | 'extend_expiry'
+  type: 'approve' | 'suspend' | 'unsuspend' | 'feature' | 'unfeature' | 'delete' | 'extend_expiry'
   reason: string
   notes?: string
-  duration?: number
+  duration?: number // En jours pour les suspensions temporaires
 }
 
 export interface ListingStats {
   totalListings: number
   activeListings: number
-  pendingListings: number
   suspendedListings: number
+  temporarilySuspended: number
+  permanentlySuspended: number
   featuredListings: number
+  needsReviewCount: number
   averagePrice: number
   averageViews: number
+  averageQualityScore: number
   topCategories: Array<{ name: string; count: number; percentage: number }>
   topLocations: Array<{ name: string; count: number }>
 }
-
-// ========================================
-// HOOK PRINCIPAL
-// ========================================
 
 export const useAdminListings = () => {
   const [listings, setListings] = useState<AdminListing[]>([])
@@ -78,19 +100,17 @@ export const useAdminListings = () => {
   const [filters, setFilters] = useState<ListingFilters>({})
   const [stats, setStats] = useState<ListingStats | null>(null)
   const { toast } = useToast()
+  const { user } = useAuthContext()
 
-  // ========================================
-  // RÉCUPÉRATION DES ANNONCES ENRICHIES
-  // ========================================
-  
+  // Fonction principale pour récupérer les annonces avec toutes leurs données
   const fetchListings = async (currentFilters: ListingFilters = {}) => {
-    console.log('Récupération des annonces avec filtres:', currentFilters)
+    console.log('🔍 [ADMIN_LISTINGS] Récupération des annonces avec filtres:', currentFilters)
     
     try {
       setLoading(true)
       setError(null)
 
-      // Requête de base avec jointures
+      // Requête de base avec toutes les jointures nécessaires
       let query = supabase
         .from('listings')
         .select(`
@@ -105,7 +125,6 @@ export const useAdminListings = () => {
             slug
           )
         `)
-        .order('created_at', { ascending: false })
 
       // Application des filtres de base
       if (currentFilters.status && currentFilters.status !== 'all') {
@@ -130,6 +149,7 @@ export const useAdminListings = () => {
           .lte('price', currentFilters.priceRange.max)
       }
 
+      // Filtre par date
       if (currentFilters.dateRange && currentFilters.dateRange !== 'all') {
         const now = new Date()
         let startDate: Date
@@ -151,27 +171,51 @@ export const useAdminListings = () => {
         query = query.gte('created_at', startDate.toISOString())
       }
 
+      // Tri selon le critère sélectionné
+      switch (currentFilters.sortBy) {
+        case 'price':
+          query = query.order('price', { ascending: false })
+          break
+        case 'views':
+          query = query.order('views_count', { ascending: false })
+          break
+        case 'quality':
+          query = query.order('quality_score', { ascending: false })
+          break
+        case 'date':
+        default:
+          query = query.order('created_at', { ascending: false })
+      }
+
       const { data: listingsData, error: listingsError } = await query
 
-      if (listingsError) throw listingsError
+      if (listingsError) {
+        console.error('❌ [ADMIN_LISTINGS] Erreur requête principale:', listingsError)
+        throw listingsError
+      }
 
-      // Récupération des données complémentaires
-      const listingIds = listingsData?.map(l => l.id) || []
+      console.log(`📊 [ADMIN_LISTINGS] ${listingsData?.length || 0} annonces récupérées`)
+
+      if (!listingsData || listingsData.length === 0) {
+        setListings([])
+        calculateStats([])
+        return
+      }
+
+      // Récupération des données complémentaires (favoris, messages, signalements)
+      const listingIds = listingsData.map(l => l.id)
       
       const [favoritesData, messagesData, reportsData] = await Promise.all([
-        // Favoris par annonce
         supabase
           .from('favorites')
           .select('listing_id')
           .in('listing_id', listingIds),
           
-        // Messages par annonce
         supabase
           .from('messages')
           .select('listing_id')
           .in('listing_id', listingIds),
           
-        // Signalements par annonce
         supabase
           .from('reports')
           .select('listing_id')
@@ -179,12 +223,18 @@ export const useAdminListings = () => {
           .not('listing_id', 'is', null)
       ])
 
-      if (favoritesData.error) throw favoritesData.error
-      if (messagesData.error) throw messagesData.error
-      if (reportsData.error) throw reportsData.error
+      if (favoritesData.error) {
+        console.warn('⚠️ [ADMIN_LISTINGS] Erreur favoris (non bloquant):', favoritesData.error)
+      }
+      if (messagesData.error) {
+        console.warn('⚠️ [ADMIN_LISTINGS] Erreur messages (non bloquant):', messagesData.error)
+      }
+      if (reportsData.error) {
+        console.warn('⚠️ [ADMIN_LISTINGS] Erreur signalements (non bloquant):', reportsData.error)
+      }
 
-      // Enrichissement des données
-      const enrichedListings: AdminListing[] = (listingsData || []).map(listing => {
+      // Enrichissement des données avec calculs et métriques
+      const enrichedListings: AdminListing[] = listingsData.map(listing => {
         const profile = Array.isArray(listing.profiles) ? listing.profiles[0] : listing.profiles
         const category = Array.isArray(listing.categories) ? listing.categories[0] : listing.categories
 
@@ -193,7 +243,7 @@ export const useAdminListings = () => {
         const messagesCount = messagesData.data?.filter(m => m.listing_id === listing.id).length || 0
         const reportsCount = reportsData.data?.filter(r => r.listing_id === listing.id).length || 0
 
-        // Calcul des dates
+        // Calcul des dates et durées
         const createdAt = new Date(listing.created_at)
         const now = new Date()
         const daysSinceCreation = Math.floor((now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24))
@@ -203,28 +253,44 @@ export const useAdminListings = () => {
           ? Math.floor((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
           : 999
 
-        // Calcul du score de qualité
-        let qualityScore = 50 // Score de base
+        // Vérification de la suspension temporaire
+        const suspendedUntil = listing.suspended_until ? new Date(listing.suspended_until) : null
+        const isTemporarilySuspended = suspendedUntil && suspendedUntil > now
+        const suspensionExpiresInDays = isTemporarilySuspended 
+          ? Math.ceil((suspendedUntil!.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+          : 0
+
+        // Calcul du score de qualité (amélioré)
+        let qualityScore = listing.quality_score || 50
         
-        // Bonus pour les images
-        qualityScore += Math.min((listing.images?.length || 0) * 10, 30)
-        
-        // Bonus pour la description complète
-        if (listing.description && listing.description.length > 100) qualityScore += 15
-        
-        // Bonus pour les informations de contact
-        if (listing.contact_phone) qualityScore += 10
-        if (listing.contact_whatsapp) qualityScore += 5
-        
-        // Malus pour les signalements
-        qualityScore -= reportsCount * 15
-        
-        // Bonus pour l'engagement
-        qualityScore += Math.min(favoritesCount * 2, 10)
-        qualityScore += Math.min(listing.views_count * 0.1, 10)
-        
-        // Maintenir entre 0 et 100
-        qualityScore = Math.max(0, Math.min(100, qualityScore))
+        // Recalcul si pas encore défini
+        if (!listing.quality_score) {
+          qualityScore = 50 // Score de base
+          
+          // Bonus pour les images (max 30 points)
+          qualityScore += Math.min((listing.images?.length || 0) * 8, 30)
+          
+          // Bonus pour la description complète (15 points)
+          if (listing.description && listing.description.length > 100) qualityScore += 15
+          
+          // Bonus pour les informations de contact (15 points)
+          if (listing.contact_phone) qualityScore += 8
+          if (listing.contact_whatsapp) qualityScore += 4
+          if (listing.contact_email) qualityScore += 3
+          
+          // Malus pour les signalements (-15 points par signalement)
+          qualityScore -= reportsCount * 15
+          
+          // Bonus pour l'engagement (max 15 points)
+          qualityScore += Math.min(favoritesCount * 2, 10)
+          qualityScore += Math.min(listing.views_count * 0.05, 5)
+          
+          // Malus pour l'ancienneté excessive sans activité
+          if (daysSinceCreation > 60 && listing.views_count < 10) qualityScore -= 10
+          
+          // Maintenir entre 0 et 100
+          qualityScore = Math.max(0, Math.min(100, Math.round(qualityScore)))
+        }
 
         // Calcul du taux d'engagement
         const engagementRate = listing.views_count > 0 
@@ -233,17 +299,19 @@ export const useAdminListings = () => {
 
         // Détermination du niveau de risque
         let riskLevel: 'low' | 'medium' | 'high' = 'low'
-        if (reportsCount > 2 || qualityScore < 30) {
+        if (reportsCount >= 3 || qualityScore < 30) {
           riskLevel = 'high'
-        } else if (reportsCount > 0 || qualityScore < 60) {
+        } else if (reportsCount >= 1 || qualityScore < 60 || listing.price < 5000) {
           riskLevel = 'medium'
         }
 
         // Indicateur de besoin de révision
-        const needsReview = riskLevel === 'high' || 
-                           (listing.price < 1000 && listing.title.includes('iPhone')) || // Prix suspect
-                           (listing.images?.length || 0) === 0 || // Pas d'image
-                           reportsCount > 0
+        const needsReview = 
+          riskLevel === 'high' || 
+          (listing.images?.length || 0) === 0 || 
+          reportsCount > 0 ||
+          (listing.price < 10000 && listing.title.toLowerCase().includes('iphone')) ||
+          qualityScore < 40
 
         return {
           ...listing,
@@ -251,7 +319,7 @@ export const useAdminListings = () => {
           merchant_email: profile?.email || '',
           merchant_phone: profile?.phone,
           category_name: category?.name || 'Catégorie inconnue',
-          quality_score: Math.round(qualityScore),
+          quality_score: qualityScore,
           favorites_count: favoritesCount,
           messages_count: messagesCount,
           reports_count: reportsCount,
@@ -262,7 +330,8 @@ export const useAdminListings = () => {
           needs_review: needsReview,
           is_featured: listing.featured || false,
           risk_level: riskLevel,
-          moderation_notes: undefined
+          is_temporarily_suspended: isTemporarilySuspended,
+          suspension_expires_in_days: suspensionExpiresInDays
         } as AdminListing
       })
 
@@ -277,36 +346,27 @@ export const useAdminListings = () => {
         filteredListings = filteredListings.filter(l => l.risk_level === currentFilters.riskLevel)
       }
 
-      // Tri
-      if (currentFilters.sortBy) {
-        filteredListings.sort((a, b) => {
-          switch (currentFilters.sortBy) {
-            case 'price':
-              return b.price - a.price
-            case 'views':
-              return b.views_count - a.views_count
-            case 'reports':
-              return b.reports_count - a.reports_count
-            case 'quality':
-              return b.quality_score - a.quality_score
-            case 'date':
-            default:
-              return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-          }
-        })
+      if (currentFilters.isSuspended && currentFilters.isSuspended !== 'all') {
+        if (currentFilters.isSuspended === 'suspended') {
+          filteredListings = filteredListings.filter(l => l.status === 'suspended')
+        } else {
+          filteredListings = filteredListings.filter(l => l.status !== 'suspended')
+        }
       }
 
-      console.log(`Annonces récupérées et enrichies: ${filteredListings.length}`)
+      console.log(`✅ [ADMIN_LISTINGS] ${filteredListings.length} annonces enrichies et filtrées`)
+      
       setListings(filteredListings)
+      calculateStats(filteredListings)
 
     } catch (error) {
-      console.error('Erreur lors de la récupération des annonces:', error)
+      console.error('❌ [ADMIN_LISTINGS] Erreur lors de la récupération:', error)
       const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue'
       setError(errorMessage)
       
       toast({
         title: "Erreur de chargement",
-        description: "Impossible de charger les annonces.",
+        description: "Impossible de charger les annonces. Vérifiez votre connexion.",
         variant: "destructive"
       })
     } finally {
@@ -314,104 +374,107 @@ export const useAdminListings = () => {
     }
   }
 
-  // ========================================
-  // CALCUL DES STATISTIQUES
-  // ========================================
-  
-  const calculateStats = async () => {
-    console.log('Calcul des statistiques des annonces')
-    
-    try {
-      const [listingsResult, categoriesResult] = await Promise.all([
-        supabase
-          .from('listings')
-          .select('id, status, price, views_count, featured, category_id, location, created_at'),
-          
-        supabase
-          .from('categories')
-          .select('id, name')
-      ])
+  // Calcul des statistiques détaillées
+  const calculateStats = (listingsToAnalyze: AdminListing[]) => {
+    console.log('📊 [ADMIN_LISTINGS] Calcul des statistiques')
 
-      if (listingsResult.error) throw listingsResult.error
-      if (categoriesResult.error) throw categoriesResult.error
-
-      const allListings = listingsResult.data || []
-      const categories = categoriesResult.data || []
-
-      const totalListings = allListings.length
-      const activeListings = allListings.filter(l => l.status === 'active').length
-      const pendingListings = allListings.filter(l => l.status === 'active').length // Considérant 'active' comme pending
-      const suspendedListings = allListings.filter(l => l.status === 'suspended').length
-      const featuredListings = allListings.filter(l => l.featured).length
-
-      // Prix moyen
-      const averagePrice = totalListings > 0 
-        ? allListings.reduce((sum, l) => sum + l.price, 0) / totalListings
-        : 0
-
-      // Vues moyennes
-      const averageViews = totalListings > 0 
-        ? allListings.reduce((sum, l) => sum + l.views_count, 0) / totalListings
-        : 0
-
-      // Top catégories
-      const categoryCounts = allListings.reduce((acc, listing) => {
-        acc[listing.category_id] = (acc[listing.category_id] || 0) + 1
-        return acc
-      }, {} as Record<string, number>)
-
-      const topCategories = Object.entries(categoryCounts)
-        .sort(([,a], [,b]) => b - a)
-        .slice(0, 5)
-        .map(([categoryId, count]) => {
-          const category = categories.find(c => c.id === categoryId)
-          return {
-            name: category?.name || 'Catégorie inconnue',
-            count,
-            percentage: (count / totalListings) * 100
-          }
-        })
-
-      // Top locations
-      const locationCounts = allListings.reduce((acc, listing) => {
-        const location = listing.location || 'Non spécifié'
-        acc[location] = (acc[location] || 0) + 1
-        return acc
-      }, {} as Record<string, number>)
-
-      const topLocations = Object.entries(locationCounts)
-        .sort(([,a], [,b]) => b - a)
-        .slice(0, 5)
-        .map(([name, count]) => ({ name, count }))
-
-      const calculatedStats: ListingStats = {
-        totalListings,
-        activeListings,
-        pendingListings,
-        suspendedListings,
-        featuredListings,
-        averagePrice: Math.round(averagePrice),
-        averageViews: Math.round(averageViews),
-        topCategories,
-        topLocations
-      }
-
-      console.log('Statistiques des annonces calculées:', calculatedStats)
-      setStats(calculatedStats)
-
-    } catch (error) {
-      console.error('Erreur lors du calcul des statistiques:', error)
+    const totalListings = listingsToAnalyze.length
+    if (totalListings === 0) {
+      setStats({
+        totalListings: 0,
+        activeListings: 0,
+        suspendedListings: 0,
+        temporarilySuspended: 0,
+        permanentlySuspended: 0,
+        featuredListings: 0,
+        needsReviewCount: 0,
+        averagePrice: 0,
+        averageViews: 0,
+        averageQualityScore: 0,
+        topCategories: [],
+        topLocations: []
+      })
+      return
     }
+
+    const activeListings = listingsToAnalyze.filter(l => l.status === 'active').length
+    const suspendedListings = listingsToAnalyze.filter(l => l.status === 'suspended').length
+    const temporarilySuspended = listingsToAnalyze.filter(l => l.is_temporarily_suspended).length
+    const permanentlySuspended = suspendedListings - temporarilySuspended
+    const featuredListings = listingsToAnalyze.filter(l => l.featured).length
+    const needsReviewCount = listingsToAnalyze.filter(l => l.needs_review).length
+
+    // Moyennes
+    const averagePrice = Math.round(listingsToAnalyze.reduce((sum, l) => sum + l.price, 0) / totalListings)
+    const averageViews = Math.round(listingsToAnalyze.reduce((sum, l) => sum + l.views_count, 0) / totalListings)
+    const averageQualityScore = Math.round(listingsToAnalyze.reduce((sum, l) => sum + l.quality_score, 0) / totalListings)
+
+    // Top catégories
+    const categoryCounts = listingsToAnalyze.reduce((acc, listing) => {
+      const category = listing.category_name
+      acc[category] = (acc[category] || 0) + 1
+      return acc
+    }, {} as Record<string, number>)
+
+    const topCategories = Object.entries(categoryCounts)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 5)
+      .map(([name, count]) => ({
+        name,
+        count,
+        percentage: Math.round((count / totalListings) * 100)
+      }))
+
+    // Top locations
+    const locationCounts = listingsToAnalyze.reduce((acc, listing) => {
+      const location = listing.location || 'Non spécifié'
+      acc[location] = (acc[location] || 0) + 1
+      return acc
+    }, {} as Record<string, number>)
+
+    const topLocations = Object.entries(locationCounts)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 5)
+      .map(([name, count]) => ({ name, count }))
+
+    const calculatedStats: ListingStats = {
+      totalListings,
+      activeListings,
+      suspendedListings,
+      temporarilySuspended,
+      permanentlySuspended,
+      featuredListings,
+      needsReviewCount,
+      averagePrice,
+      averageViews,
+      averageQualityScore,
+      topCategories,
+      topLocations
+    }
+
+    console.log('✅ [ADMIN_LISTINGS] Statistiques calculées:', calculatedStats)
+    setStats(calculatedStats)
   }
 
-  // ========================================
-  // ACTIONS ADMINISTRATIVES
-  // ========================================
-  
-  const handleListingAction = async (listingId: string, action: ListingAction) => {
-    console.log(`Application de l'action ${action.type} sur l'annonce ${listingId}`)
+  // Fonction pour gérer les actions administratives sur les annonces
+  const handleListingAction = async (listingId: string, action: ListingAction): Promise<boolean> => {
+    if (!user) {
+      toast({
+        title: "Erreur d'authentification",
+        description: "Vous devez être connecté pour effectuer cette action.",
+        variant: "destructive"
+      })
+      return false
+    }
+
+    console.log(`🔧 [ADMIN_LISTINGS] Action ${action.type} sur annonce ${listingId}`)
     
     try {
+      const listing = listings.find(l => l.id === listingId)
+      if (!listing) {
+        throw new Error('Annonce non trouvée')
+      }
+
       let updateData: any = {
         updated_at: new Date().toISOString()
       }
@@ -419,10 +482,30 @@ export const useAdminListings = () => {
       switch (action.type) {
         case 'approve':
           updateData.status = 'active'
+          updateData.suspended_until = null
+          updateData.suspension_reason = null
           break
 
         case 'suspend':
           updateData.status = 'suspended'
+          updateData.suspension_reason = action.reason
+          updateData.moderation_notes = action.notes
+          
+          if (action.duration && action.duration > 0) {
+            // Suspension temporaire
+            const suspendedUntil = new Date(Date.now() + action.duration * 24 * 60 * 60 * 1000)
+            updateData.suspended_until = suspendedUntil.toISOString()
+          } else {
+            // Suspension permanente
+            updateData.suspended_until = null
+          }
+          break
+
+        case 'unsuspend':
+          updateData.status = 'active'
+          updateData.suspended_until = null
+          updateData.suspension_reason = null
+          updateData.moderation_notes = action.notes
           break
 
         case 'feature':
@@ -435,15 +518,16 @@ export const useAdminListings = () => {
 
         case 'extend_expiry':
           if (action.duration) {
-            const newExpiry = new Date()
-            newExpiry.setDate(newExpiry.getDate() + action.duration)
+            const currentExpiry = listing.expires_at ? new Date(listing.expires_at) : new Date()
+            const newExpiry = new Date(currentExpiry.getTime() + action.duration * 24 * 60 * 60 * 1000)
             updateData.expires_at = newExpiry.toISOString()
           }
           break
 
         case 'delete':
-          // Suppression logique ou physique selon votre politique
-          updateData.status = 'deleted' // Ou suppression physique avec .delete()
+          updateData.status = 'suspended' // Suppression logique
+          updateData.suspension_reason = action.reason
+          updateData.moderation_notes = `SUPPRIMÉ: ${action.notes || ''}`
           break
       }
 
@@ -452,33 +536,72 @@ export const useAdminListings = () => {
         .update(updateData)
         .eq('id', listingId)
 
-      if (error) throw error
+      if (error) {
+        console.error('❌ [ADMIN_LISTINGS] Erreur mise à jour annonce:', error)
+        throw error
+      }
+
+      // Enregistrement de l'action pour audit
+      await supabase
+        .from('admin_actions')
+        .insert({
+          admin_id: user.id,
+          action_type: action.type,
+          target_type: 'listing',
+          target_id: listingId,
+          reason: action.reason,
+          notes: action.notes,
+          metadata: { duration: action.duration }
+        })
 
       // Mise à jour de l'état local
       setListings(prev => prev.map(l => {
         if (l.id === listingId) {
-          return {
-            ...l,
-            ...updateData,
-            updated_at: new Date().toISOString()
+          const updatedListing = { ...l, ...updateData }
+          
+          // Recalcul des flags après mise à jour
+          const now = new Date()
+          if (updateData.suspended_until) {
+            const suspendedUntil = new Date(updateData.suspended_until)
+            updatedListing.is_temporarily_suspended = suspendedUntil > now
+            updatedListing.suspension_expires_in_days = Math.ceil((suspendedUntil.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+          } else {
+            updatedListing.is_temporarily_suspended = false
+            updatedListing.suspension_expires_in_days = 0
           }
+          
+          return updatedListing
         }
         return l
       }))
 
+      // Messages de succès contextuels
+      const actionMessages = {
+        approve: 'Annonce approuvée avec succès',
+        suspend: action.duration 
+          ? `Annonce suspendue pour ${action.duration} jour(s)`
+          : 'Annonce suspendue définitivement',
+        unsuspend: 'Suspension levée avec succès',
+        feature: 'Annonce mise en avant',
+        unfeature: 'Mise en avant supprimée',
+        extend_expiry: `Expiration prolongée de ${action.duration} jour(s)`,
+        delete: 'Annonce supprimée'
+      }
+
       toast({
         title: "Action appliquée",
-        description: `L'action ${action.type} a été appliquée avec succès.`,
+        description: actionMessages[action.type] || "Action appliquée avec succès",
       })
 
+      console.log(`✅ [ADMIN_LISTINGS] Action ${action.type} terminée avec succès`)
       return true
 
     } catch (error) {
-      console.error(`Erreur lors de l'action ${action.type}:`, error)
+      console.error(`❌ [ADMIN_LISTINGS] Erreur action ${action.type}:`, error)
       
       toast({
         title: "Erreur d'action",
-        description: "Impossible d'appliquer l'action sur cette annonce.",
+        description: error instanceof Error ? error.message : "Impossible d'appliquer l'action",
         variant: "destructive"
       })
       
@@ -486,10 +609,7 @@ export const useAdminListings = () => {
     }
   }
 
-  // ========================================
-  // GESTION DES FILTRES ET RECHERCHE
-  // ========================================
-  
+  // Gestion des filtres
   const applyFilters = (newFilters: Partial<ListingFilters>) => {
     const updatedFilters = { ...filters, ...newFilters }
     setFilters(updatedFilters)
@@ -501,6 +621,7 @@ export const useAdminListings = () => {
     fetchListings({})
   }
 
+  // Fonction de recherche textuelle
   const searchListings = (searchTerm: string) => {
     if (!searchTerm.trim()) return listings
 
@@ -510,47 +631,23 @@ export const useAdminListings = () => {
       listing.description.toLowerCase().includes(term) ||
       listing.merchant_name.toLowerCase().includes(term) ||
       listing.location.toLowerCase().includes(term) ||
-      listing.category_name.toLowerCase().includes(term)
+      listing.category_name.toLowerCase().includes(term) ||
+      listing.id.toLowerCase().includes(term)
     )
   }
 
-  // ========================================
-  // EFFET D'INITIALISATION
-  // ========================================
-  
-  useEffect(() => {
-    console.log('Initialisation du hook des annonces admin')
-    fetchListings()
-    calculateStats()
-
-    // Rafraîchissement automatique toutes les 4 minutes
-    const interval = setInterval(() => {
-      console.log('Rafraîchissement automatique des annonces')
-      fetchListings(filters)
-      calculateStats()
-    }, 4 * 60 * 1000)
-
-    return () => {
-      console.log('Nettoyage du hook des annonces')
-      clearInterval(interval)
-    }
-  }, [])
-
-  // ========================================
-  // UTILITAIRES
-  // ========================================
-  
+  // Fonctions utilitaires pour l'affichage
   const getQualityScoreColor = (score: number) => {
-    if (score >= 80) return 'text-green-600 bg-green-50'
-    if (score >= 60) return 'text-yellow-600 bg-yellow-50'
-    return 'text-red-600 bg-red-50'
+    if (score >= 80) return 'text-green-600 bg-green-50 border-green-200'
+    if (score >= 60) return 'text-yellow-600 bg-yellow-50 border-yellow-200'
+    return 'text-red-600 bg-red-50 border-red-200'
   }
 
   const getRiskLevelColor = (risk: 'low' | 'medium' | 'high') => {
     const colors = {
-      low: 'text-green-600 bg-green-50',
-      medium: 'text-yellow-600 bg-yellow-50',
-      high: 'text-red-600 bg-red-50'
+      low: 'text-green-600 bg-green-50 border-green-200',
+      medium: 'text-yellow-600 bg-yellow-50 border-yellow-200',
+      high: 'text-red-600 bg-red-50 border-red-200'
     }
     return colors[risk]
   }
@@ -563,12 +660,34 @@ export const useAdminListings = () => {
     return new Date(dateString).toLocaleDateString('fr-FR')
   }
 
-  // ========================================
-  // RETOUR DU HOOK
-  // ========================================
-  
+  const formatSuspensionStatus = (listing: AdminListing): string => {
+    if (!listing.is_temporarily_suspended) return ''
+    
+    if (listing.suspension_expires_in_days === 0) return 'Expire aujourd\'hui'
+    if (listing.suspension_expires_in_days === 1) return 'Expire demain'
+    return `Expire dans ${listing.suspension_expires_in_days} jours`
+  }
+
+  // Initialisation
+  useEffect(() => {
+    console.log('🚀 [ADMIN_LISTINGS] Initialisation du hook')
+    fetchListings()
+
+    // Rafraîchissement automatique toutes les 4 minutes
+    const interval = setInterval(() => {
+      console.log('🔄 [ADMIN_LISTINGS] Rafraîchissement automatique')
+      fetchListings(filters)
+    }, 4 * 60 * 1000)
+
+    return () => {
+      console.log('🧹 [ADMIN_LISTINGS] Nettoyage du hook')
+      clearInterval(interval)
+    }
+  }, [])
+
+  // Retour du hook avec toutes les fonctionnalités
   return {
-    // Données
+    // Données principales
     listings,
     stats,
     filters,
@@ -577,29 +696,32 @@ export const useAdminListings = () => {
     loading,
     error,
     
-    // Actions
+    // Actions principales
     handleListingAction,
     
-    // Gestion des filtres
+    // Gestion des filtres et recherche
     applyFilters,
     clearFilters,
     searchListings,
     
     // Rafraîchissement
     refreshListings: () => fetchListings(filters),
-    refreshStats: calculateStats,
+    refreshStats: () => calculateStats(listings),
     
-    // Utilitaires
+    // Utilitaires pour l'affichage
     getQualityScoreColor,
     getRiskLevelColor,
     formatCurrency,
     formatDate,
+    formatSuspensionStatus,
     
     // Compteurs pour l'interface
     needsReviewCount: listings.filter(l => l.needs_review).length,
     highRiskCount: listings.filter(l => l.risk_level === 'high').length,
     lowQualityCount: listings.filter(l => l.quality_score < 50).length,
     expiringSoonCount: listings.filter(l => l.days_until_expiry <= 7 && l.days_until_expiry > 0).length,
+    temporarilySuspendedCount: listings.filter(l => l.is_temporarily_suspended).length,
+    permanentlySuspendedCount: listings.filter(l => l.status === 'suspended' && !l.is_temporarily_suspended).length,
     
     // Métriques calculées
     averageQualityScore: listings.length > 0 
@@ -607,8 +729,9 @@ export const useAdminListings = () => {
       : 0,
     totalViews: listings.reduce((sum, l) => sum + l.views_count, 0),
     totalFavorites: listings.reduce((sum, l) => sum + l.favorites_count, 0),
+    totalEngagement: listings.reduce((sum, l) => sum + l.favorites_count + l.messages_count, 0),
     
-    // Indicateur de santé
+    // Indicateur de santé du système
     isHealthy: !loading && !error && listings.length >= 0,
     lastRefresh: new Date().toISOString()
   }

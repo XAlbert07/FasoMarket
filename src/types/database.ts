@@ -122,6 +122,8 @@ export interface ReportAction {
   reason: string;
   notes?: string;
   duration?: number; // En jours pour les sanctions temporaires
+  allowPermanent?: boolean; // Permet de savoir si la sanction peut être permanente
+  supportsDuration?: boolean; // Indique si la durée est applicable
 }
 
 export interface AdminActionResult {
@@ -347,6 +349,9 @@ export interface SystemNotification {
   expires_at: string | null;
   read: boolean;
 }
+
+
+
 
 // ========================================
 // UNION TYPES ET GUARDS

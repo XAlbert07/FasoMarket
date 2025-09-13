@@ -44,6 +44,17 @@ export interface EnhancedReportData {
   };
 }
 
+
+export interface ReportAction {
+  type: 'approve' | 'dismiss' | 'escalate' | 'ban_user' | 'suspend_user' | 'warn_user' | 'remove_listing' | 'suspend_listing';
+  reason: string;
+  notes?: string;
+  duration?: number; // En jours pour les sanctions temporaires
+  allowPermanent?: boolean; // Permet de savoir si la sanction peut être permanente
+  supportsDuration?: boolean; // Indique si la durée est applicable
+}
+
+
 export const useEnhancedReports = () => {
   const [loading, setLoading] = useState(false);
   const { user } = useAuthContext();
