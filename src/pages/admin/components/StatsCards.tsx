@@ -5,9 +5,11 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, Package, AlertTriangle, DollarSign, TrendingUp, TrendingDown, Activity } from "lucide-react";
 import { DashboardStats } from '@/hooks/useAdminStats';
+import { SanctionsStats } from "@/types/database";
 
 interface StatsCardsProps {
   dashboardStats: DashboardStats | null;
+  sanctionsStats: SanctionsStats; 
   formatCurrency: (amount: number) => string;
 }
 

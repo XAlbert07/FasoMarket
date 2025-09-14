@@ -29,6 +29,7 @@ import MyListings from "./pages/MyListings";
 import SellerProfile from "./pages/SellerProfile";
 import EditListing from "./pages/EditListing";
 import { SuspensionGuard } from '@/components/SuspensionGuard'
+import  SanctionsManagementPage  from '@/pages/admin/components/SanctionsManagementPage'
 
 
 const queryClient = new QueryClient();
@@ -82,6 +83,7 @@ const App = () => (
             <Route path="/category/:category" element={<CategoryListings />} />
             <Route path="/my-profile" element={<ProtectedRoute><MyProfile /></ProtectedRoute>} />
             <Route path="/my-listings" element={<ProtectedRoute><MyListings /></ProtectedRoute>} />
+             <Route path="/Sanctions" element={<ProtectedRoute>< SanctionsManagementPage/></ProtectedRoute>} />
             
             {/* 
               ROUTE PROFIL VENDEUR : Permet de voir le profil public d'un vendeur

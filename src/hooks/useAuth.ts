@@ -1,10 +1,13 @@
+// useAuth.ts - Version complète pour FasoMarket 
+// Combine la gestion des suspensions ET toutes les fonctionnalités de sécurité avancées
+
 import { useState, useEffect, useRef } from 'react'
 import { User, Session, AuthError } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { useToast } from '@/hooks/use-toast'
 
 // ========================================
-// INTERFACES ET TYPES (avec ajouts pour suspension)
+// INTERFACES ET TYPES COMPLETS
 // ========================================
 
 export interface UserProfile {
@@ -18,14 +21,14 @@ export interface UserProfile {
   role: 'merchant' | 'admin'
   created_at: string
   updated_at: string | null
-  // Nouveaux champs pour la gestion des suspensions
+  // Champs pour la gestion des suspensions (CONSERVÉS de votre nouveau code)
   suspended_until: string | null
   suspension_reason: string | null
   is_banned: boolean | null
   ban_reason: string | null
 }
 
-// Interface pour le résultat de vérification de suspension
+// Interface pour le résultat de vérification de suspension (CONSERVÉE)
 export interface SuspensionCheckResult {
   canAccess: boolean
   reason?: 'banned' | 'suspended'
@@ -33,20 +36,60 @@ export interface SuspensionCheckResult {
   suspendedUntil?: Date
 }
 
+// Interface pour les sessions actives (RESTAURÉE de l'ancien code)
+export interface ActiveSession {
+  id: string
+  user_id: string
+  ip_address: string
+  user_agent: string
+  created_at: string
+  updated_at: string
+  is_current?: boolean
+}
+
+// Interface pour les facteurs MFA (RESTAURÉE)
+export interface MFAFactor {
+  id: string
+  type: 'totp'
+  status: 'verified' | 'unverified'
+  created_at: string
+  updated_at: string
+}
+
+// Interface pour les codes de récupération (RESTAURÉE)
+export interface BackupCode {
+  code: string
+  used: boolean
+}
+
+// Interface COMPLÈTE du contexte d'authentification
 export interface AuthContextType {
+  // États de base
   user: User | null
   profile: UserProfile | null
   session: Session | null
   loading: boolean
   
+  // Méthodes d'authentification de base
   signUp: (email: string, password: string, fullName: string, phone?: string) => Promise<void>
   signIn: (email: string, password: string) => Promise<void>
   signOut: () => Promise<void>
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>
+  
+  // MÉTHODES DE SÉCURITÉ AVANCÉE (RESTAURÉES)
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>
+  resetPassword: (email: string) => Promise<void>
+  setupMFA: () => Promise<{ qr_code: string; secret: string; backup_codes: string[] }>
+  verifyMFA: (code: string) => Promise<BackupCode[]>
+  disableMFA: () => Promise<void>
+  getMFAStatus: () => Promise<{ enabled: boolean; factors: MFAFactor[] }>
+  getActiveSessions: () => Promise<ActiveSession[]>
+  revokeSession: (sessionId: string) => Promise<void>
+  revokeAllOtherSessions: () => Promise<void>
 }
 
 // ========================================
-// SYSTÈME DE LOGGING AMÉLIORÉ (inchangé)
+// SYSTÈME DE LOGGING AMÉLIORÉ (CONSERVÉ)
 // ========================================
 
 const createLogger = (context: string) => {
@@ -70,20 +113,20 @@ const createLogger = (context: string) => {
 }
 
 // ========================================
-// HOOK PRINCIPAL AVEC VÉRIFICATION DE SUSPENSION
+// HOOK PRINCIPAL COMPLET
 // ========================================
 
 export const useAuth = (): AuthContextType => {
   const logger = createLogger('AUTH_HOOK')
   
-  // États de base (inchangés)
+  // États de base
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
   const { toast } = useToast()
 
-  // Système anti-collision pour la récupération de profil (inchangé)
+  // Système anti-collision pour la récupération de profil (CONSERVÉ)
   const profileFetchRef = useRef<{
     isActive: boolean
     currentUserId: string | null
@@ -95,7 +138,7 @@ export const useAuth = (): AuthContextType => {
   })
 
   // ========================================
-  // NOUVELLE FONCTION : VÉRIFICATION DE SUSPENSION
+  // FONCTION DE VÉRIFICATION DE SUSPENSION (CONSERVÉE)
   // ========================================
   
   const checkUserSuspension = async (userId: string): Promise<SuspensionCheckResult> => {
@@ -104,7 +147,6 @@ export const useAuth = (): AuthContextType => {
     try {
       suspensionLogger.info('Vérification du statut de suspension', { userId })
       
-      // Récupération des informations de suspension depuis la base de données
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('suspended_until, suspension_reason, is_banned, ban_reason')
@@ -113,13 +155,12 @@ export const useAuth = (): AuthContextType => {
       
       if (error) {
         suspensionLogger.error('Erreur lors de la vérification de suspension', error)
-        // En cas d'erreur, on autorise l'accès par défaut (principe de moindre frustration)
         return { canAccess: true }
       }
       
       const now = new Date()
       
-      // Vérification du bannissement permanent (priorité la plus haute)
+      // Vérification du bannissement permanent
       if (profile.is_banned) {
         suspensionLogger.warning('Utilisateur banni détecté', { 
           userId, 
@@ -136,13 +177,6 @@ export const useAuth = (): AuthContextType => {
       // Vérification de la suspension temporaire
       if (profile.suspended_until) {
         const suspensionEnd = new Date(profile.suspended_until)
-        
-        suspensionLogger.debug('Suspension temporaire trouvée', {
-          userId,
-          suspensionEnd: suspensionEnd.toISOString(),
-          currentTime: now.toISOString(),
-          isStillSuspended: now < suspensionEnd
-        })
         
         if (now < suspensionEnd) {
           suspensionLogger.warning('Utilisateur encore suspendu', { 
@@ -166,44 +200,18 @@ export const useAuth = (): AuthContextType => {
       
     } catch (error) {
       suspensionLogger.error('Exception lors de la vérification de suspension', error)
-      // En cas d'exception, on autorise l'accès par défaut
       return { canAccess: true }
     }
   }
 
-  // Surveillance des changements d'état avec diagnostic intelligent (inchangé)
-  useEffect(() => {
-    const stateSnapshot = {
-      hasUser: !!user,
-      userEmail: user?.email || 'N/A',
-      hasProfile: !!profile,
-      profileRole: profile?.role || 'N/A',
-      hasSession: !!session,
-      loading,
-      timestamp: new Date().toISOString()
-    }
-    
-    logger.debug('État de l\'authentification mis à jour', stateSnapshot)
-    
-    // Diagnostics intelligents pour détecter les états problématiques
-    if (loading && user && !profile && !profileFetchRef.current.isActive) {
-      logger.warning('Utilisateur connecté sans profil et sans récupération en cours - possible problème')
-    }
-    
-    if (!loading && user && !profile) {
-      logger.error('État final incohérent: utilisateur sans profil après chargement')
-    }
-    
-  }, [user, profile, session, loading])
-
   // ========================================
-  // FONCTION DE RÉCUPÉRATION DE PROFIL ANTI-COLLISION (mise à jour)
+  // FONCTION DE RÉCUPÉRATION DE PROFIL ANTI-COLLISION (CONSERVÉE ET MISE À JOUR)
   // ========================================
   
   const fetchProfile = async (userId: string, source: string = 'unknown') => {
     const profileLogger = createLogger('FETCH_PROFILE')
     
-    // Vérification anti-collision : si une récupération est déjà en cours pour le même utilisateur
+    // Vérification anti-collision
     if (profileFetchRef.current.isActive && profileFetchRef.current.currentUserId === userId) {
       profileLogger.warning(`Récupération déjà en cours pour l'utilisateur ${userId} (source: ${source}) - ignoré`)
       return
@@ -226,13 +234,12 @@ export const useAuth = (): AuthContextType => {
     try {
       profileLogger.info(`[${source}] Démarrage sécurisé de la récupération du profil pour: ${userId}`)
       
-      // Configuration du timeout avec signal d'annulation
       const timeoutId = setTimeout(() => {
         profileLogger.warning('Timeout de 12 secondes atteint - annulation de la requête')
         abortController.abort()
       }, 12000)
 
-      // Requête avec possibilité d'annulation - MISE À JOUR : ajout des champs de suspension
+      // Requête MISE À JOUR avec les champs de suspension
       const { data, error } = await supabase
         .from('profiles')
         .select('*, suspended_until, suspension_reason, is_banned, ban_reason')
@@ -240,23 +247,19 @@ export const useAuth = (): AuthContextType => {
         .abortSignal(abortController.signal)
         .single()
 
-      // Nettoyage du timeout si la requête aboutit avant
       clearTimeout(timeoutId)
 
-      // Vérification que la requête n'a pas été annulée
       if (abortController.signal.aborted) {
         profileLogger.info('Récupération annulée (timeout ou nouvelle requête)')
         return
       }
 
-      // Traitement intelligent des résultats
       if (error) {
         profileLogger.error('Erreur Supabase lors de la récupération', {
           code: error.code,
           message: error.message
         })
         
-        // Gestion spécialisée selon le type d'erreur
         if (error.code === 'PGRST116') {
           profileLogger.info('Profil inexistant - création d\'un profil par défaut')
           
@@ -279,9 +282,8 @@ export const useAuth = (): AuthContextType => {
           }
           
           setProfile(defaultProfile)
-          profileLogger.success('Profil par défaut appliqué')
           
-          // Tentative de sauvegarde asynchrone (non-bloquante)
+          // Sauvegarde asynchrone
           supabase
             .from('profiles')
             .insert(defaultProfile)
@@ -307,29 +309,12 @@ export const useAuth = (): AuthContextType => {
         }
         
       } else {
-        // Succès : validation et application des données
         profileLogger.success('Données de profil reçues avec succès')
-        profileLogger.debug('Contenu du profil', {
-          id: data.id,
-          email: data.email,
-          role: data.role,
-          hasName: !!data.full_name,
-          // Ajout du debug pour les champs de suspension
-          isBanned: data.is_banned,
-          suspendedUntil: data.suspended_until
-        })
-        
-        // Validation des données critiques
-        if (!data.id || !data.email) {
-          profileLogger.warning('Profil incomplet reçu - application malgré tout')
-        }
-        
         setProfile(data)
         profileLogger.success('Profil mis à jour dans l\'état React')
       }
       
     } catch (exception) {
-      // Gestion intelligente des exceptions (inchangée)
       if (exception instanceof Error) {
         if (exception.name === 'AbortError') {
           profileLogger.info('Récupération annulée volontairement (normal)')
@@ -355,7 +340,6 @@ export const useAuth = (): AuthContextType => {
       setProfile(null)
       
     } finally {
-      // Libération du verrou uniquement si cette requête est toujours active
       if (profileFetchRef.current.currentUserId === userId) {
         profileFetchRef.current = {
           isActive: false,
@@ -370,7 +354,7 @@ export const useAuth = (): AuthContextType => {
   }
 
   // ========================================
-  // INITIALISATION COORDONNÉE SANS COLLISION (inchangée)
+  // INITIALISATION COORDONNÉE (CONSERVÉE)
   // ========================================
   
   useEffect(() => {
@@ -378,11 +362,7 @@ export const useAuth = (): AuthContextType => {
     
     initLogger.info('🚀 Démarrage de l\'initialisation coordonnée de l\'authentification')
     
-    // Variable de contrôle pour éviter les états de course
     let initializationCompleted = false
-    
-    // Étape 1: Vérification de session existante
-    initLogger.info('Étape 1: Vérification de session persistante')
     
     supabase.auth.getSession().then(({ data: { session }, error }) => {
       if (initializationCompleted) {
@@ -404,11 +384,9 @@ export const useAuth = (): AuthContextType => {
           expires: new Date(session.expires_at * 1000).toLocaleString()
         })
         
-        // Mise à jour immédiate des états
         setSession(session)
         setUser(session.user)
         
-        // Calcul du temps de validité restant
         const timeUntilExpiry = (session.expires_at * 1000) - Date.now()
         const minutesLeft = Math.floor(timeUntilExpiry / (1000 * 60))
         
@@ -417,8 +395,6 @@ export const useAuth = (): AuthContextType => {
           setLoading(false)
         } else {
           initLogger.info(`Session valide pendant encore ${minutesLeft} minutes`)
-          
-          // Déclenchement unique de la récupération de profil
           fetchProfile(session.user.id, 'INITIALIZATION')
         }
         
@@ -433,9 +409,6 @@ export const useAuth = (): AuthContextType => {
       initializationCompleted = true
     })
     
-    // Étape 2: Configuration de l'écouteur d'événements (sans collision)
-    initLogger.info('Étape 2: Configuration de l\'écouteur d\'événements')
-    
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       const eventLogger = createLogger(`AUTH_EVENT_${event}`)
       
@@ -444,16 +417,13 @@ export const useAuth = (): AuthContextType => {
         userId: session?.user?.id || 'N/A'
       })
       
-      // Mise à jour systématique des états de base
       setSession(session)
       setUser(session?.user ?? null)
       
-      // Traitement intelligent selon l'événement
       switch (event) {
         case 'SIGNED_IN':
           eventLogger.success('Nouvelle connexion détectée')
           if (session?.user) {
-            // Léger délai pour laisser l'initialisation se terminer
             setTimeout(() => {
               if (!profileFetchRef.current.isActive) {
                 fetchProfile(session.user.id, 'SIGNED_IN')
@@ -469,7 +439,6 @@ export const useAuth = (): AuthContextType => {
           setProfile(null)
           setLoading(false)
           
-          // Annulation de toute récupération en cours
           if (profileFetchRef.current.isActive) {
             profileFetchRef.current.abortController?.abort()
           }
@@ -478,7 +447,6 @@ export const useAuth = (): AuthContextType => {
         case 'TOKEN_REFRESHED':
           eventLogger.info('Token rafraîchi automatiquement')
           
-          // Récupération de profil uniquement s'il est manquant
           if (session?.user && !profile && !profileFetchRef.current.isActive) {
             eventLogger.info('Profil manquant après rafraîchissement - récupération')
             fetchProfile(session.user.id, 'TOKEN_REFRESH')
@@ -486,7 +454,6 @@ export const useAuth = (): AuthContextType => {
           break
           
         case 'INITIAL_SESSION':
-          // Cet événement est maintenant géré uniquement si l'initialisation principale a échoué
           if (!initializationCompleted && session?.user) {
             eventLogger.info('Session initiale via événement (fallback)')
             fetchProfile(session.user.id, 'INITIAL_SESSION_FALLBACK')
@@ -502,22 +469,18 @@ export const useAuth = (): AuthContextType => {
       eventLogger.debug('Traitement de l\'événement terminé')
     })
 
-    initLogger.success('Écouteur d\'événements configuré')
-    
-    // Fonction de nettoyage
     return () => {
       initLogger.info('Nettoyage: arrêt de l\'écouteur et annulation des requêtes')
       subscription.unsubscribe()
       
-      // Annulation de toute récupération de profil en cours
       if (profileFetchRef.current.isActive) {
         profileFetchRef.current.abortController?.abort()
       }
     }
-  }, []) // Dépendances vides = exécution unique au montage
+  }, [])
 
   // ========================================
-  // MÉTHODES D'AUTHENTIFICATION AVEC VÉRIFICATION DE SUSPENSION
+  // MÉTHODES D'AUTHENTIFICATION AVEC VÉRIFICATION DE SUSPENSION (CONSERVÉES ET MISES À JOUR)
   // ========================================
 
   const signUp = async (email: string, password: string, fullName: string, phone?: string) => {
@@ -527,7 +490,6 @@ export const useAuth = (): AuthContextType => {
       setLoading(true)
       signupLogger.info('Création de compte marchand', { email, fullName })
       
-      // Validations côté client
       if (!email.includes('@')) throw new Error('Email invalide')
       if (password.length < 6) throw new Error('Mot de passe trop court')
       if (fullName.trim().length < 2) throw new Error('Nom trop court')
@@ -548,7 +510,6 @@ export const useAuth = (): AuthContextType => {
 
       signupLogger.success('Compte créé avec succès', { userId: data.user?.id })
 
-      // Création du profil (non-bloquante) - MISE À JOUR : ajout des champs de suspension
       if (data.user) {
         const profileData = {
           id: data.user.id,
@@ -556,7 +517,7 @@ export const useAuth = (): AuthContextType => {
           full_name: fullName,
           phone: phone || null,
           role: 'merchant' as const,
-          // Nouveaux champs initialisés à des valeurs sûres
+          // Champs de suspension initialisés
           suspended_until: null,
           suspension_reason: null,
           is_banned: false,
@@ -600,10 +561,6 @@ export const useAuth = (): AuthContextType => {
     }
   }
 
-  // ========================================
-  // FONCTION SIGNIN MODIFIÉE AVEC VÉRIFICATION DE SUSPENSION
-  // ========================================
-  
   const signIn = async (email: string, password: string) => {
     const signinLogger = createLogger('SIGNIN')
     
@@ -623,7 +580,7 @@ export const useAuth = (): AuthContextType => {
 
       signinLogger.success('Authentification Supabase réussie', { userId: data.user?.id })
 
-      // Deuxième étape : vérification immédiate du statut de suspension
+      // Deuxième étape : vérification du statut de suspension
       if (data.user) {
         signinLogger.info('Vérification du statut de suspension avant finalisation de la connexion')
         
@@ -636,24 +593,21 @@ export const useAuth = (): AuthContextType => {
             message: suspensionCheck.message
           })
           
-          // Déconnexion immédiate et forcée de l'utilisateur suspendu/banni
+          // Déconnexion immédiate
           await supabase.auth.signOut()
           signinLogger.info('Déconnexion forcée effectuée')
           
-          // Remise à zéro des états pour éviter tout état inconsistant
           setUser(null)
           setProfile(null)
           setSession(null)
           setLoading(false)
           
-          // Affichage d'un message d'erreur personnalisé selon le type de sanction
           toast({
             title: suspensionCheck.reason === 'banned' ? "Compte banni" : "Compte suspendu",
             description: suspensionCheck.message,
             variant: "destructive"
           })
           
-          // Lancement d'une erreur avec le message personnalisé pour interrompre le processus
           throw new Error(suspensionCheck.message)
         }
         
@@ -673,11 +627,9 @@ export const useAuth = (): AuthContextType => {
       
       let errorMessage = authError.message
       
-      // Gestion spécialisée des messages d'erreur
       if (authError.message.includes('Invalid login credentials')) {
         errorMessage = "Email ou mot de passe incorrect."
       } else if (authError.message.includes('suspendu') || authError.message.includes('banni')) {
-        // Pour les erreurs de suspension/bannissement, on garde le message original
         errorMessage = authError.message
       }
       
@@ -766,26 +718,479 @@ export const useAuth = (): AuthContextType => {
   }
 
   // ========================================
-  // RETOUR DE L'INTERFACE (inchangé)
+  // MÉTHODES DE SÉCURITÉ AVANCÉES (RESTAURÉES DE L'ANCIEN CODE)
   // ========================================
 
-  const returnLogger = createLogger('AUTH_HOOK_RETURN')
-  returnLogger.debug('Retour des valeurs du hook', {
-    hasUser: !!user,
-    hasProfile: !!profile,
-    hasSession: !!session,
-    loading,
-    profileFetchActive: profileFetchRef.current.isActive
-  })
+  /**
+   * Changement de mot de passe avec vérification de l'ancien mot de passe
+   */
+  const changePassword = async (currentPassword: string, newPassword: string): Promise<void> => {
+    if (!user) {
+      throw new Error("Aucun utilisateur connecté")
+    }
+
+    try {
+      console.log('🔒 Changement de mot de passe pour l\'utilisateur:', user.email)
+
+      // Vérifier le mot de passe actuel
+      const { error: verifyError } = await supabase.auth.signInWithPassword({
+        email: user.email!,
+        password: currentPassword,
+      })
+
+      if (verifyError) {
+        throw new Error("Mot de passe actuel incorrect")
+      }
+
+      // Changer le mot de passe
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword
+      })
+
+      if (updateError) {
+        throw updateError
+      }
+
+      console.log('✅ Mot de passe changé avec succès')
+      
+      toast({
+        title: "Mot de passe modifié",
+        description: "Votre mot de passe a été changé avec succès.",
+      })
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Erreur lors du changement de mot de passe"
+      console.error('❌ Erreur changement mot de passe:', error)
+      
+      toast({
+        title: "Erreur",
+        description: errorMessage,
+        variant: "destructive"
+      })
+      throw error
+    }
+  }
+
+  /**
+   * Demande de réinitialisation de mot de passe par email
+   */
+  const resetPassword = async (email: string): Promise<void> => {
+    try {
+      console.log('📧 Demande de réinitialisation de mot de passe pour:', email)
+      
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`
+      })
+
+      if (error) throw error
+
+      toast({
+        title: "Email envoyé",
+        description: "Un lien de réinitialisation a été envoyé à votre adresse email.",
+      })
+
+    } catch (error) {
+      const authError = error as AuthError
+      toast({
+        title: "Erreur",
+        description: authError.message,
+        variant: "destructive"
+      })
+      throw error
+    }
+  }
+
+  /**
+   * Configuration initiale de l'authentification multi-facteurs (MFA)
+   */
+  const setupMFA = async (): Promise<{ qr_code: string; secret: string; backup_codes: string[] }> => {
+    if (!user) {
+      throw new Error("Aucun utilisateur connecté")
+    }
+
+    try {
+      console.log('🔐 Configuration MFA pour l\'utilisateur:', user.email)
+
+      // Enrôler un nouveau facteur TOTP
+      const { data: factor, error: enrollError } = await supabase.auth.mfa.enroll({
+        factorType: 'totp',
+      })
+
+      if (enrollError || !factor) {
+        throw enrollError || new Error("Erreur lors de l'enrôlement MFA")
+      }
+
+      // Générer des codes de sauvegarde
+      const backupCodes = Array.from({ length: 8 }, () => {
+        const part1 = Math.random().toString(36).substring(2, 6).toUpperCase()
+        const part2 = Math.random().toString(36).substring(2, 6).toUpperCase()
+        return `${part1}-${part2}`
+      })
+
+      // Stocker les codes de sauvegarde dans la base de données
+      const { error: backupError } = await supabase
+        .from('user_backup_codes')
+        .insert(
+          backupCodes.map(code => ({
+            user_id: user.id,
+            code: code,
+            used: false,
+            created_at: new Date().toISOString()
+          }))
+        )
+
+      if (backupError) {
+        console.error('⚠️ Erreur lors de la sauvegarde des codes de récupération:', backupError)
+      }
+
+      console.log('✅ Configuration MFA initialisée avec succès')
+
+      return {
+        qr_code: factor.totp.qr_code,
+        secret: factor.totp.secret,
+        backup_codes: backupCodes
+      }
+
+    } catch (error) {
+      console.error('❌ Erreur lors de la configuration MFA:', error)
+      const errorMessage = error instanceof Error ? error.message : "Erreur lors de la configuration 2FA"
+      
+      toast({
+        title: "Erreur 2FA",
+        description: errorMessage,
+        variant: "destructive"
+      })
+      throw error
+    }
+  }
+
+  /**
+   * Vérification du code TOTP pour finaliser l'activation MFA
+   */
+  const verifyMFA = async (code: string): Promise<BackupCode[]> => {
+    if (!user) {
+      throw new Error("Aucun utilisateur connecté")
+    }
+
+    try {
+      console.log('🔍 Vérification du code MFA pour l\'utilisateur:', user.email)
+
+      // Récupérer les facteurs en attente de vérification
+      const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors()
+      
+      if (factorsError || !factors) {
+        throw factorsError || new Error("Erreur lors de la récupération des facteurs MFA")
+      }
+
+      // Trouver le facteur TOTP non vérifié
+      const totpFactor = factors.totp.find(factor => factor.status === 'unverified')
+      
+      if (!totpFactor) {
+        throw new Error("Aucun facteur TOTP en attente de vérification")
+      }
+
+      // Vérifier le code TOTP
+      const { data: challenge, error: challengeError } = await supabase.auth.mfa.challenge({
+        factorId: totpFactor.id
+      })
+
+      if (challengeError || !challenge) {
+        throw challengeError || new Error("Erreur lors de la création du challenge MFA")
+      }
+
+      const { error: verifyError } = await supabase.auth.mfa.verify({
+        factorId: totpFactor.id,
+        challengeId: challenge.id,
+        code: code
+      })
+
+      if (verifyError) {
+        throw verifyError
+      }
+
+      // Récupérer les codes de sauvegarde
+      const { data: backupCodesData, error: backupCodesError } = await supabase
+        .from('user_backup_codes')
+        .select('code, used')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: true })
+
+      const backupCodes: BackupCode[] = backupCodesData || []
+
+      console.log('✅ MFA activé avec succès')
+      
+      toast({
+        title: "2FA activé",
+        description: "L'authentification à deux facteurs a été activée avec succès.",
+      })
+
+      return backupCodes
+
+    } catch (error) {
+      console.error('❌ Erreur lors de la vérification MFA:', error)
+      const errorMessage = error instanceof Error ? error.message : "Code de vérification incorrect"
+      
+      toast({
+        title: "Erreur de vérification",
+        description: errorMessage,
+        variant: "destructive"
+      })
+      throw error
+    }
+  }
+
+  /**
+   * Désactivation de l'authentification multi-facteurs
+   */
+  const disableMFA = async (): Promise<void> => {
+    if (!user) {
+      throw new Error("Aucun utilisateur connecté")
+    }
+
+    try {
+      console.log('🔓 Désactivation MFA pour l\'utilisateur:', user.email)
+
+      // Récupérer tous les facteurs actifs
+      const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors()
+      
+      if (factorsError) {
+        throw factorsError
+      }
+
+      // Supprimer tous les facteurs TOTP
+      if (factors?.totp) {
+        for (const factor of factors.totp) {
+          const { error: unenrollError } = await supabase.auth.mfa.unenroll({
+            factorId: factor.id
+          })
+          
+          if (unenrollError) {
+            console.error('Erreur lors de la suppression du facteur:', unenrollError)
+          }
+        }
+      }
+
+      // Supprimer les codes de sauvegarde
+      const { error: deleteBackupError } = await supabase
+        .from('user_backup_codes')
+        .delete()
+        .eq('user_id', user.id)
+
+      if (deleteBackupError) {
+        console.error('Erreur lors de la suppression des codes de sauvegarde:', deleteBackupError)
+      }
+
+      console.log('✅ MFA désactivé avec succès')
+      
+      toast({
+        title: "2FA désactivé",
+        description: "L'authentification à deux facteurs a été désactivée.",
+      })
+
+    } catch (error) {
+      console.error('❌ Erreur lors de la désactivation MFA:', error)
+      const errorMessage = error instanceof Error ? error.message : "Erreur lors de la désactivation 2FA"
+      
+      toast({
+        title: "Erreur",
+        description: errorMessage,
+        variant: "destructive"
+      })
+      throw error
+    }
+  }
+
+  /**
+   * Récupération du statut MFA de l'utilisateur
+   */
+  const getMFAStatus = async (): Promise<{ enabled: boolean; factors: MFAFactor[] }> => {
+    if (!user) {
+      throw new Error("Aucun utilisateur connecté")
+    }
+
+    try {
+      const { data: factors, error } = await supabase.auth.mfa.listFactors()
+      
+      if (error) {
+        throw error
+      }
+
+      const mfaFactors: MFAFactor[] = factors?.totp?.map(factor => ({
+        id: factor.id,
+        type: 'totp',
+        status: factor.status,
+        created_at: factor.created_at,
+        updated_at: factor.updated_at
+      })) || []
+
+      const enabled = mfaFactors.some(factor => factor.status === 'verified')
+
+      return { enabled, factors: mfaFactors }
+
+    } catch (error) {
+      console.error('❌ Erreur lors de la récupération du statut MFA:', error)
+      return { enabled: false, factors: [] }
+    }
+  }
+
+  /**
+   * Récupération de toutes les sessions actives de l'utilisateur
+   */
+  const getActiveSessions = async (): Promise<ActiveSession[]> => {
+    if (!user) {
+      throw new Error("Aucun utilisateur connecté")
+    }
+
+    try {
+      console.log('📋 Récupération des sessions actives pour:', user.email)
+
+      // Tentative de récupération depuis une table personnalisée
+      const { data: sessionsData, error: sessionsError } = await supabase
+        .from('user_sessions')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false })
+
+      if (sessionsError) {
+        console.error('Erreur lors de la récupération des sessions:', sessionsError)
+        // Fallback: retourner la session courante seulement
+        return [{
+          id: session?.access_token.substring(0, 8) || 'current',
+          user_id: user.id,
+          ip_address: 'Inconnue',
+          user_agent: navigator.userAgent,
+          created_at: user.created_at,
+          updated_at: new Date().toISOString(),
+          is_current: true
+        }]
+      }
+
+      // Marquer la session courante
+      const sessions: ActiveSession[] = (sessionsData || []).map(sessionData => ({
+        ...sessionData,
+        is_current: sessionData.id === session?.access_token.substring(0, 8)
+      }))
+
+      return sessions
+
+    } catch (error) {
+      console.error('❌ Erreur lors de la récupération des sessions:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Révocation d'une session spécifique
+   */
+  const revokeSession = async (sessionId: string): Promise<void> => {
+    if (!user) {
+      throw new Error("Aucun utilisateur connecté")
+    }
+
+    try {
+      console.log('🗑️ Révocation de la session:', sessionId)
+
+      // Supprimer la session de notre table de tracking
+      const { error: deleteError } = await supabase
+        .from('user_sessions')
+        .delete()
+        .eq('id', sessionId)
+        .eq('user_id', user.id)
+
+      if (deleteError) {
+        throw deleteError
+      }
+
+      console.log('✅ Session révoquée avec succès')
+      
+      toast({
+        title: "Session déconnectée",
+        description: "La session a été déconnectée avec succès.",
+      })
+
+    } catch (error) {
+      console.error('❌ Erreur lors de la révocation de session:', error)
+      const errorMessage = error instanceof Error ? error.message : "Erreur lors de la déconnexion"
+      
+      toast({
+        title: "Erreur",
+        description: errorMessage,
+        variant: "destructive"
+      })
+      throw error
+    }
+  }
+
+  /**
+   * Révocation de toutes les autres sessions (sauf la courante)
+   */
+  const revokeAllOtherSessions = async (): Promise<void> => {
+    if (!user || !session) {
+      throw new Error("Aucun utilisateur connecté")
+    }
+
+    try {
+      console.log('🧹 Révocation de toutes les autres sessions pour:', user.email)
+
+      const currentSessionId = session.access_token.substring(0, 8)
+
+      // Supprimer toutes les autres sessions
+      const { error: deleteError } = await supabase
+        .from('user_sessions')
+        .delete()
+        .eq('user_id', user.id)
+        .neq('id', currentSessionId)
+
+      if (deleteError) {
+        throw deleteError
+      }
+
+      console.log('✅ Toutes les autres sessions ont été révoquées')
+      
+      toast({
+        title: "Sessions déconnectées",
+        description: "Toutes les autres sessions ont été déconnectées.",
+      })
+
+    } catch (error) {
+      console.error('❌ Erreur lors de la révocation des sessions:', error)
+      const errorMessage = error instanceof Error ? error.message : "Erreur lors de la déconnexion des sessions"
+      
+      toast({
+        title: "Erreur",
+        description: errorMessage,
+        variant: "destructive"
+      })
+      throw error
+    }
+  }
+
+  // ========================================
+  // RETOUR DE L'INTERFACE COMPLÈTE
+  // ========================================
 
   return {
+    // États de base
     user,
     profile,
     session,
     loading,
+    
+    // Méthodes de base
     signUp,
     signIn,
     signOut,
     updateProfile,
+    
+    // Méthodes de sécurité avancée
+    changePassword,
+    resetPassword,
+    setupMFA,
+    verifyMFA,
+    disableMFA,
+    getMFAStatus,
+    getActiveSessions,
+    revokeSession,
+    revokeAllOtherSessions,
   }
 }

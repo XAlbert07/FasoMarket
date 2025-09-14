@@ -3,20 +3,27 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Package, Shield, Clock, Users, Activity, TrendingDown } from "lucide-react";
+import { AlertTriangle, Package, Shield, Clock, Users, Activity, TrendingDown, Timer, Ban } from "lucide-react";
 
 interface AlertsSectionProps {
   pendingReportsCount: number;
   needsReviewCount: number;
   suspendedUsersCount: number;
+  // Nouvelles props pour les sanctions
+  sanctionsExpiringSoon?: number;
+  activeSanctionsCount?: number;
+  onNavigateToSanctions?: () => void;
 }
 
 const AlertsSection: React.FC<AlertsSectionProps> = ({
   pendingReportsCount,
   needsReviewCount,
-  suspendedUsersCount
+  suspendedUsersCount,
+  sanctionsExpiringSoon = 0,
+  activeSanctionsCount = 0,
+  onNavigateToSanctions
 }) => {
-  // Configuration des alertes avec leurs niveaux de priorité
+  // Configuration des alertes avec leurs niveaux de priorité - MISE À JOUR
   const alerts = [
     {
       id: 'pending-reports',
@@ -59,29 +66,45 @@ const AlertsSection: React.FC<AlertsSectionProps> = ({
       show: suspendedUsersCount > 0,
       threshold: { warning: 2, critical: 8 },
       action: 'Gérer les suspensions'
+    },
+    // NOUVELLE alerte pour les sanctions expirant bientôt
+    {
+      id: 'sanctions-expiring',
+      title: 'Sanctions expirant bientôt',
+      description: 'Sanctions qui expirent dans les 24h - action requise',
+      count: sanctionsExpiringSoon,
+      icon: Timer,
+      priority: 'high',
+      color: 'border-orange-300 bg-orange-100',
+      iconColor: 'text-orange-700',
+      badgeVariant: 'destructive' as const,
+      show: sanctionsExpiringSoon > 0,
+      threshold: { warning: 1, critical: 5 },
+      action: 'Gérer les sanctions'
     }
   ];
 
-  // Alertes système simulées (vous pourriez les récupérer depuis une API)
+  // Alertes système incluant les sanctions - MISE À JOUR
   const systemAlerts = [
     {
       id: 'performance',
       title: 'Performance dégradée détectée',
       description: 'Temps de réponse API supérieur à la normale',
       severity: 'warning',
-      timestamp: new Date(Date.now() - 15 * 60 * 1000), // 15 minutes ago
+      timestamp: new Date(Date.now() - 15 * 60 * 1000),
       resolved: false,
       icon: TrendingDown
     },
-    {
-      id: 'high-traffic',
-      title: 'Pic de trafic inhabituel',
-      description: '300% d\'augmentation des connexions simultanées',
-      severity: 'info',
-      timestamp: new Date(Date.now() - 45 * 60 * 1000), // 45 minutes ago
-      resolved: true,
-      icon: TrendingDown
-    }
+    // NOUVELLE alerte système pour les sanctions actives
+    ...(activeSanctionsCount > 10 ? [{
+      id: 'high-sanctions',
+      title: 'Nombre élevé de sanctions actives',
+      description: `${activeSanctionsCount} sanctions en cours - surveillance recommandée`,
+      severity: 'warning' as const,
+      timestamp: new Date(Date.now() - 30 * 60 * 1000),
+      resolved: false,
+      icon: Ban
+    }] : [])
   ];
 
   const getAlertUrgency = (alert: typeof alerts[0]) => {
@@ -99,21 +122,62 @@ const AlertsSection: React.FC<AlertsSectionProps> = ({
   };
 
   const visibleAlerts = alerts.filter(alert => alert.show);
+  const totalAlertCount = visibleAlerts.reduce((sum, alert) => sum + alert.count, 0);
 
-  // Si aucune alerte n'est visible, ne pas afficher la section
+  // Si aucune alerte n'est visible, afficher un état sain
   if (visibleAlerts.length === 0 && systemAlerts.filter(a => !a.resolved).length === 0) {
-    return null;
+    return (
+      <Card className="mt-6 border-green-200 bg-green-50">
+        <CardHeader>
+          <CardTitle className="text-green-800 flex items-center">
+            <Activity className="h-5 w-5 mr-2" />
+            Système en bonne santé
+            <Badge variant="default" className="ml-2 bg-green-600">
+              Aucune alerte
+            </Badge>
+          </CardTitle>
+          <p className="text-sm text-green-700">
+            Toutes les métriques sont dans les normes - aucune action requise
+          </p>
+        </CardHeader>
+        {activeSanctionsCount > 0 && (
+          <CardContent>
+            <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-blue-700">
+                  <Shield className="h-4 w-4 inline mr-1" />
+                  {activeSanctionsCount} sanction(s) active(s) en surveillance normale
+                </p>
+                {onNavigateToSanctions && (
+                  <Button size="sm" variant="outline" onClick={onNavigateToSanctions}>
+                    Voir les sanctions
+                  </Button>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        )}
+      </Card>
+    );
   }
 
   return (
     <Card className="mt-6 border-orange-200 bg-gradient-to-r from-orange-50 to-red-50">
       <CardHeader>
-        <CardTitle className="text-orange-800 flex items-center">
-          <AlertTriangle className="h-5 w-5 mr-2 animate-pulse" />
-          Centre d'alertes - Actions requises
-          <Badge variant="destructive" className="ml-2">
-            {visibleAlerts.reduce((sum, alert) => sum + alert.count, 0)}
-          </Badge>
+        <CardTitle className="text-orange-800 flex items-center justify-between">
+          <div className="flex items-center">
+            <AlertTriangle className="h-5 w-5 mr-2 animate-pulse" />
+            Centre d'alertes - Actions requises
+            <Badge variant="destructive" className="ml-2">
+              {totalAlertCount}
+            </Badge>
+          </div>
+          {/* NOUVEAU : Badge spécial pour sanctions critiques */}
+          {sanctionsExpiringSoon > 0 && (
+            <Badge className="bg-red-500 text-white animate-bounce">
+              {sanctionsExpiringSoon} sanction(s) expire(nt) bientôt !
+            </Badge>
+          )}
         </CardTitle>
         <p className="text-sm text-orange-700">
           Éléments nécessitant une attention administrative immédiate
@@ -122,7 +186,7 @@ const AlertsSection: React.FC<AlertsSectionProps> = ({
       <CardContent>
         {/* Alertes de contenu */}
         {visibleAlerts.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
             {visibleAlerts.map((alert) => {
               const Icon = alert.icon;
               const urgency = getAlertUrgency(alert);
@@ -172,11 +236,12 @@ const AlertsSection: React.FC<AlertsSectionProps> = ({
                           </div>
                         </div>
                         
-                        {/* Bouton d'action */}
+                        {/* Bouton d'action - MISE À JOUR avec navigation vers sanctions */}
                         <Button 
                           size="sm" 
                           variant="outline" 
                           className="mt-3 w-full text-xs"
+                          onClick={alert.id === 'sanctions-expiring' && onNavigateToSanctions ? onNavigateToSanctions : undefined}
                         >
                           {alert.action}
                         </Button>
@@ -189,7 +254,7 @@ const AlertsSection: React.FC<AlertsSectionProps> = ({
           </div>
         )}
 
-        {/* Alertes système */}
+        {/* Alertes système - MISE À JOUR */}
         {systemAlerts.filter(a => !a.resolved).length > 0 && (
           <div className="border-t pt-4">
             <h4 className="font-medium text-gray-900 mb-3 flex items-center">
@@ -234,9 +299,9 @@ const AlertsSection: React.FC<AlertsSectionProps> = ({
           </div>
         )}
 
-        {/* Statistiques d'alertes */}
+        {/* Statistiques d'alertes - MISE À JOUR avec sanctions */}
         <div className="mt-4 p-3 bg-white/50 rounded-lg">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
             <div>
               <div className="text-lg font-bold text-red-600">{pendingReportsCount}</div>
               <div className="text-xs text-gray-600">Signalements</div>
@@ -249,6 +314,11 @@ const AlertsSection: React.FC<AlertsSectionProps> = ({
               <div className="text-lg font-bold text-yellow-600">{suspendedUsersCount}</div>
               <div className="text-xs text-gray-600">Suspensions</div>
             </div>
+            {/* NOUVELLE colonne pour sanctions */}
+            <div>
+              <div className="text-lg font-bold text-purple-600">{activeSanctionsCount}</div>
+              <div className="text-xs text-gray-600">Sanctions actives</div>
+            </div>
             <div>
               <div className="text-lg font-bold text-green-600">
                 {systemAlerts.filter(a => a.resolved).length}
@@ -258,11 +328,17 @@ const AlertsSection: React.FC<AlertsSectionProps> = ({
           </div>
         </div>
 
-        {/* Actions globales */}
+        {/* Actions globales - MISE À JOUR */}
         <div className="mt-4 flex flex-wrap gap-2 justify-center">
           <Button size="sm" variant="outline">
             Traiter toutes les alertes
           </Button>
+          {onNavigateToSanctions && activeSanctionsCount > 0 && (
+            <Button size="sm" variant="outline" onClick={onNavigateToSanctions}>
+              <Shield className="h-4 w-4 mr-1" />
+              Gérer les sanctions ({activeSanctionsCount})
+            </Button>
+          )}
           <Button size="sm" variant="outline">
             Exporter le rapport d'alertes
           </Button>

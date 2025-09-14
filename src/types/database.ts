@@ -281,6 +281,29 @@ export const SANCTION_TYPES = {
   PERMANENT_BAN: 'permanent_ban'
 } as const;
 
+
+// types/admin.ts (par exemple)
+export type SanctionsStats = {
+  totalSanctions: number;
+  activeSanctions: number;
+  resolvedSanctions: number;
+};
+
+
+
+export type HealthIndicatorsProps = {
+  dashboardStats: DashboardStats;
+  isDataFresh: boolean;
+  totalElements: number;
+  isLoading: boolean;
+  sanctionsHealth: {
+    totalActive: number;
+    expiringSoon: number;
+    isHealthy: boolean;
+  };
+};
+
+
 export const ACTION_TYPES = {
   APPROVE: 'approve',
   DISMISS: 'dismiss',
