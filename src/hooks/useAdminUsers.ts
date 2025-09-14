@@ -361,108 +361,156 @@ export const useAdminUsers = () => {
   // ACTIONS ADMINISTRATIVES
   // ========================================
   
-  const handleUserAction = async (userId: string, action: UserAction) => {
-    console.log(`Application de l'action ${action.type} sur l'utilisateur ${userId}`)
-    
-    try {
-      let updateData: any = {
-        updated_at: new Date().toISOString()
-      }
+  // Extrait du hook useAdminUsers.ts - FONCTION CORRIGÉE
+// Remplace la fonction handleUserAction existante par cette version
 
-      switch (action.type) {
-        case 'verify':
-          // Marquer comme vérifié
+const handleUserAction = async (userId: string, action: UserAction) => {
+  console.log(`Application de l'action ${action.type} sur l'utilisateur ${userId}`);
+  
+  try {
+    let updateData: any = {
+      updated_at: new Date().toISOString()
+    };
+
+    switch (action.type) {
+      case 'verify':
+        // Réactiver un utilisateur suspendu
+        updateData = {
+          ...updateData,
+          suspended_until: null,
+          suspension_reason: null,
+          is_banned: false,
+          ban_reason: null
+        };
+        break;
+
+      case 'suspend':
+        // Suspendre temporairement
+        if (action.duration) {
+          const suspensionEnd = new Date();
+          suspensionEnd.setDate(suspensionEnd.getDate() + action.duration);
           updateData = {
             ...updateData,
-            // Vous pourriez ajouter un champ verification_date
-          }
-          break
+            suspended_until: suspensionEnd.toISOString(),
+            suspension_reason: action.reason,
+            is_banned: false
+          };
+        }
+        break;
 
-        case 'suspend':
-          // Suspendre temporairement
-          if (action.duration) {
-            const suspensionEnd = new Date()
-            suspensionEnd.setDate(suspensionEnd.getDate() + action.duration)
-            // Vous pourriez ajouter suspended_until, suspension_reason
-          }
-          break
+      case 'ban':
+        // Bannissement permanent
+        updateData = {
+          ...updateData,
+          is_banned: true,
+          ban_reason: action.reason,
+          suspended_until: null, // Le bannissement remplace la suspension
+          suspension_reason: null
+        };
+        break;
 
-        case 'ban':
-          // Bannissement permanent
-          // Vous pourriez ajouter banned_at, ban_reason
-          break
+      case 'warn':
+        // Pour les avertissements, on ne modifie pas le profil principal
+        // mais on enregistrera dans les sanctions
+        break;
 
-        case 'warn':
-          // Avertissement
-          // Vous pourriez incrémenter warning_count
-          break
+      case 'promote':
+        updateData.role = 'admin';
+        break;
 
-        case 'promote':
-          updateData.role = 'admin'
-          break
+      case 'demote':
+        updateData.role = 'merchant';
+        break;
+    }
 
-        case 'demote':
-          updateData.role = 'merchant'
-          break
-      }
-
+    // Mise à jour du profil utilisateur (sauf pour les avertissements)
+    if (action.type !== 'warn') {
       const { error } = await supabase
         .from('profiles')
         .update(updateData)
-        .eq('id', userId)
+        .eq('id', userId);
 
-      if (error) throw error
-
-      // Enregistrement dans les logs de sécurité
-      try {
-        await supabase.from('security_audit_log').insert({
-          user_id: userId,
-          action_type: action.type.toUpperCase(),
-          details: { reason: action.reason, duration: action.duration, notes: action.notes },
-          success: true,
-          created_at: new Date().toISOString()
-        })
-      } catch (logError) {
-        console.warn('Impossible d\'enregistrer dans les logs:', logError)
-      }
-
-      // Mise à jour de l'état local
-      setUsers(prev => prev.map(u => {
-        if (u.id === userId) {
-          let newStatus = u.status
-          if (action.type === 'suspend') newStatus = 'suspended'
-          if (action.type === 'ban') newStatus = 'banned'
-          if (action.type === 'verify') newStatus = 'active'
-          
-          return {
-            ...u,
-            status: newStatus,
-            role: updateData.role || u.role,
-            updated_at: new Date().toISOString()
-          }
-        }
-        return u
-      }))
-
-      toast({
-        title: "Action appliquée",
-        description: `L'action ${action.type} a été appliquée avec succès.`,
-      })
-
-      return true
-
-    } catch (error) {
-      console.error(`Erreur lors de l'action ${action.type}:`, error)
-      
-      toast({
-        title: "Erreur d'action",
-        description: "Impossible d'appliquer l'action sur cet utilisateur.",
-        variant: "destructive"
-      })
-      
-      return false
+      if (error) throw error;
     }
+
+    // Enregistrement dans les sanctions (pour tous les types)
+    if (['suspend', 'ban', 'warn'].includes(action.type)) {
+      try {
+        let sanctionType = action.type === 'suspend' ? 'suspension' : 
+                          action.type === 'ban' ? 'permanent_ban' : 'warning';
+        
+        await supabase.from('user_sanctions').insert({
+          user_id: userId,
+          admin_id: user!.id, // ID de l'admin connecté
+          sanction_type: sanctionType,
+          reason: action.reason,
+          description: action.notes,
+          duration_days: action.duration || null,
+          effective_until: action.type === 'suspend' && action.duration ? 
+            new Date(Date.now() + action.duration * 24 * 60 * 60 * 1000).toISOString() : null
+        });
+      } catch (sanctionError) {
+        console.warn('Impossible d\'enregistrer la sanction:', sanctionError);
+      }
+    }
+
+    // Enregistrement dans les logs de sécurité
+    try {
+      await supabase.from('admin_actions').insert({
+        admin_id: user!.id,
+        action_type: action.type.toUpperCase(),
+        target_type: 'user',
+        target_id: userId,
+        reason: action.reason,
+        notes: action.notes,
+        metadata: { duration: action.duration }
+      });
+    } catch (logError) {
+      console.warn('Impossible d\'enregistrer dans les logs:', logError);
+    }
+
+    // Mise à jour de l'état local
+    setUsers(prev => prev.map(u => {
+      if (u.id === userId) {
+        let newStatus = u.status;
+        if (action.type === 'suspend') newStatus = 'suspended';
+        if (action.type === 'ban') newStatus = 'banned';
+        if (action.type === 'verify') newStatus = 'active';
+        
+        return {
+          ...u,
+          status: newStatus,
+          role: updateData.role || u.role,
+          updated_at: new Date().toISOString(),
+          // Mise à jour des champs de suspension
+          suspended_until: updateData.suspended_until || null,
+          suspension_reason: updateData.suspension_reason || null,
+          is_banned: updateData.is_banned || false,
+          ban_reason: updateData.ban_reason || null
+        };
+      }
+      return u;
+    }));
+
+    toast({
+      title: "Action appliquée",
+      description: `L'action ${action.type} a été appliquée avec succès.`,
+    });
+
+    return true;
+
+  } catch (error) {
+    console.error(`Erreur lors de l'action ${action.type}:`, error);
+    
+    toast({
+      title: "Erreur d'action",
+      description: "Impossible d'appliquer l'action sur cet utilisateur.",
+      variant: "destructive"
+    });
+    
+    return false;
   }
+};
 
   // ========================================
   // GESTION DES FILTRES
@@ -753,3 +801,8 @@ export const useAdminUsers = () => {
     lastRefresh: new Date().toISOString()
   }
 }
+
+
+
+
+

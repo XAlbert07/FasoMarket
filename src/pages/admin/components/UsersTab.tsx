@@ -1,5 +1,6 @@
-// pages/admin/components/UsersTab.tsx
+// pages/admin/components/UsersTab.tsx - VERSION CORRIGÉE
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Eye, CheckCircle, Ban, Mail, Download, Users, UserCheck, AlertTriangle, Award } from "lucide-react";
+
+// Import du composant ChatModal pour la messagerie admin
+import AdminChatModal from './AdminChatModal';
 
 interface UsersTabProps {
   users: any[];
@@ -32,11 +36,20 @@ const UsersTab: React.FC<UsersTabProps> = ({
   suspendedUsersCount,
   exportUsers
 }) => {
+  // États existants
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [roleFilter, setRoleFilter] = useState("all");
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  
+  // NOUVEAUX ÉTATS pour les fonctionnalités manquantes
+  const [chatModalOpen, setChatModalOpen] = useState(false);
+  const [selectedUserForChat, setSelectedUserForChat] = useState<any>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
+  const navigate = useNavigate();
+
+  // Fonctions existantes (inchangées)
   const filteredUsers = users.filter(user => {
     const matchesSearch = !searchTerm || 
       user.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -72,6 +85,87 @@ const UsersTab: React.FC<UsersTabProps> = ({
     return 'Faible';
   };
 
+  // NOUVELLES FONCTIONS pour gérer les actions des boutons
+
+  /**
+   * 🔍 FONCTION 1: Voir le profil de l'utilisateur
+   * Redirige vers la page de profil public du vendeur
+   */
+  const handleViewProfile = (user: any) => {
+    console.log('👁️ [ADMIN] Consultation du profil de:', user.full_name || user.email);
+    
+    // Navigation vers la page de profil public du vendeur
+    navigate(`/seller-profile/${user.id}`);
+  };
+
+  /**
+   * 💬 FONCTION 2: Ouvrir le modal de chat administrateur
+   * Permet d'envoyer un message avec distinction "message administrateur"
+   */
+  const handleOpenAdminChat = (user: any) => {
+    console.log('💬 [ADMIN] Ouverture chat avec:', user.full_name || user.email);
+    
+    setSelectedUserForChat(user);
+    setChatModalOpen(true);
+  };
+
+  /**
+   * ⚡ FONCTION 3: Gestion améliorée des actions de suspension/activation
+   * Avec feedback visuel et gestion d'état optimisée
+   */
+  const handleUserStatusAction = async (user: any, actionType: 'suspend' | 'activate') => {
+    const userId = user.id;
+    const userName = user.full_name || user.email;
+    
+    console.log(`⚡ [ADMIN] Action ${actionType} sur utilisateur:`, userName);
+    
+    // Affichage du loading sur le bouton spécifique
+    setActionLoading(userId);
+    
+    try {
+      const action = actionType === 'suspend' 
+        ? {
+            type: 'suspend',
+            reason: 'Suspension administrative depuis le dashboard',
+            duration: 7 // 7 jours par défaut
+          }
+        : {
+            type: 'verify', // 'verify' réactive un compte suspendu
+            reason: 'Réactivation administrative depuis le dashboard'
+          };
+
+      const success = await handleUserAction(userId, action);
+      
+      if (success) {
+        console.log(`✅ [ADMIN] Action ${actionType} réussie pour:`, userName);
+        
+        // Message de confirmation personnalisé
+        const message = actionType === 'suspend' 
+          ? `L'utilisateur ${userName} a été suspendu avec succès.`
+          : `L'utilisateur ${userName} a été réactivé avec succès.`;
+        
+        // Vous pourriez ajouter une notification toast ici si nécessaire
+      } else {
+        console.error(`❌ [ADMIN] Échec de l'action ${actionType} pour:`, userName);
+      }
+      
+    } catch (error) {
+      console.error(`💥 [ADMIN] Erreur lors de l'action ${actionType}:`, error);
+    } finally {
+      // Retrait du loading
+      setActionLoading(null);
+    }
+  };
+
+  /**
+   * 📧 FONCTION 4: Fermeture du modal de chat
+   */
+  const handleCloseChatModal = () => {
+    setChatModalOpen(false);
+    setSelectedUserForChat(null);
+  };
+
+  // Calcul des statistiques (inchangé)
   const stats = {
     total: users.length,
     active: activeUsersCount,
@@ -93,7 +187,7 @@ const UsersTab: React.FC<UsersTabProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Header et contrôles */}
+      {/* Header et contrôles - INCHANGÉ */}
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold">Gestion des utilisateurs</h2>
         <div className="flex space-x-2">
@@ -131,7 +225,7 @@ const UsersTab: React.FC<UsersTabProps> = ({
         </div>
       </div>
 
-      {/* Statistiques utilisateurs */}
+      {/* Statistiques utilisateurs - INCHANGÉ */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4">
@@ -182,7 +276,7 @@ const UsersTab: React.FC<UsersTabProps> = ({
         </Card>
       </div>
 
-      {/* Actions en masse */}
+      {/* Actions en masse - INCHANGÉ */}
       {selectedUsers.length > 0 && (
         <Card className="border-blue-200 bg-blue-50">
           <CardContent className="p-4">
@@ -208,7 +302,7 @@ const UsersTab: React.FC<UsersTabProps> = ({
         </Card>
       )}
 
-      {/* Tableau des utilisateurs */}
+      {/* Tableau des utilisateurs - SECTION CORRIGÉE */}
       <Card>
         <CardContent className="p-0">
           <Table>
@@ -304,39 +398,75 @@ const UsersTab: React.FC<UsersTabProps> = ({
                   <TableCell className="text-sm text-gray-500">
                     {new Date(user.created_at).toLocaleDateString('fr-FR')}
                   </TableCell>
+                  
+                  {/* ✨ COLONNE ACTIONS - COMPLÈTEMENT RÉÉCRITE AVEC FONCTIONNALITÉS */}
                   <TableCell>
                     <div className="flex space-x-1">
-                      <Button variant="outline" size="sm" title="Voir profil">
-                        <Eye className="h-4 w-4" />
+                      
+                      {/* 👁️ BOUTON VOIR PROFIL - FONCTIONNEL */}
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        title="Voir le profil utilisateur"
+                        onClick={() => handleViewProfile(user)}
+                        className="hover:bg-blue-50"
+                      >
+                        <Eye className="h-4 w-4 text-blue-600" />
                       </Button>
-                      <Button variant="outline" size="sm" title="Envoyer email">
-                        <Mail className="h-4 w-4" />
+                      
+                      {/* 💬 BOUTON MESSAGE ADMIN - FONCTIONNEL */}
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        title="Envoyer un message administrateur"
+                        onClick={() => handleOpenAdminChat(user)}
+                        className="hover:bg-green-50"
+                      >
+                        <Mail className="h-4 w-4 text-green-600" />
                       </Button>
+                      
+                      {/* ⚡ BOUTON SUSPENSION/ACTIVATION - AMÉLIORÉ */}
                       {user.status === 'active' ? (
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button variant="outline" size="sm" title="Suspendre">
-                              <Ban className="h-4 w-4 text-red-600" />
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              title="Suspendre cet utilisateur"
+                              className="hover:bg-red-50"
+                              disabled={actionLoading === user.id}
+                            >
+                              {actionLoading === user.id ? (
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600" />
+                              ) : (
+                                <Ban className="h-4 w-4 text-red-600" />
+                              )}
                             </Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>Suspendre l'utilisateur</AlertDialogTitle>
+                              <AlertDialogTitle className="flex items-center">
+                                <Ban className="h-5 w-5 text-red-600 mr-2" />
+                                Suspendre l'utilisateur
+                              </AlertDialogTitle>
                               <AlertDialogDescription>
-                                Êtes-vous sûr de vouloir suspendre {user.full_name || user.email} ? 
+                                Êtes-vous sûr de vouloir suspendre <strong>{user.full_name || user.email}</strong> ? 
+                                <br /><br />
+                                Cette action va :
+                                <br />• Empêcher l'utilisateur de se connecter
+                                <br />• Masquer ses annonces actives
+                                <br />• Lui envoyer une notification de suspension
+                                <br /><br />
                                 Cette action peut être annulée ultérieurement.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                               <AlertDialogCancel>Annuler</AlertDialogCancel>
                               <AlertDialogAction 
-                                onClick={() => handleUserAction(user.id, {
-                                  type: 'suspend',
-                                  reason: 'Suspension administrative',
-                                  duration: 7
-                                })}
+                                onClick={() => handleUserStatusAction(user, 'suspend')}
+                                className="bg-red-600 hover:bg-red-700"
                               >
-                                Suspendre
+                                Confirmer la suspension
                               </AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>
@@ -345,13 +475,16 @@ const UsersTab: React.FC<UsersTabProps> = ({
                         <Button 
                           variant="outline" 
                           size="sm"
-                          title="Réactiver"
-                          onClick={() => handleUserAction(user.id, {
-                            type: 'verify',
-                            reason: 'Réactivation du compte'
-                          })}
+                          title="Réactiver cet utilisateur"
+                          onClick={() => handleUserStatusAction(user, 'activate')}
+                          disabled={actionLoading === user.id}
+                          className="hover:bg-green-50"
                         >
-                          <CheckCircle className="h-4 w-4 text-green-600" />
+                          {actionLoading === user.id ? (
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600" />
+                          ) : (
+                            <CheckCircle className="h-4 w-4 text-green-600" />
+                          )}
                         </Button>
                       )}
                     </div>
@@ -363,7 +496,7 @@ const UsersTab: React.FC<UsersTabProps> = ({
         </CardContent>
       </Card>
 
-      {/* Alertes utilisateurs à risque */}
+      {/* Alertes utilisateurs à risque - INCHANGÉ */}
       {users.filter(u => u.risk_level === 'high').length > 0 && (
         <Card className="border-red-200 bg-red-50">
           <CardContent className="p-4">
@@ -382,6 +515,15 @@ const UsersTab: React.FC<UsersTabProps> = ({
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* 🆕 MODAL DE CHAT ADMINISTRATEUR */}
+      {chatModalOpen && selectedUserForChat && (
+        <AdminChatModal
+          isOpen={chatModalOpen}
+          onClose={handleCloseChatModal}
+          targetUser={selectedUserForChat}
+        />
       )}
     </div>
   );
