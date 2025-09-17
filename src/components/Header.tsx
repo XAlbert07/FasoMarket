@@ -1,6 +1,8 @@
-import { useState } from "react"
-import { Link, useNavigate } from "react-router-dom"
-import { Search, Plus, User, Menu, LogOut, Settings, PlusCircle, ListIcon, Heart, MessageCircle } from "lucide-react"
+// components/Header.tsx - VERSION MOBILE-FIRST REFACTORISÉE
+
+import { useState, useEffect } from "react"
+import { Link, useNavigate, useLocation } from "react-router-dom"
+import { Search, Plus, User, Menu, LogOut, Settings, PlusCircle, ListIcon, Heart, MessageCircle, X, Home, Grid3X3, Bell } from "lucide-react"
 import { useAuthContext } from "@/contexts/AuthContext"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,20 +18,30 @@ import {
 
 export const Header = () => {
   const navigate = useNavigate()
+  const location = useLocation()
   const [searchQuery, setSearchQuery] = useState("")
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
   
-  // Cette ligne est la clé de la solution : récupération de l'état d'authentification
+  // Récupération de l'état d'authentification
   const { user, profile, signOut, loading } = useAuthContext()
 
+  // Fermer les menus lors du changement de route
+  useEffect(() => {
+    setIsMenuOpen(false)
+    setIsSearchOpen(false)
+  }, [location.pathname])
+
+  // Fonction de recherche
   const handleSearch = (e) => {
     e.preventDefault()
     if (searchQuery.trim()) {
       navigate(`/listings?q=${encodeURIComponent(searchQuery.trim())}`)
+      setIsSearchOpen(false) // Fermer la recherche après soumission
     }
   }
 
-  // Fonction pour gérer le clic sur "Publier" selon l'état de connexion
+  // Gestion du clic sur "Publier" selon l'état de connexion
   const handlePublishClick = (e) => {
     if (!user) {
       e.preventDefault()
@@ -37,7 +49,7 @@ export const Header = () => {
     }
   }
 
-  // Fonction pour gérer la déconnexion proprement
+  // Gestion de la déconnexion
   const handleSignOut = async () => {
     try {
       await signOut()
@@ -48,7 +60,7 @@ export const Header = () => {
     }
   }
 
-  // Fonction pour obtenir les initiales de l'utilisateur pour l'avatar
+  // Obtenir les initiales pour l'avatar
   const getUserInitials = () => {
     if (profile?.full_name) {
       return profile.full_name
@@ -61,263 +73,412 @@ export const Header = () => {
     return user?.email?.charAt(0).toUpperCase() || 'U'
   }
 
+  // Détecter si on est sur la page d'accueil pour adapter le style
+  const isHomePage = location.pathname === '/'
+
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container mx-auto px-4">
-        <div className="flex h-16 items-center justify-between">
-          {/* Logo */}
-          <div className="flex items-center space-x-2">
-            <Link to="/" className="flex items-center space-x-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-hero">
-                <span className="text-sm font-bold text-white">F</span>
-              </div>
-              <span className="text-xl font-heading font-bold text-gradient-primary hover:opacity-80 transition-opacity">
-                FasoMarket
-              </span>
-            </Link>
-          </div>
-
-          {/* Search Bar */}
-          <form onSubmit={handleSearch} className="hidden md:flex flex-1 max-w-md mx-8">
-            <div className="relative w-full">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Rechercher une annonce..."
-                className="pl-10 bg-surface border-border"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-          </form>
-
-          {/* Actions */}
-          <div className="flex items-center space-x-2">
-            {/* Publish Button */}
-            <Button variant="cta" size="sm" className="hidden sm:flex" asChild>
-              <Link to="/publish" onClick={handlePublishClick}>
-                <Plus className="mr-1 h-4 w-4" />
-                Publier
+    <>
+      {/* HEADER PRINCIPAL - Mobile First Design */}
+      <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container mx-auto px-4">
+          
+          {/* MOBILE: Barre principale compacte */}
+          <div className="flex h-14 md:h-16 items-center justify-between">
+            
+            {/* Logo - optimisé mobile */}
+            <div className="flex items-center space-x-2">
+              <Link to="/" className="flex items-center space-x-1 md:space-x-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-hero">
+                  <span className="text-sm font-bold text-white">F</span>
+                </div>
+                <span className="text-lg md:text-xl font-heading font-bold text-gradient-primary hover:opacity-80 transition-opacity">
+                  FasoMarket
+                </span>
               </Link>
-            </Button>
-            
-            {/* User Menu */}
-            {loading ? (
-              // Affichage pendant la vérification de l'authentification
-              <div className="w-8 h-8 rounded-full bg-muted animate-pulse" />
-            ) : user && profile ? (
-              // Interface pour utilisateur connecté
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon">
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage src="" alt={profile.full_name || "User"} />
-                      <AvatarFallback className="text-xs">
-                        {getUserInitials()}
-                      </AvatarFallback>
-                    </Avatar>
-                  </Button>
-                </DropdownMenuTrigger>
-                
-                <DropdownMenuContent className="w-56 bg-background/95 backdrop-blur-md border shadow-lg" align="end">
-                  <DropdownMenuLabel className="font-normal">
-                    <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none">
-                        {profile.full_name || "Utilisateur"}
-                      </p>
-                      <p className="text-xs leading-none text-muted-foreground">
-                        {user.email}
-                      </p>
-                    </div>
-                  </DropdownMenuLabel>
-                  
-                  <DropdownMenuSeparator />
-                  
-                  <DropdownMenuItem asChild>
-                    <Link to="/my-profile" className="flex items-center cursor-pointer">
-                      <User className="mr-2 h-4 w-4" />
-                      Mon Profil
-                    </Link>
-                  </DropdownMenuItem>
+            </div>
 
-                  <DropdownMenuItem asChild>
-                    <Link to="/favorites" className="flex items-center cursor-pointer">
-                      <Heart className="mr-2 h-4 w-4" />
-                      Mes favoris
-                    </Link>
-                  </DropdownMenuItem>
-
-                  <DropdownMenuItem asChild>
-                    <Link to="/messages" className="flex items-center cursor-pointer">
-                      <MessageCircle className="mr-2 h-4 w-4" />
-                      Mes messages
-                    </Link>
-                  </DropdownMenuItem>
-                  
-                  <DropdownMenuItem asChild>
-                    <Link to="/my-listings" className="flex items-center cursor-pointer">
-                      <ListIcon className="mr-2 h-4 w-4" />
-                      Mes Annonces
-                    </Link>
-                  </DropdownMenuItem>
-                  
-                  <DropdownMenuItem asChild>
-                    <Link to="/publish" className="flex items-center cursor-pointer">
-                      <PlusCircle className="mr-2 h-4 w-4" />
-                      Créer une annonce
-                    </Link>
-                  </DropdownMenuItem>
-
-                  {/* Menus spéciaux selon le rôle utilisateur */}
-                  {profile.role === 'merchant' && (
-                    <DropdownMenuItem asChild>
-                      <Link to="/merchant-dashboard" className="flex items-center cursor-pointer">
-                        <Settings className="mr-2 h-4 w-4" />
-                        Tableau de bord
-                      </Link>
-                    </DropdownMenuItem>
-                  )}
-
-                  {profile.role === 'admin' && (
-                    <DropdownMenuItem asChild>
-                      <Link to="/admin-dashboard" className="flex items-center cursor-pointer">
-                        <Settings className="mr-2 h-4 w-4" />
-                        Administration
-                      </Link>
-                    </DropdownMenuItem>
-                  )}
-                  
-                  <DropdownMenuSeparator />
-                  
-                  <DropdownMenuItem 
-                    onClick={handleSignOut}
-                    className="text-red-600 focus:text-red-600 cursor-pointer"
-                  >
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Se déconnecter
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : (
-              // Interface pour utilisateur non connecté
-              <Button variant="ghost" size="icon" asChild>
-                <Link to="/login">
-                  <User className="h-4 w-4" />
-                </Link>
+            {/* MOBILE: Actions principales - toujours visibles */}
+            <div className="flex items-center space-x-2 md:hidden">
+              {/* Bouton recherche mobile */}
+              <Button 
+                variant="ghost" 
+                size="icon"
+                className="h-9 w-9"
+                onClick={() => setIsSearchOpen(!isSearchOpen)}
+              >
+                <Search className="h-4 w-4" />
               </Button>
-            )}
-            
-            {/* Mobile Menu */}
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="md:hidden"
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-            >
-              <Menu className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
 
-        {/* Mobile Search & Menu */}
-        {isMenuOpen && (
-          <div className="md:hidden pb-4 space-y-4">
-            <form onSubmit={handleSearch}>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Rechercher une annonce..."
-                  className="pl-10 bg-surface border-border"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-            </form>
-            
-            <div className="flex flex-col space-y-2">
-              <Button variant="cta" className="w-full" asChild>
+              {/* Bouton publier - toujours visible sur mobile */}
+              <Button 
+                variant="cta" 
+                size="sm" 
+                className="h-9 px-3 text-xs"
+                asChild
+              >
                 <Link to="/publish" onClick={handlePublishClick}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Publier une annonce
+                  <Plus className="mr-1 h-3 w-3" />
+                  Publier
                 </Link>
               </Button>
-              <Button variant="outline" className="w-full" asChild>
-                <Link to="/listings" onClick={() => setIsMenuOpen(false)}>
-                  Voir toutes les annonces
-                </Link>
-              </Button>
-              
-              {/* Section d'authentification mobile */}
-              {user && profile ? (
-                <div className="pt-2 border-t space-y-2">
-                  <div className="text-sm font-medium px-2">
-                    {profile.full_name || user.email}
-                  </div>
-                  <Button variant="outline" className="w-full" asChild>
-                    <Link to="/my-profile" onClick={() => setIsMenuOpen(false)}>
-                      <User className="mr-2 h-4 w-4" />
-                      Mon Profil
-                    </Link>
-                  </Button>
 
-                  <Button variant="outline" className="w-full" asChild>
-                    <Link to="/favorites" onClick={() => setIsMenuOpen(false)}>
-                      <Heart className="mr-2 h-4 w-4" />
-                      Mes favoris
-                    </Link>
-                  </Button>
-
-                  <Button variant="outline" className="w-full" asChild>
-                    <Link to="/messages" onClick={() => setIsMenuOpen(false)}>
-                      <MessageCircle className="mr-2 h-4 w-4" />
-                      Mes messages
-                    </Link>
-                  </Button>
-
-                  <Button variant="outline" className="w-full" asChild>
-                    <Link to="/my-listings" onClick={() => setIsMenuOpen(false)}>
-                      <ListIcon className="mr-2 h-4 w-4" />
-                      Mes Annonces
-                    </Link>
-                  </Button>
-                  {profile.role === 'merchant' && (
-                    <Button variant="outline" className="w-full" asChild>
-                      <Link to="/merchant-dashboard" onClick={() => setIsMenuOpen(false)}>
-                        <Settings className="mr-2 h-4 w-4" />
-                        Tableau de bord
-                      </Link>
-                    </Button>
-                  )}
-                  {profile.role === 'admin' && (
-                    <Button variant="outline" className="w-full" asChild>
-                      <Link to="/admin-dashboard" onClick={() => setIsMenuOpen(false)}>
-                        <Settings className="mr-2 h-4 w-4" />
-                        Administration
-                      </Link>
-                    </Button>
-                  )}
-                  <Button 
-                    variant="outline" 
-                    className="w-full text-red-600 border-red-200 hover:bg-red-50"
-                    onClick={handleSignOut}
-                  >
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Se déconnecter
-                  </Button>
-                </div>
+              {/* Avatar ou connexion - compact mobile */}
+              {loading ? (
+                <div className="w-9 h-9 rounded-full bg-muted animate-pulse" />
+              ) : user && profile ? (
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  className="h-9 w-9"
+                  onClick={() => setIsMenuOpen(!isMenuOpen)}
+                >
+                  <Avatar className="h-7 w-7">
+                    <AvatarImage src={profile.avatar_url || ""} alt={profile.full_name || "User"} />
+                    <AvatarFallback className="text-xs bg-primary text-primary-foreground">
+                      {getUserInitials()}
+                    </AvatarFallback>
+                  </Avatar>
+                </Button>
               ) : (
-                <div className="pt-2 border-t">
-                  <Button variant="outline" className="w-full" asChild>
-                    <Link to="/login" onClick={() => setIsMenuOpen(false)}>
-                      <User className="mr-2 h-4 w-4" />
-                      Se connecter / S'inscrire
-                    </Link>
-                  </Button>
-                </div>
+                <Button variant="outline" size="sm" className="h-9 px-3 text-xs" asChild>
+                  <Link to="/login">
+                    <User className="mr-1 h-3 w-3" />
+                    Connexion
+                  </Link>
+                </Button>
               )}
             </div>
+
+            {/* DESKTOP: Interface complète traditionnelle */}
+            <div className="hidden md:flex items-center space-x-4 flex-1">
+              {/* Barre de recherche desktop */}
+              <form onSubmit={handleSearch} className="flex flex-1 max-w-md mx-8">
+                <div className="relative w-full">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Rechercher une annonce..."
+                    className="pl-10 bg-surface border-border"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+              </form>
+
+              {/* Actions desktop */}
+              <div className="flex items-center space-x-2">
+                {/* Bouton publier desktop */}
+                <Button variant="cta" size="sm" asChild>
+                  <Link to="/publish" onClick={handlePublishClick}>
+                    <Plus className="mr-1 h-4 w-4" />
+                    Publier
+                  </Link>
+                </Button>
+                
+                {/* Menu utilisateur desktop */}
+                {loading ? (
+                  <div className="w-8 h-8 rounded-full bg-muted animate-pulse" />
+                ) : user && profile ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={profile.avatar_url || ""} alt={profile.full_name || "User"} />
+                          <AvatarFallback className="text-xs">
+                            {getUserInitials()}
+                          </AvatarFallback>
+                        </Avatar>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    
+                    <DropdownMenuContent className="w-56 bg-background/95 backdrop-blur-md border shadow-lg" align="end">
+                      <DropdownMenuLabel className="font-normal">
+                        <div className="flex flex-col space-y-1">
+                          <p className="text-sm font-medium leading-none">
+                            {profile.full_name || "Utilisateur"}
+                          </p>
+                          <p className="text-xs leading-none text-muted-foreground">
+                            {user.email}
+                          </p>
+                        </div>
+                      </DropdownMenuLabel>
+                      
+                      <DropdownMenuSeparator />
+                      
+                      <DropdownMenuItem asChild>
+                        <Link to="/my-profile" className="flex items-center cursor-pointer">
+                          <User className="mr-2 h-4 w-4" />
+                          Mon Profil
+                        </Link>
+                      </DropdownMenuItem>
+
+                      <DropdownMenuItem asChild>
+                        <Link to="/favorites" className="flex items-center cursor-pointer">
+                          <Heart className="mr-2 h-4 w-4" />
+                          Mes favoris
+                        </Link>
+                      </DropdownMenuItem>
+
+                      <DropdownMenuItem asChild>
+                        <Link to="/messages" className="flex items-center cursor-pointer">
+                          <MessageCircle className="mr-2 h-4 w-4" />
+                          Mes messages
+                        </Link>
+                      </DropdownMenuItem>
+                      
+                      <DropdownMenuItem asChild>
+                        <Link to="/my-listings" className="flex items-center cursor-pointer">
+                          <ListIcon className="mr-2 h-4 w-4" />
+                          Mes Annonces
+                        </Link>
+                      </DropdownMenuItem>
+                      
+                      <DropdownMenuItem asChild>
+                        <Link to="/publish" className="flex items-center cursor-pointer">
+                          <PlusCircle className="mr-2 h-4 w-4" />
+                          Créer une annonce
+                        </Link>
+                      </DropdownMenuItem>
+
+                      {/* Menus spéciaux selon le rôle */}
+                      {profile.role === 'merchant' && (
+                        <DropdownMenuItem asChild>
+                          <Link to="/merchant-dashboard" className="flex items-center cursor-pointer">
+                            <Settings className="mr-2 h-4 w-4" />
+                            Tableau de bord
+                          </Link>
+                        </DropdownMenuItem>
+                      )}
+
+                      {profile.role === 'admin' && (
+                        <DropdownMenuItem asChild>
+                          <Link to="/admin-dashboard" className="flex items-center cursor-pointer">
+                            <Settings className="mr-2 h-4 w-4" />
+                            Administration
+                          </Link>
+                        </DropdownMenuItem>
+                      )}
+                      
+                      <DropdownMenuSeparator />
+                      
+                      <DropdownMenuItem 
+                        onClick={handleSignOut}
+                        className="text-red-600 focus:text-red-600 cursor-pointer"
+                      >
+                        <LogOut className="mr-2 h-4 w-4" />
+                        Se déconnecter
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : (
+                  <Button variant="ghost" size="icon" asChild>
+                    <Link to="/login">
+                      <User className="h-4 w-4" />
+                    </Link>
+                  </Button>
+                )}
+              </div>
+            </div>
           </div>
-        )}
-      </div>
-    </header>
+
+          {/* MOBILE: Barre de recherche expansible */}
+          {isSearchOpen && (
+            <div className="md:hidden py-3 border-t border-border">
+              <form onSubmit={handleSearch} className="flex items-center space-x-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Que recherchez-vous ?"
+                    className="pl-10 bg-surface border-border"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+                <Button 
+                  type="button"
+                  variant="ghost" 
+                  size="icon"
+                  onClick={() => setIsSearchOpen(false)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </form>
+            </div>
+          )}
+        </div>
+      </header>
+
+      {/* MOBILE: Menu utilisateur full-screen overlay */}
+      {isMenuOpen && user && profile && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          {/* Overlay sombre */}
+          <div 
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm" 
+            onClick={() => setIsMenuOpen(false)}
+          />
+          
+          {/* Menu principal - slide depuis la droite */}
+          <div className="absolute right-0 top-0 h-full w-80 max-w-[85vw] bg-background border-l shadow-xl">
+            <div className="flex flex-col h-full">
+              
+              {/* En-tête du menu avec profil utilisateur */}
+              <div className="p-4 border-b bg-gradient-to-r from-primary/5 to-accent/5">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-heading font-semibold">Mon compte</h2>
+                  <Button 
+                    variant="ghost" 
+                    size="icon"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+                
+                <div className="flex items-center space-x-3">
+                  <Avatar className="h-12 w-12">
+                    <AvatarImage src={profile.avatar_url || ""} alt={profile.full_name || "User"} />
+                    <AvatarFallback className="text-sm bg-primary text-primary-foreground">
+                      {getUserInitials()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium leading-none mb-1">
+                      {profile.full_name || "Utilisateur"}
+                    </p>
+                    <p className="text-xs leading-none text-muted-foreground truncate">
+                      {user.email}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Navigation principale */}
+              <div className="flex-1 py-4">
+                <nav className="space-y-1 px-4">
+                  
+                  {/* Actions principales */}
+                  <div className="space-y-1">
+                    <Link
+                      to="/"
+                      className="flex items-center px-3 py-3 text-sm font-medium rounded-lg hover:bg-accent/50 transition-colors"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      <Home className="mr-3 h-4 w-4" />
+                      Accueil
+                    </Link>
+
+                    <Link
+                      to="/listings"
+                      className="flex items-center px-3 py-3 text-sm font-medium rounded-lg hover:bg-accent/50 transition-colors"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      <Grid3X3 className="mr-3 h-4 w-4" />
+                      Toutes les annonces
+                    </Link>
+
+                    <Link
+                      to="/publish"
+                      className="flex items-center px-3 py-3 text-sm font-medium rounded-lg hover:bg-accent/50 transition-colors bg-primary/10 text-primary"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      <PlusCircle className="mr-3 h-4 w-4" />
+                      Publier une annonce
+                    </Link>
+                  </div>
+
+                  {/* Séparateur */}
+                  <div className="h-px bg-border my-4" />
+
+                  {/* Mes contenus */}
+                  <div className="space-y-1">
+                    <Link
+                      to="/my-profile"
+                      className="flex items-center px-3 py-3 text-sm font-medium rounded-lg hover:bg-accent/50 transition-colors"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      <User className="mr-3 h-4 w-4" />
+                      Mon profil
+                    </Link>
+
+                    <Link
+                      to="/my-listings"
+                      className="flex items-center px-3 py-3 text-sm font-medium rounded-lg hover:bg-accent/50 transition-colors"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      <ListIcon className="mr-3 h-4 w-4" />
+                      Mes annonces
+                    </Link>
+
+                    <Link
+                      to="/favorites"
+                      className="flex items-center px-3 py-3 text-sm font-medium rounded-lg hover:bg-accent/50 transition-colors"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      <Heart className="mr-3 h-4 w-4" />
+                      Mes favoris
+                    </Link>
+
+                    <Link
+                      to="/messages"
+                      className="flex items-center px-3 py-3 text-sm font-medium rounded-lg hover:bg-accent/50 transition-colors"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      <MessageCircle className="mr-3 h-4 w-4" />
+                      Messages
+                      {/* Espace pour badge de notifications */}
+                      <span className="ml-auto bg-primary text-primary-foreground text-xs px-1.5 py-0.5 rounded-full hidden">
+                        3
+                      </span>
+                    </Link>
+                  </div>
+
+                  {/* Tableaux de bord selon le rôle */}
+                  {(profile.role === 'merchant' || profile.role === 'admin') && (
+                    <>
+                      <div className="h-px bg-border my-4" />
+                      <div className="space-y-1">
+                        {profile.role === 'merchant' && (
+                          <Link
+                            to="/merchant-dashboard"
+                            className="flex items-center px-3 py-3 text-sm font-medium rounded-lg hover:bg-accent/50 transition-colors"
+                            onClick={() => setIsMenuOpen(false)}
+                          >
+                            <Settings className="mr-3 h-4 w-4" />
+                            Tableau de bord vendeur
+                          </Link>
+                        )}
+
+                        {profile.role === 'admin' && (
+                          <Link
+                            to="/admin-dashboard"
+                            className="flex items-center px-3 py-3 text-sm font-medium rounded-lg hover:bg-accent/50 transition-colors"
+                            onClick={() => setIsMenuOpen(false)}
+                          >
+                            <Settings className="mr-3 h-4 w-4" />
+                            Administration
+                          </Link>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </nav>
+              </div>
+
+              {/* Pied du menu - déconnexion */}
+              <div className="p-4 border-t">
+                <Button 
+                  variant="ghost" 
+                  className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50"
+                  onClick={handleSignOut}
+                >
+                  <LogOut className="mr-3 h-4 w-4" />
+                  Se déconnecter
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }

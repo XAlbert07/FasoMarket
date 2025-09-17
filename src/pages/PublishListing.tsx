@@ -9,12 +9,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Upload, X, Eye } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Upload, X, Eye, ChevronLeft, ChevronRight, Camera, MapPin, CheckCircle, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useCreateListing } from "@/hooks/useListings";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { useAuthContext } from "@/contexts/AuthContext";
-import ListingPreview from "@/components/ListingPreview"; // Import du composant d'aperçu
+import ListingPreview from "@/components/ListingPreview";
 
 const PublishListing = () => {
   const { toast } = useToast();
@@ -23,12 +25,11 @@ const PublishListing = () => {
   const { createListing, loading: creatingListing } = useCreateListing();
   const { uploadImages, uploading } = useImageUpload();
   
-  // États pour la gestion des images et de l'aperçu
+  // CONSERVATION INTÉGRALE : États identiques pour maintenir la compatibilité
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
-  const [showPreview, setShowPreview] = useState(false); // Contrôle l'affichage du modal d'aperçu
+  const [showPreview, setShowPreview] = useState(false);
   
-  // État du formulaire - toutes les données saisies par l'utilisateur
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -39,8 +40,12 @@ const PublishListing = () => {
     phone: ""
   });
 
-  // Configuration des catégories avec leurs vrais IDs de base de données
-  // Ces IDs correspondent exactement à ceux de votre table categories dans Supabase
+  // NOUVEAUX ÉTATS : Spécifiques à l'interface mobile pour la navigation par étapes
+  const [currentStep, setCurrentStep] = useState(0);
+  const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
+  const [completedSteps, setCompletedSteps] = useState<boolean[]>([false, false, false, false]);
+
+  // CONSERVATION INTÉGRALE : Configuration des catégories identique
   const categories = [
     { name: "Véhicules", id: "c47e7448-5f79-4aea-8b72-9cf24f52b280" },
     { name: "Immobilier", id: "bec5720d-20cf-47e2-8b06-e0ae8f0b9ef8" },
@@ -52,23 +57,18 @@ const PublishListing = () => {
     { name: "Loisirs & Sports", id: "e22cfdd9-b424-453d-8d37-f1851584f2ab" },
   ];
   
-  // Liste des principales villes du Burkina Faso pour les suggestions de localisation
-  // Cette approche remplace complètement le système de géolocalisation GPS
   const burkinaCities = [
     "Ouagadougou", "Bobo-Dioulasso", "Koudougou", "Banfora",
     "Ouahigouya", "Pouytenga", "Dédougou", "Kaya",
     "Fada N'Gourma", "Tenkodogo", "Réo", "Gaoua"
   ];
 
-  // Fonction utilitaire pour convertir le nom de catégorie en ID de base de données
-  // Cette fonction est cruciale pour que les annonces soient correctement catégorisées
+  // CONSERVATION INTÉGRALE : Toutes les fonctions métier inchangées
   const getCategoryIdByName = (name: string) => {
     const category = categories.find(cat => cat.name === name);
     return category ? category.id : null;
   };
 
-  // Validation pour déterminer si l'aperçu peut être affiché de manière utile
-  // L'aperçu nécessite au minimum les informations essentielles pour être pertinent
   const canShowPreview = () => {
     return formData.title.trim() !== "" && 
            formData.description.trim() !== "" && 
@@ -77,8 +77,6 @@ const PublishListing = () => {
            formData.location.trim() !== "";
   };
 
-  // Fonction pour déclencher l'affichage de l'aperçu
-  // Cette fonction valide d'abord que les données nécessaires sont présentes
   const handlePreview = () => {
     if (!canShowPreview()) {
       toast({
@@ -89,18 +87,15 @@ const PublishListing = () => {
       return;
     }
     
-    // Ouvre le modal d'aperçu si la validation passe
     setShowPreview(true);
   };
 
-  // Gestion du téléchargement d'images avec validation et prévisualisation
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files) {
       const newFiles = Array.from(files);
       const totalFiles = imageFiles.length + newFiles.length;
       
-      // Validation de la limite d'images pour éviter la surcharge du serveur
       if (totalFiles > 8) {
         toast({
           title: "Limite atteinte",
@@ -110,38 +105,44 @@ const PublishListing = () => {
         return;
       }
 
-      // Création des URLs temporaires pour l'affichage immédiat des images
-      // Ces URLs seront utilisées tant pour le formulaire que pour l'aperçu
       const newPreviews = newFiles.map(file => URL.createObjectURL(file));
       setImageFiles(prev => [...prev, ...newFiles]);
       setImagePreviews(prev => [...prev, ...newPreviews]);
+      
+      // NOUVEAU : Marquer l'étape images comme complétée
+      updateStepCompletion(0, newFiles.length > 0);
     }
   };
 
-  // Suppression d'une image avec nettoyage mémoire approprié
   const removeImage = (index: number) => {
-    // Libération de l'URL temporaire pour éviter les fuites mémoire
     URL.revokeObjectURL(imagePreviews[index]);
-    setImageFiles(prev => prev.filter((_, i) => i !== index));
-    setImagePreviews(prev => prev.filter((_, i) => i !== index));
+    const newFiles = imageFiles.filter((_, i) => i !== index);
+    const newPreviews = imagePreviews.filter((_, i) => i !== index);
+    
+    setImageFiles(newFiles);
+    setImagePreviews(newPreviews);
+    
+    // NOUVEAU : Mise à jour du statut de l'étape
+    updateStepCompletion(0, newFiles.length > 0);
   };
 
-  // Gestion de la saisie manuelle de localisation
   const handleLocationInput = (value: string) => {
     setFormData(prev => ({ ...prev, location: value }));
+    setShowLocationSuggestions(value.length > 0);
+    
+    // NOUVEAU : Validation temps réel pour la navigation mobile
+    updateStepCompletion(2, value.trim() !== "");
   };
 
-  // Fonction pour sélectionner rapidement une ville suggérée
-  // Cette approche simplifie considérablement l'expérience utilisateur
   const selectSuggestedCity = (city: string) => {
     setFormData(prev => ({ ...prev, location: city }));
+    setShowLocationSuggestions(false);
+    updateStepCompletion(2, true);
   };
 
-  // Fonction principale de soumission du formulaire
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Vérification de l'authentification avant tout traitement
     if (!user) {
       toast({
         title: "Connexion requise",
@@ -151,7 +152,6 @@ const PublishListing = () => {
       return;
     }
 
-    // Validation complète de tous les champs obligatoires
     if (!formData.title || !formData.description || !formData.price || !formData.category || !formData.location) {
       toast({
         title: "Erreur",
@@ -161,7 +161,6 @@ const PublishListing = () => {
       return;
     }
 
-    // Validation spécifique pour les images - requirement business important
     if (imageFiles.length === 0) {
       toast({
         title: "Images requises", 
@@ -171,7 +170,6 @@ const PublishListing = () => {
       return;
     }
 
-    // Conversion du nom de catégorie en ID pour la base de données
     const categoryId = getCategoryIdByName(formData.category);
     if (!categoryId) {
       toast({
@@ -183,27 +181,23 @@ const PublishListing = () => {
     }
 
     try {
-      // Téléchargement des images en premier - cette opération peut prendre du temps
       const imageUrls = await uploadImages(imageFiles);
       
-      // Construction de l'objet de données pour l'API
       const listingData = {
         title: formData.title,
         description: formData.description,
-        price: parseFloat(formData.price), // Conversion en nombre pour la base de données
-        category_id: categoryId, // Utilisation de l'ID réel de catégorie
+        price: parseFloat(formData.price),
+        category_id: categoryId,
         location: formData.location,
         condition: formData.condition,
         phone: formData.phone,
         images: imageUrls,
-        currency: "XOF" // Devise du Burkina Faso
+        currency: "XOF"
       };
 
-      // Appel à l'API pour créer l'annonce
       const newListing = await createListing(listingData);
       
       if (newListing) {
-        // Redirection vers le dashboard en cas de succès
         navigate('/merchant-dashboard');
       }
     } catch (error) {
@@ -216,17 +210,122 @@ const PublishListing = () => {
     }
   };
 
-  // Fonction générique pour mettre à jour les données du formulaire
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+    
+    // NOUVEAU : Validation temps réel pour le parcours mobile
+    switch (field) {
+      case 'title':
+      case 'description':
+      case 'price':
+      case 'category':
+        updateStepCompletion(1, value.trim() !== "");
+        break;
+      case 'phone':
+        updateStepCompletion(3, value.trim() !== "");
+        break;
+    }
   };
+
+  // NOUVELLE FONCTION : Gestion des étapes pour l'interface mobile
+  const updateStepCompletion = (stepIndex: number, isCompleted: boolean) => {
+    setCompletedSteps(prev => {
+      const newSteps = [...prev];
+      newSteps[stepIndex] = isCompleted;
+      return newSteps;
+    });
+  };
+
+  // NOUVELLE FONCTION : Validation de chaque étape pour la navigation
+  const getStepValidation = () => {
+    return [
+      imageFiles.length > 0, // Étape 1: Images
+      formData.title && formData.description && formData.price && formData.category, // Étape 2: Infos générales
+      formData.location.trim() !== "", // Étape 3: Localisation
+      formData.phone.trim() !== "" // Étape 4: Contact
+    ];
+  };
+
+  const goToNextStep = () => {
+    const validations = getStepValidation();
+    if (currentStep < 3 && validations[currentStep]) {
+      setCurrentStep(currentStep + 1);
+    }
+  };
+
+  const goToPreviousStep = () => {
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
+  const completedStepsCount = getStepValidation().filter(Boolean).length;
+  const progressPercentage = (completedStepsCount / 4) * 100;
+
+  // Configuration des étapes pour l'interface mobile
+  const steps = [
+    {
+      title: "Photos",
+      description: "Ajoutez des photos attrayantes",
+      icon: <Camera className="w-5 h-5" />,
+      required: true
+    },
+    {
+      title: "Informations", 
+      description: "Détails de votre article",
+      icon: <CheckCircle className="w-5 h-5" />,
+      required: true
+    },
+    {
+      title: "Localisation",
+      description: "Où se trouve l'article",
+      icon: <MapPin className="w-5 h-5" />,
+      required: true
+    },
+    {
+      title: "Contact",
+      description: "Comment vous joindre",
+      icon: <Eye className="w-5 h-5" />,
+      required: true
+    }
+  ];
 
   return (
     <div className="min-h-screen bg-background">
       <Header />
       
-      <main className="container mx-auto px-4 py-8 max-w-3xl">
-        <div className="mb-8">
+      {/* MOBILE: Barre de progression sticky avec navigation intuitive */}
+      <div className="sticky top-16 z-40 bg-background/95 backdrop-blur-sm border-b border-border py-3 md:hidden">
+        <div className="container mx-auto px-4">
+          <div className="flex items-center justify-between mb-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate(-1)}
+              className="flex items-center gap-1"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Retour
+            </Button>
+            
+            <div className="text-sm font-medium">
+              Étape {currentStep + 1} sur 4
+            </div>
+          </div>
+          
+          <div className="space-y-2">
+            <Progress value={progressPercentage} className="h-2" />
+            <p className="text-xs text-muted-foreground text-center">
+              {steps[currentStep].title} - {steps[currentStep].description}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <main className="container mx-auto px-4 py-4 md:py-8 max-w-3xl">
+        
+        {/* DESKTOP: En-tête traditionnel conservé */}
+        <div className="hidden md:block mb-8">
           <h1 className="text-3xl font-heading font-bold text-foreground mb-2">
             Publier une annonce
           </h1>
@@ -235,43 +334,60 @@ const PublishListing = () => {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-8">
+        <form onSubmit={handleSubmit} className="space-y-6 md:space-y-8">
           
-          {/* Section de téléchargement des photos */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Photos de votre article</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {/* Grille d'affichage des images téléchargées */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {imagePreviews.map((image, index) => (
-                    <div key={index} className="relative group">
-                      <img 
-                        src={image} 
-                        alt={`Image ${index + 1}`}
-                        className="w-full h-24 object-cover rounded-lg border"
-                      />
-                      {/* Bouton de suppression qui n'apparaît qu'au survol */}
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="icon"
-                        className="absolute -top-2 -right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => removeImage(index)}
-                        disabled={uploading}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ))}
+          {/* MOBILE: Navigation par étapes - Interface intuitive pour petits écrans */}
+          <div className="md:hidden">
+            
+            {/* Étape 1: Photos - Interface tactile optimisée */}
+            {currentStep === 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Camera className="w-5 h-5" />
+                    Photos de votre article
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Des photos de qualité augmentent vos chances de vente
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-4">
                   
-                  {/* Zone de téléchargement si la limite n'est pas atteinte */}
+                  {/* Galerie mobile-optimisée avec carrousel horizontal */}
+                  {imagePreviews.length > 0 && (
+                    <ScrollArea className="w-full whitespace-nowrap">
+                      <div className="flex gap-2 pb-2">
+                        {imagePreviews.map((image, index) => (
+                          <div key={index} className="relative flex-shrink-0">
+                            <img 
+                              src={image} 
+                              alt={`Image ${index + 1}`}
+                              className="w-24 h-24 object-cover rounded-lg border"
+                            />
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="icon"
+                              className="absolute -top-2 -right-2 h-6 w-6"
+                              onClick={() => removeImage(index)}
+                              disabled={uploading}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  )}
+                  
+                  {/* Zone de téléchargement tactile friendly */}
                   {imagePreviews.length < 8 && (
-                    <label className="border-2 border-dashed border-muted-foreground/25 rounded-lg h-24 flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50 transition-colors">
-                      <Upload className="h-6 w-6 text-muted-foreground mb-1" />
-                      <span className="text-xs text-muted-foreground">Ajouter</span>
+                    <label className="block border-2 border-dashed border-primary/25 rounded-lg p-8 text-center cursor-pointer hover:bg-primary/5 transition-colors">
+                      <Upload className="h-8 w-8 text-primary mx-auto mb-2" />
+                      <p className="text-sm font-medium">Touchez pour ajouter des photos</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Formats JPG, PNG - Max 8 photos
+                      </p>
                       <input
                         type="file"
                         multiple
@@ -282,216 +398,560 @@ const PublishListing = () => {
                       />
                     </label>
                   )}
-                </div>
-                
-                {/* Informations sur l'état du téléchargement */}
-                <p className="text-sm text-muted-foreground">
-                  Ajoutez jusqu'à 8 photos de qualité (formats JPG, PNG) - {imagePreviews.length}/8
-                </p>
-                {uploading && (
-                  <p className="text-sm text-primary animate-pulse">
-                    Téléchargement des images en cours...
+                  
+                  {/* Indicateur de progression pour mobile */}
+                  <div className="text-center">
+                    <span className="text-sm text-muted-foreground">
+                      {imagePreviews.length}/8 photos ajoutées
+                    </span>
+                    {uploading && (
+                      <p className="text-sm text-primary animate-pulse mt-1">
+                        Téléchargement en cours...
+                      </p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Étape 2: Informations générales - Formulaire optimisé mobile */}
+            {currentStep === 1 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5" />
+                    Informations générales
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  
+                  <div>
+                    <Label htmlFor="mobile-title">Titre de l'annonce *</Label>
+                    <Input
+                      id="mobile-title"
+                      placeholder="Ex: iPhone 13 Pro Max 256GB neuf"
+                      value={formData.title}
+                      onChange={(e) => handleInputChange("title", e.target.value)}
+                      required
+                      maxLength={100}
+                      className="text-base" // Évite le zoom sur iOS
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Titre accrocheur et précis
+                    </p>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="mobile-description">Description *</Label>
+                    <Textarea
+                      id="mobile-description"
+                      placeholder="État, caractéristiques, raison de la vente..."
+                      rows={4}
+                      value={formData.description}
+                      onChange={(e) => handleInputChange("description", e.target.value)}
+                      required
+                      maxLength={2000}
+                      className="text-base resize-none"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {formData.description.length}/2000 caractères
+                    </p>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="mobile-price">Prix (XOF) *</Label>
+                    <Input
+                      id="mobile-price"
+                      type="number"
+                      inputMode="numeric"
+                      min="0"
+                      step="100"
+                      placeholder="450000"
+                      value={formData.price}
+                      onChange={(e) => handleInputChange("price", e.target.value)}
+                      required
+                      className="text-base"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="mobile-category">Catégorie *</Label>
+                    <Select value={formData.category} onValueChange={(value) => handleInputChange("category", value)}>
+                      <SelectTrigger className="text-base">
+                        <SelectValue placeholder="Choisir une catégorie" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.map((category) => (
+                          <SelectItem key={category.id} value={category.name}>
+                            {category.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label>État de l'article</Label>
+                    <RadioGroup 
+                      value={formData.condition} 
+                      onValueChange={(value) => handleInputChange("condition", value)}
+                      className="flex flex-col gap-3 mt-2"
+                    >
+                      <div className="flex items-center space-x-3 p-3 border rounded-lg">
+                        <RadioGroupItem value="new" id="mobile-new" />
+                        <Label htmlFor="mobile-new" className="font-normal flex-1">
+                          <span className="block font-medium">Neuf</span>
+                          <span className="text-xs text-muted-foreground">Jamais utilisé, emballage d'origine</span>
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-3 p-3 border rounded-lg">
+                        <RadioGroupItem value="used" id="mobile-used" />
+                        <Label htmlFor="mobile-used" className="font-normal flex-1">
+                          <span className="block font-medium">Occasion</span>
+                          <span className="text-xs text-muted-foreground">Déjà utilisé, bon état général</span>
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Étape 3: Localisation - Interface géographique simplifiée */}
+            {currentStep === 2 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <MapPin className="w-5 h-5" />
+                    Localisation
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Indiquez où se trouve votre article
                   </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  
+                  <div>
+                    <Label htmlFor="mobile-location">Ville / Quartier *</Label>
+                    <Input
+                      id="mobile-location"
+                      placeholder="Ex: Ouagadougou - Secteur 15"
+                      value={formData.location}
+                      onChange={(e) => handleLocationInput(e.target.value)}
+                      required
+                      className="text-base"
+                    />
+                  </div>
+                  
+                  {/* Suggestions de villes en grille tactile */}
+                  <div>
+                    <p className="text-sm font-medium mb-3">Villes principales :</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {burkinaCities.slice(0, 8).map((city) => (
+                        <Button
+                          key={city}
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="justify-start text-sm"
+                          onClick={() => selectSuggestedCity(city)}
+                        >
+                          {city}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  <div className="bg-blue-50 p-3 rounded-lg">
+                    <p className="text-xs text-blue-800">
+                      💡 <strong>Conseil :</strong> Précisez votre quartier pour faciliter les rencontres avec les acheteurs
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
-          {/* Section des informations générales de l'annonce */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Informations générales</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              
-              {/* Titre de l'annonce - champ critique pour l'attractivité */}
-              <div>
-                <Label htmlFor="title">Titre de l'annonce *</Label>
-                <Input
-                  id="title"
-                  placeholder="Ex: iPhone 13 Pro Max 256GB, État neuf avec accessoires"
-                  value={formData.title}
-                  onChange={(e) => handleInputChange("title", e.target.value)}
-                  required
-                  maxLength={100}
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Soyez précis et attractif - ce titre apparaîtra dans les résultats de recherche
-                </p>
-              </div>
+            {/* Étape 4: Contact - Informations finales */}
+            {currentStep === 3 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Eye className="w-5 h-5" />
+                    Contact et finalisation
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  
+                  <div>
+                    <Label htmlFor="mobile-phone">Numéro de téléphone *</Label>
+                    <Input
+                      id="mobile-phone"
+                      type="tel"
+                      inputMode="tel"
+                      placeholder="+226 70 12 34 56"
+                      value={formData.phone}
+                      onChange={(e) => handleInputChange("phone", e.target.value)}
+                      required
+                      className="text-base"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Les acheteurs vous contacteront sur ce numéro
+                    </p>
+                  </div>
 
-              {/* Description détaillée */}
-              <div>
-                <Label htmlFor="description">Description complète *</Label>
-                <Textarea
-                  id="description"
-                  placeholder="Décrivez votre article en détail : état, caractéristiques, raison de la vente..."
-                  rows={5}
-                  value={formData.description}
-                  onChange={(e) => handleInputChange("description", e.target.value)}
-                  required
-                  maxLength={2000}
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Une description détaillée augmente vos chances de vente ({formData.description.length}/2000)
-                </p>
-              </div>
+                  {/* Récapitulatif visuel pour validation finale */}
+                  <div className="bg-muted/30 p-4 rounded-lg">
+                    <h3 className="font-medium mb-3">Récapitulatif</h3>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Photos :</span>
+                        <span>{imagePreviews.length} ajoutée(s)</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Titre :</span>
+                        <span className="text-right max-w-[150px] truncate">{formData.title || "Non renseigné"}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Prix :</span>
+                        <span>{formData.price ? `${formData.price} XOF` : "Non renseigné"}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Catégorie :</span>
+                        <span>{formData.category || "Non choisie"}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Lieu :</span>
+                        <span className="text-right max-w-[150px] truncate">{formData.location || "Non indiqué"}</span>
+                      </div>
+                    </div>
+                  </div>
 
-              {/* Prix et catégorie sur la même ligne pour optimiser l'espace */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Actions finales avec aperçu prioritaire sur mobile */}
+                  <div className="space-y-3">
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      className="w-full"
+                      onClick={handlePreview}
+                      disabled={!canShowPreview() || uploading}
+                    >
+                      <Eye className="h-4 w-4 mr-2" />
+                      Voir l'aperçu
+                    </Button>
+                    
+                    <Button 
+                      type="submit" 
+                      className="w-full"
+                      disabled={creatingListing || uploading || !user}
+                      size="lg"
+                    >
+                      {creatingListing || uploading ? "Publication en cours..." : "Publier l'annonce"}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+
+          {/* DESKTOP: Interface traditionnelle complète conservée */}
+          <div className="hidden md:block space-y-8">
+            
+            <Card>
+              <CardHeader>
+                <CardTitle>Photos de votre article</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {imagePreviews.map((image, index) => (
+                      <div key={index} className="relative group">
+                        <img 
+                          src={image} 
+                          alt={`Image ${index + 1}`}
+                          className="w-full h-24 object-cover rounded-lg border"
+                        />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          className="absolute -top-2 -right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => removeImage(index)}
+                          disabled={uploading}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                    
+                    {imagePreviews.length < 8 && (
+                      <label className="border-2 border-dashed border-muted-foreground/25 rounded-lg h-24 flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50 transition-colors">
+                        <Upload className="h-6 w-6 text-muted-foreground mb-1" />
+                        <span className="text-xs text-muted-foreground">Ajouter</span>
+                        <input
+                          type="file"
+                          multiple
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleImageUpload}
+                          disabled={uploading}
+                        />
+                      </label>
+                    )}
+                  </div>
+                  
+                  <p className="text-sm text-muted-foreground">
+                    Ajoutez jusqu'à 8 photos de qualité (formats JPG, PNG) - {imagePreviews.length}/8
+                  </p>
+                  {uploading && (
+                    <p className="text-sm text-primary animate-pulse">
+                      Téléchargement des images en cours...
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Informations générales</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                
                 <div>
-                  <Label htmlFor="price">Prix de vente (XOF) *</Label>
+                  <Label htmlFor="title">Titre de l'annonce *</Label>
                   <Input
-                    id="price"
-                    type="number"
-                    min="0"
-                    step="100"
-                    placeholder="Ex: 450000"
-                    value={formData.price}
-                    onChange={(e) => handleInputChange("price", e.target.value)}
+                    id="title"
+                    placeholder="Ex: iPhone 13 Pro Max 256GB, État neuf avec accessoires"
+                    value={formData.title}
+                    onChange={(e) => handleInputChange("title", e.target.value)}
                     required
+                    maxLength={100}
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    Prix en Francs CFA (XOF)
+                    Soyez précis et attractif - ce titre apparaîtra dans les résultats de recherche
                   </p>
                 </div>
 
                 <div>
-                  <Label htmlFor="category">Catégorie *</Label>
-                  <Select value={formData.category} onValueChange={(value) => handleInputChange("category", value)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sélectionner une catégorie" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((category) => (
-                        <SelectItem key={category.id} value={category.name}>
-                          {category.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* Section localisation simplifiée - remplacement du système GPS */}
-              <div>
-                <Label htmlFor="location">Où se trouve votre article ? *</Label>
-                <div className="space-y-3">
-                  <Input
-                    id="location"
-                    placeholder="Ex: Ouagadougou - Secteur 15, Bobo-Dioulasso - Quartier Diarradougou..."
-                    value={formData.location}
-                    onChange={(e) => handleLocationInput(e.target.value)}
+                  <Label htmlFor="description">Description complète *</Label>
+                  <Textarea
+                    id="description"
+                    placeholder="Décrivez votre article en détail : état, caractéristiques, raison de la vente..."
+                    rows={5}
+                    value={formData.description}
+                    onChange={(e) => handleInputChange("description", e.target.value)}
                     required
+                    maxLength={2000}
                   />
-                  
-                  {/* Suggestions de villes pour accélérer la saisie */}
-                  <div className="flex flex-wrap gap-2">
-                    <span className="text-sm text-muted-foreground self-center">Villes principales :</span>
-                    {burkinaCities.slice(0, 6).map((city) => (
-                      <Button
-                        key={city}
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-8 px-3 text-xs"
-                        onClick={() => selectSuggestedCity(city)}
-                      >
-                        {city}
-                      </Button>
-                    ))}
-                  </div>
-                  
-                  <p className="text-xs text-muted-foreground">
-                    Précisez votre quartier ou secteur pour faciliter les rencontres avec les acheteurs
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Une description détaillée augmente vos chances de vente ({formData.description.length}/2000)
                   </p>
                 </div>
-              </div>
 
-              {/* État de l'article - information cruciale pour les acheteurs */}
-              <div>
-                <Label>Dans quel état est votre article ?</Label>
-                <RadioGroup 
-                  value={formData.condition} 
-                  onValueChange={(value) => handleInputChange("condition", value)}
-                  className="flex gap-8 mt-3"
-                >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="new" id="new" />
-                    <Label htmlFor="new" className="font-normal">
-                      Neuf
-                      <span className="block text-xs text-muted-foreground">Jamais utilisé, encore emballé</span>
-                    </Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="price">Prix de vente (XOF) *</Label>
+                    <Input
+                      id="price"
+                      type="number"
+                      min="0"
+                      step="100"
+                      placeholder="Ex: 450000"
+                      value={formData.price}
+                      onChange={(e) => handleInputChange("price", e.target.value)}
+                      required
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Prix en Francs CFA (XOF)
+                    </p>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="used" id="used" />
-                    <Label htmlFor="used" className="font-normal">
-                      Occasion
-                      <span className="block text-xs text-muted-foreground">Déjà utilisé, en bon état</span>
-                    </Label>
-                  </div>
-                </RadioGroup>
-              </div>
-            </CardContent>
-          </Card>
 
-          {/* Section contact - informations essentielles pour la transaction */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Vos informations de contact</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div>
-                <Label htmlFor="phone">Numéro de téléphone *</Label>
-                <Input
-                  id="phone"
-                  type="tel"
-                  placeholder="+226 70 12 34 56"
-                  value={formData.phone}
-                  onChange={(e) => handleInputChange("phone", e.target.value)}
-                  required
-                />
-                <p className="text-sm text-muted-foreground mt-2">
-                  Ce numéro sera visible par les acheteurs intéressés pour vous contacter directement. 
-                  Assurez-vous qu'il soit correct et actif.
+                  <div>
+                    <Label htmlFor="category">Catégorie *</Label>
+                    <Select value={formData.category} onValueChange={(value) => handleInputChange("category", value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionner une catégorie" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.map((category) => (
+                          <SelectItem key={category.id} value={category.name}>
+                            {category.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="location">Où se trouve votre article ? *</Label>
+                  <div className="space-y-3">
+                    <Input
+                      id="location"
+                      placeholder="Ex: Ouagadougou - Secteur 15, Bobo-Dioulasso - Quartier Diarradougou..."
+                      value={formData.location}
+                      onChange={(e) => handleLocationInput(e.target.value)}
+                      required
+                    />
+                    
+                    <div className="flex flex-wrap gap-2">
+                      <span className="text-sm text-muted-foreground self-center">Villes principales :</span>
+                      {burkinaCities.slice(0, 6).map((city) => (
+                        <Button
+                          key={city}
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-3 text-xs"
+                          onClick={() => selectSuggestedCity(city)}
+                        >
+                          {city}
+                        </Button>
+                      ))}
+                    </div>
+                    
+                    <p className="text-xs text-muted-foreground">
+                      Précisez votre quartier ou secteur pour faciliter les rencontres avec les acheteurs
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <Label>Dans quel état est votre article ?</Label>
+                  <RadioGroup 
+                    value={formData.condition} 
+                    onValueChange={(value) => handleInputChange("condition", value)}
+                    className="flex gap-8 mt-3"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="new" id="new" />
+                      <Label htmlFor="new" className="font-normal">
+                        Neuf
+                        <span className="block text-xs text-muted-foreground">Jamais utilisé, encore emballé</span>
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="used" id="used" />
+                      <Label htmlFor="used" className="font-normal">
+                        Occasion
+                        <span className="block text-xs text-muted-foreground">Déjà utilisé, en bon état</span>
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Vos informations de contact</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div>
+                  <Label htmlFor="phone">Numéro de téléphone *</Label>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    placeholder="+226 70 12 34 56"
+                    value={formData.phone}
+                    onChange={(e) => handleInputChange("phone", e.target.value)}
+                    required
+                  />
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Ce numéro sera visible par les acheteurs intéressés pour vous contacter directement. 
+                    Assurez-vous qu'il soit correct et actif.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="flex gap-4">
+              <Button 
+                type="button" 
+                variant="outline" 
+                className="flex-1"
+                onClick={handlePreview}
+                disabled={!canShowPreview() || uploading}
+                title={!canShowPreview() ? "Remplissez les champs obligatoires pour voir l'aperçu" : "Voir comment votre annonce apparaîtra aux acheteurs"}
+              >
+                <Eye className="h-4 w-4 mr-2" />
+                {canShowPreview() ? "Aperçu" : "Aperçu (champs requis)"}
+              </Button>
+              <Button 
+                type="submit" 
+                className="flex-1"
+                disabled={creatingListing || uploading || !user}
+              >
+                {creatingListing || uploading ? "Publication en cours..." : "Publier l'annonce"}
+              </Button>
+            </div>
+
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground">
+                En publiant cette annonce, vous acceptez nos conditions d'utilisation. 
+                Votre annonce sera visible immédiatement après validation.
+              </p>
+            </div>
+          </div>
+
+          {/* MOBILE: Navigation entre étapes - Barre flottante intuitive */}
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-background border-t border-border p-4 md:hidden">
+            <div className="container mx-auto max-w-md">
+              <div className="flex gap-3">
+                {currentStep > 0 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="lg"
+                    onClick={goToPreviousStep}
+                    className="flex-1"
+                  >
+                    <ChevronLeft className="w-4 h-4 mr-1" />
+                    Précédent
+                  </Button>
+                )}
+                
+                {currentStep < 3 ? (
+                  <Button
+                    type="button"
+                    size="lg"
+                    onClick={goToNextStep}
+                    disabled={!getStepValidation()[currentStep]}
+                    className="flex-1"
+                  >
+                    Suivant
+                    <ChevronRight className="w-4 h-4 ml-1" />
+                  </Button>
+                ) : (
+                  <Button 
+                    type="submit" 
+                    size="lg"
+                    disabled={creatingListing || uploading || !user || !getStepValidation().every(Boolean)}
+                    className="flex-1"
+                  >
+                    {creatingListing || uploading ? "Publication..." : "Publier"}
+                  </Button>
+                )}
+              </div>
+              
+              {/* Indicateur de validation pour l'étape courante */}
+              {!getStepValidation()[currentStep] && (
+                <p className="text-xs text-center text-red-600 mt-2">
+                  {currentStep === 0 && "Ajoutez au moins une photo"}
+                  {currentStep === 1 && "Remplissez tous les champs obligatoires"}
+                  {currentStep === 2 && "Indiquez votre localisation"}
+                  {currentStep === 3 && "Saisissez votre numéro de téléphone"}
                 </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Boutons d'action principaux avec aperçu fonctionnel */}
-          <div className="flex gap-4">
-            <Button 
-              type="button" 
-              variant="outline" 
-              className="flex-1"
-              onClick={handlePreview}
-              disabled={!canShowPreview() || uploading}
-              title={!canShowPreview() ? "Remplissez les champs obligatoires pour voir l'aperçu" : "Voir comment votre annonce apparaîtra aux acheteurs"}
-            >
-              <Eye className="h-4 w-4 mr-2" />
-              {canShowPreview() ? "Aperçu" : "Aperçu (champs requis)"}
-            </Button>
-            <Button 
-              type="submit" 
-              className="flex-1"
-              disabled={creatingListing || uploading || !user}
-            >
-              {creatingListing || uploading ? "Publication en cours..." : "Publier l'annonce"}
-            </Button>
+              )}
+            </div>
           </div>
 
-          {/* Informations supplémentaires pour rassurer l'utilisateur */}
-          <div className="text-center">
-            <p className="text-sm text-muted-foreground">
-              En publiant cette annonce, vous acceptez nos conditions d'utilisation. 
-              Votre annonce sera visible immédiatement après validation.
-            </p>
-          </div>
+          {/* Espace pour la barre de navigation mobile */}
+          <div className="h-20 md:hidden" />
         </form>
       </main>
 
-      {/* Modal d'aperçu conditionnel - ne s'affiche que quand nécessaire */}
+      {/* CONSERVATION INTÉGRALE : Modal d'aperçu identique */}
       {showPreview && (
         <ListingPreview
           formData={{
@@ -502,7 +962,7 @@ const PublishListing = () => {
             location: formData.location,
             condition: formData.condition,
             phone: formData.phone,
-            imageUrls: imagePreviews // Utilise les URLs temporaires créées lors du téléchargement
+            imageUrls: imagePreviews
           }}
           isOpen={showPreview}
           onClose={() => setShowPreview(false)}

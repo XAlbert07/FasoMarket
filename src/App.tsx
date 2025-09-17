@@ -10,7 +10,7 @@ import Listings from "./pages/Listings";
 import SmartListingDetail from "./components/SmartListingDetail";
 import PublishListing from "./pages/PublishListing";
 import Login from "./pages/Login";
-import ForgotPassword from "./pages/ForgotPassword";
+//import ForgotPassword from "./pages/ForgotPassword";//
 import MerchantDashboard from "./pages/MerchantDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import Messages from "./pages/Messages";
@@ -30,6 +30,9 @@ import SellerProfile from "./pages/SellerProfile";
 import EditListing from "./pages/EditListing";
 import { SuspensionGuard } from '@/components/SuspensionGuard'
 import  SanctionsManagementPage  from '@/pages/admin/components/SanctionsManagementPage'
+import ForgotPassword from "@/pages/ForgotPassword";
+import ResetPassword from "@/pages/ResetPassword";
+
 
 
 const queryClient = new QueryClient();
@@ -84,6 +87,8 @@ const App = () => (
             <Route path="/my-profile" element={<ProtectedRoute><MyProfile /></ProtectedRoute>} />
             <Route path="/my-listings" element={<ProtectedRoute><MyListings /></ProtectedRoute>} />
              <Route path="/Sanctions" element={<ProtectedRoute>< SanctionsManagementPage/></ProtectedRoute>} />
+             <Route path="/forgot-password" element={<ForgotPassword />} />
+             <Route path="/reset-password" element={<ResetPassword />} />
             
             {/* 
               ROUTE PROFIL VENDEUR : Permet de voir le profil public d'un vendeur

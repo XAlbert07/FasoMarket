@@ -10,14 +10,14 @@ import { formatPrice } from "@/lib/utils";
 import { 
   Plus, Eye, Edit, Trash2, Package, MessageCircle, Settings, 
   Star, Calendar, Phone, Mail, MapPin, AlertCircle, CheckCircle2, 
-  Clock, PauseCircle, XCircle, Send
+  Clock, PauseCircle, XCircle, Send, ArrowLeft, Menu
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 
-// Import de tous les hooks nécessaires
+// Import de tous les hooks nécessaires - CONSERVÉS INTACTS
 import { useSellerListings } from "@/hooks/useSellerListings";
 import { useSellerProfile } from "@/hooks/useSellerProfile";
 import { useSellerReviews } from "@/hooks/useSellerReviews";
@@ -29,12 +29,15 @@ const MerchantDashboard = () => {
   const { toast } = useToast();
   const { user, loading: authLoading } = useAuthContext();
   
-  // États locaux pour la gestion de l'interface
+  // États locaux pour la gestion de l'interface - CONSERVÉS
   const [selectedTab, setSelectedTab] = useState("overview");
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState("");
+  
+  // NOUVEAU : État pour la navigation mobile
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Utilisation de tous les hooks avec gestion d'erreur appropriée
+  // Utilisation de tous les hooks avec gestion d'erreur appropriée - CONSERVÉS INTACTS
   const { 
     listings, 
     loading: listingsLoading, 
@@ -60,10 +63,10 @@ const MerchantDashboard = () => {
     error: reviewsError
   } = useSellerReviews(user?.id || '');
 
-  // Hook pour les opérations CRUD sur les annonces
+  // Hook pour les opérations CRUD sur les annonces - CONSERVÉ
   const { deleteListing } = useCreateListing();
 
-  // Hook pour la messagerie unifiée
+  // Hook pour la messagerie unifiée - CONSERVÉ
   const {
     conversations,
     messages,
@@ -73,7 +76,7 @@ const MerchantDashboard = () => {
     markConversationAsRead
   } = useMessages();
 
-  // Vérification d'authentification dans useEffect pour éviter les erreurs de setState
+  // Vérification d'authentification - CONSERVÉE INTACTE
   useEffect(() => {
     if (!authLoading && !user) {
       toast({
@@ -85,7 +88,7 @@ const MerchantDashboard = () => {
     }
   }, [user, authLoading, navigate, toast]);
 
-  // Fonction pour supprimer une annonce avec confirmation
+  // Fonction pour supprimer une annonce avec confirmation - CONSERVÉE INTACTE
   const handleDeleteListing = async (listingId: string, title: string) => {
     const confirmed = window.confirm(
       `Êtes-vous sûr de vouloir supprimer l'annonce "${title}" ?\n\nCette action est irréversible.`
@@ -109,7 +112,7 @@ const MerchantDashboard = () => {
     }
   };
 
-  // Fonction pour obtenir le badge de statut approprié
+  // Fonction pour obtenir le badge de statut approprié - CONSERVÉE INTACTE
   const getStatusBadge = (status: string) => {
     const statusConfig = {
       active: { 
@@ -161,7 +164,7 @@ const MerchantDashboard = () => {
     );
   };
 
-  // Fonction pour formater les dates
+  // Fonction pour formater les dates - CONSERVÉE INTACTE
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('fr-FR', {
       day: '2-digit',
@@ -170,7 +173,7 @@ const MerchantDashboard = () => {
     });
   };
 
-  // Calcul des métriques du tableau de bord
+  // Calcul des métriques du tableau de bord - CONSERVÉ INTACT
   const getDashboardMetrics = () => {
     const totalListings = listings.length;
     const activeListings = listings.filter(l => l.status === 'active').length;
@@ -190,7 +193,7 @@ const MerchantDashboard = () => {
 
   const metrics = getDashboardMetrics();
 
-  // Fonctions pour la gestion des conversations
+  // Fonctions pour la gestion des conversations - CONSERVÉES INTACTES
   const handleSelectConversation = async (conversationId: string) => {
     setSelectedConversation(conversationId);
     const conversation = conversations.find(c => c.id === conversationId);
@@ -240,7 +243,7 @@ const MerchantDashboard = () => {
     }
   };
 
-  // Gestion des états de chargement
+  // Gestion des états de chargement - CONSERVÉE INTACTE
   if (authLoading || profileLoading) {
     return (
       <div className="min-h-screen bg-background">
@@ -256,7 +259,7 @@ const MerchantDashboard = () => {
     );
   }
 
-  // Gestion des erreurs d'authentification
+  // Gestion des erreurs d'authentification - CONSERVÉE
   if (!user) {
     return null; // Le useEffect redirige déjà
   }
@@ -266,64 +269,64 @@ const MerchantDashboard = () => {
       <Header />
       
       <main className="container mx-auto px-4 py-8">
-        {/* En-tête avec informations du profil */}
-        <div className="mb-8">
-          <div className="flex items-start justify-between">
+        {/* En-tête avec informations du profil - ADAPTÉ POUR MOBILE */}
+        <div className="mb-6 md:mb-8">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div className="flex items-center space-x-4">
-              <Avatar className="h-16 w-16">
+              <Avatar className="h-12 w-12 md:h-16 md:w-16">
                 <AvatarImage src={profile?.avatar_url} />
-                <AvatarFallback className="text-lg">
+                <AvatarFallback className="text-sm md:text-lg">
                   {profile?.full_name?.charAt(0) || user.email.charAt(0).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              <div>
-                <h1 className="text-3xl font-bold text-foreground mb-2">
+              <div className="min-w-0 flex-1">
+                <h1 className="text-xl md:text-3xl font-bold text-foreground mb-1 md:mb-2 truncate">
                   Bonjour, {profile?.full_name || 'Marchand'}
                 </h1>
-                <p className="text-muted-foreground">
+                <p className="text-sm md:text-base text-muted-foreground">
                   Bienvenue sur votre tableau de bord FasoMarket
                 </p>
                 {profile?.bio && (
-                  <p className="text-sm text-muted-foreground mt-1">
+                  <p className="text-xs md:text-sm text-muted-foreground mt-1 line-clamp-2">
                     {profile.bio}
                   </p>
                 )}
               </div>
             </div>
-            <Button onClick={() => navigate("/publish")} className="gap-2">
+            <Button onClick={() => navigate("/publish")} className="gap-2 w-full md:w-auto">
               <Plus className="h-4 w-4" />
-              Nouvelle Annonce
+              <span className="md:inline">Nouvelle Annonce</span>
             </Button>
           </div>
           
-          {/* Informations de contact */}
+          {/* Informations de contact - ADAPTÉES POUR MOBILE */}
           {profile && (
-            <div className="flex flex-wrap items-center gap-4 mt-4 text-sm text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-3 md:gap-4 mt-4 text-xs md:text-sm text-muted-foreground">
               {profile.phone && (
                 <div className="flex items-center gap-1">
-                  <Phone className="h-4 w-4" />
-                  {profile.phone}
+                  <Phone className="h-3 w-3 md:h-4 md:w-4" />
+                  <span className="truncate">{profile.phone}</span>
                 </div>
               )}
               <div className="flex items-center gap-1">
-                <Mail className="h-4 w-4" />
-                {user.email}
+                <Mail className="h-3 w-3 md:h-4 md:w-4" />
+                <span className="truncate">{user.email}</span>
               </div>
               {profile.city && (
                 <div className="flex items-center gap-1">
-                  <MapPin className="h-4 w-4" />
-                  {profile.city}
+                  <MapPin className="h-3 w-3 md:h-4 md:w-4" />
+                  <span className="truncate">{profile.city}</span>
                 </div>
               )}
               <div className="flex items-center gap-1">
-                <Calendar className="h-4 w-4" />
-                Membre depuis {formatDate(profile.created_at)}
+                <Calendar className="h-3 w-3 md:h-4 md:w-4" />
+                <span className="truncate">Membre depuis {formatDate(profile.created_at)}</span>
               </div>
             </div>
           )}
         </div>
 
-        {/* Alertes d'erreur */}
+        {/* Alertes d'erreur - CONSERVÉES */}
         {(listingsError || profileError || reviewsError) && (
           <Alert className="mb-6">
             <AlertCircle className="h-4 w-4" />
@@ -334,15 +337,15 @@ const MerchantDashboard = () => {
           </Alert>
         )}
 
-        {/* Métriques principales */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        {/* Métriques principales - ADAPTÉES POUR MOBILE */}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6 mb-6 md:mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Annonces</CardTitle>
-              <Package className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-xs md:text-sm font-medium">Total Annonces</CardTitle>
+              <Package className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{metrics.totalListings}</div>
+              <div className="text-xl md:text-2xl font-bold">{metrics.totalListings}</div>
               <p className="text-xs text-muted-foreground">
                 {metrics.activeListings} active{metrics.activeListings !== 1 ? 's' : ''}
               </p>
@@ -351,24 +354,24 @@ const MerchantDashboard = () => {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Vues Totales</CardTitle>
-              <Eye className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-xs md:text-sm font-medium">Vues Totales</CardTitle>
+              <Eye className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{metrics.totalViews.toLocaleString()}</div>
+              <div className="text-xl md:text-2xl font-bold">{metrics.totalViews.toLocaleString()}</div>
               <p className="text-xs text-muted-foreground">
                 Moyenne: {metrics.totalListings > 0 ? Math.round(metrics.totalViews / metrics.totalListings) : 0} par annonce
               </p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="col-span-2 md:col-span-1">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Note Moyenne</CardTitle>
-              <Star className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-xs md:text-sm font-medium">Note Moyenne</CardTitle>
+              <Star className="h-3 w-3 md:h-4 md:w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
+              <div className="text-xl md:text-2xl font-bold">
                 {metrics.averageRating > 0 ? metrics.averageRating.toFixed(1) : '--'}
               </div>
               <p className="text-xs text-muted-foreground">
@@ -378,33 +381,95 @@ const MerchantDashboard = () => {
           </Card>
         </div>
 
-        {/* Onglets du tableau de bord */}
+        {/* Onglets du tableau de bord - ADAPTÉS POUR MOBILE */}
         <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="overview">Vue d'ensemble</TabsTrigger>
-            <TabsTrigger value="listings">Mes Annonces ({metrics.totalListings})</TabsTrigger>
-            <TabsTrigger value="messages" className="relative">
-              Messages
-              {metrics.unreadMessages > 0 && (
-                <Badge 
-                  variant="destructive" 
-                  className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 text-xs"
-                >
-                  {metrics.unreadMessages}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="settings">Paramètres</TabsTrigger>
-          </TabsList>
+          {/* Navigation par tabs adaptée mobile */}
+          <div className="relative">
+            <TabsList className="hidden md:grid w-full grid-cols-4">
+              <TabsTrigger value="overview">Vue d'ensemble</TabsTrigger>
+              <TabsTrigger value="listings">Mes Annonces ({metrics.totalListings})</TabsTrigger>
+              <TabsTrigger value="messages" className="relative">
+                Messages
+                {metrics.unreadMessages > 0 && (
+                  <Badge 
+                    variant="destructive" 
+                    className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 text-xs"
+                  >
+                    {metrics.unreadMessages}
+                  </Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="settings">Paramètres</TabsTrigger>
+            </TabsList>
 
-          {/* Onglet Vue d'ensemble */}
-          <TabsContent value="overview" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Navigation mobile avec menu dropdown */}
+            <div className="md:hidden">
+              <div className="flex items-center justify-between p-3 border rounded-lg bg-card">
+                <div className="font-medium">
+                  {selectedTab === "overview" && "Vue d'ensemble"}
+                  {selectedTab === "listings" && `Mes Annonces (${metrics.totalListings})`}
+                  {selectedTab === "messages" && "Messages"}
+                  {selectedTab === "settings" && "Paramètres"}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                >
+                  <Menu className="h-4 w-4" />
+                </Button>
+              </div>
+              
+              {isMobileMenuOpen && (
+                <div className="absolute top-full left-0 right-0 z-10 mt-2 bg-card border rounded-lg shadow-lg">
+                  <div className="p-2 space-y-1">
+                    <Button
+                      variant={selectedTab === "overview" ? "default" : "ghost"}
+                      className="w-full justify-start"
+                      onClick={() => { setSelectedTab("overview"); setIsMobileMenuOpen(false); }}
+                    >
+                      Vue d'ensemble
+                    </Button>
+                    <Button
+                      variant={selectedTab === "listings" ? "default" : "ghost"}
+                      className="w-full justify-start"
+                      onClick={() => { setSelectedTab("listings"); setIsMobileMenuOpen(false); }}
+                    >
+                      Mes Annonces ({metrics.totalListings})
+                    </Button>
+                    <Button
+                      variant={selectedTab === "messages" ? "default" : "ghost"}
+                      className="w-full justify-start relative"
+                      onClick={() => { setSelectedTab("messages"); setIsMobileMenuOpen(false); }}
+                    >
+                      Messages
+                      {metrics.unreadMessages > 0 && (
+                        <Badge variant="destructive" className="ml-auto">
+                          {metrics.unreadMessages}
+                        </Badge>
+                      )}
+                    </Button>
+                    <Button
+                      variant={selectedTab === "settings" ? "default" : "ghost"}
+                      className="w-full justify-start"
+                      onClick={() => { setSelectedTab("settings"); setIsMobileMenuOpen(false); }}
+                    >
+                      Paramètres
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Onglet Vue d'ensemble - ADAPTÉ POUR MOBILE */}
+          <TabsContent value="overview" className="space-y-4 md:space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
               {/* Dernières annonces */}
               <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
-                    <CardTitle>Dernières Annonces</CardTitle>
+                    <CardTitle className="text-base md:text-lg">Dernières Annonces</CardTitle>
                     <Button variant="ghost" size="sm" onClick={() => setSelectedTab("listings")}>
                       Voir tout
                     </Button>
@@ -430,22 +495,22 @@ const MerchantDashboard = () => {
                     <div className="space-y-3">
                       {listings.slice(0, 5).map((listing) => (
                         <div key={listing.id} className="flex items-center justify-between p-3 border rounded-lg">
-                          <div className="flex items-center space-x-3">
+                          <div className="flex items-center space-x-3 min-w-0 flex-1">
                             <img 
                               src={listing.images?.[0] || '/placeholder.svg'} 
                               alt={listing.title}
-                              className="w-12 h-12 object-cover rounded"
+                              className="w-10 h-10 md:w-12 md:h-12 object-cover rounded flex-shrink-0"
                             />
-                            <div>
+                            <div className="min-w-0 flex-1">
                               <p className="font-medium text-sm line-clamp-1">{listing.title}</p>
                               <p className="text-xs text-muted-foreground">
                                 {formatPrice(listing.price, listing.currency)}
                               </p>
                             </div>
                           </div>
-                          <div className="flex items-center space-x-2">
+                          <div className="flex items-center space-x-2 flex-shrink-0">
                             {getStatusBadge(listing.status)}
-                            <span className="text-xs text-muted-foreground">
+                            <span className="text-xs text-muted-foreground hidden md:inline">
                               {listing.views_count} vues
                             </span>
                           </div>
@@ -459,7 +524,7 @@ const MerchantDashboard = () => {
               {/* Statistiques de performance */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Performance</CardTitle>
+                  <CardTitle className="text-base md:text-lg">Performance</CardTitle>
                   <CardDescription>
                     Vos statistiques des 30 derniers jours
                   </CardDescription>
@@ -495,16 +560,16 @@ const MerchantDashboard = () => {
             </div>
           </TabsContent>
 
-          {/* Onglet Mes Annonces */}
-          <TabsContent value="listings" className="space-y-6">
-            <div className="flex justify-between items-center">
+          {/* Onglet Mes Annonces - ADAPTÉ POUR MOBILE */}
+          <TabsContent value="listings" className="space-y-4 md:space-y-6">
+            <div className="flex flex-col gap-4 md:flex-row md:justify-between md:items-center">
               <div>
-                <h2 className="text-xl font-semibold">Mes Annonces</h2>
+                <h2 className="text-lg md:text-xl font-semibold">Mes Annonces</h2>
                 <p className="text-sm text-muted-foreground">
                   Gérez vos {metrics.totalListings} annonce{metrics.totalListings !== 1 ? 's' : ''}
                 </p>
               </div>
-              <Button onClick={() => navigate("/publish")} className="gap-2">
+              <Button onClick={() => navigate("/publish")} className="gap-2 w-full md:w-auto">
                 <Plus className="h-4 w-4" />
                 Nouvelle Annonce
               </Button>
@@ -532,51 +597,103 @@ const MerchantDashboard = () => {
               <div className="grid gap-4">
                 {listings.map((listing) => (
                   <Card key={listing.id} className="overflow-hidden">
-                    <CardContent className="p-6">
-                      <div className="flex justify-between items-start">
-                        <div className="flex space-x-4">
+                    <CardContent className="p-4 md:p-6">
+                      {/* Version mobile - Layout vertical */}
+                      <div className="block md:hidden">
+                        <div className="flex items-start gap-3 mb-3">
                           <img 
                             src={listing.images?.[0] || '/placeholder.svg'} 
                             alt={listing.title}
-                            className="w-20 h-20 object-cover rounded-lg"
+                            className="w-16 h-16 object-cover rounded-lg flex-shrink-0"
                           />
-                          <div className="space-y-2 flex-1">
-                            <div className="flex items-center gap-2">
-                              <h3 className="font-semibold text-lg line-clamp-1">{listing.title}</h3>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-2 mb-2">
+                              <h3 className="font-semibold text-sm line-clamp-2 flex-1">{listing.title}</h3>
                               {getStatusBadge(listing.status)}
                             </div>
-                            <p className="text-2xl font-bold text-primary">
+                            <p className="text-lg font-bold text-primary mb-1">
                               {formatPrice(listing.price, listing.currency)}
                             </p>
-                            <div className="flex items-center space-x-4 text-sm text-muted-foreground">
+                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
                               <span className="flex items-center">
-                                <Eye className="mr-1 h-4 w-4" />
-                                {listing.views_count} vues
+                                <Eye className="mr-1 h-3 w-3" />
+                                {listing.views_count}
                               </span>
                               <span className="flex items-center">
-                                <MapPin className="mr-1 h-4 w-4" />
+                                <MapPin className="mr-1 h-3 w-3" />
                                 {listing.location}
-                              </span>
-                              <span>
-                                Créée le {formatDate(listing.created_at)}
                               </span>
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <Button variant="outline" size="sm" onClick={() => navigate(`/listing/${listing.id}`)}>
-                            <Eye className="h-4 w-4" />
+                        
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" onClick={() => navigate(`/listing/${listing.id}`)} className="flex-1">
+                            <Eye className="h-3 w-3 mr-1" />
+                            Voir
                           </Button>
-                          <Button variant="outline" size="sm" onClick={() => navigate(`/edit-listing/${listing.id}`)}>
-                            <Edit className="h-4 w-4" />
+                          <Button variant="outline" size="sm" onClick={() => navigate(`/edit-listing/${listing.id}`)} className="flex-1">
+                            <Edit className="h-3 w-3 mr-1" />
+                            Modifier
                           </Button>
                           <Button 
                             variant="outline" 
                             size="sm"
                             onClick={() => handleDeleteListing(listing.id, listing.title)}
+                            className="px-2"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-3 w-3" />
                           </Button>
+                        </div>
+                      </div>
+
+                      {/* Version desktop - Layout horizontal original */}
+                      <div className="hidden md:block">
+                        <div className="flex justify-between items-start">
+                          <div className="flex space-x-4">
+                            <img 
+                              src={listing.images?.[0] || '/placeholder.svg'} 
+                              alt={listing.title}
+                              className="w-20 h-20 object-cover rounded-lg"
+                            />
+                            <div className="space-y-2 flex-1">
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-semibold text-lg line-clamp-1">{listing.title}</h3>
+                                {getStatusBadge(listing.status)}
+                              </div>
+                              <p className="text-2xl font-bold text-primary">
+                                {formatPrice(listing.price, listing.currency)}
+                              </p>
+                              <div className="flex items-center space-x-4 text-sm text-muted-foreground">
+                                <span className="flex items-center">
+                                  <Eye className="mr-1 h-4 w-4" />
+                                  {listing.views_count} vues
+                                </span>
+                                <span className="flex items-center">
+                                  <MapPin className="mr-1 h-4 w-4" />
+                                  {listing.location}
+                                </span>
+                                <span>
+                                  Créée le {formatDate(listing.created_at)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Button variant="outline" size="sm" onClick={() => navigate(`/listing/${listing.id}`)}>
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => navigate(`/edit-listing/${listing.id}`)}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handleDeleteListing(listing.id, listing.title)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     </CardContent>
@@ -586,9 +703,229 @@ const MerchantDashboard = () => {
             )}
           </TabsContent>
 
-          {/* Onglet Messages - Interface complète */}
+          {/* Onglet Messages - ADAPTÉ POUR MOBILE */}
           <TabsContent value="messages">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[600px]">
+            {/* Version mobile - Interface simplifiée */}
+            <div className="block md:hidden">
+              {selectedConversation ? (
+                // Vue conversation mobile
+                <Card className="min-h-[60vh]">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center gap-3">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => setSelectedConversation(null)}
+                        className="p-1"
+                      >
+                        <ArrowLeft className="h-4 w-4" />
+                      </Button>
+                      {(() => {
+                        const conversation = conversations.find(c => c.id === selectedConversation);
+                        return conversation ? (
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <Avatar className="h-10 w-10">
+                              <AvatarImage src={conversation.participant_avatar} />
+                              <AvatarFallback>
+                                {conversation.participant_name.charAt(0).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-medium text-sm truncate">{conversation.participant_name}</h3>
+                                {!conversation.is_participant_registered && (
+                                  <Badge variant="outline" className="text-xs">Invité</Badge>
+                                )}
+                              </div>
+                              <p className="text-xs text-muted-foreground truncate">
+                                {conversation.listing_title}
+                              </p>
+                            </div>
+                          </div>
+                        ) : null;
+                      })()}
+                    </div>
+                  </CardHeader>
+                  
+                  <CardContent className="flex flex-col h-[50vh]">
+                    <div className="flex-1 overflow-y-auto mb-4 space-y-3">
+                      {messagesLoading ? (
+                        <div className="text-center py-4">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto mb-2"></div>
+                          <p className="text-sm text-muted-foreground">Chargement des messages...</p>
+                        </div>
+                      ) : messages.length === 0 ? (
+                        <div className="text-center py-8">
+                          <MessageCircle className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                          <p className="text-sm text-muted-foreground">
+                            Aucun message dans cette conversation
+                          </p>
+                        </div>
+                      ) : (
+                        messages.map((message) => {
+                          const isFromMe = message.sender_info.id === user?.id;
+                          return (
+                            <div
+                              key={message.id}
+                              className={`flex ${isFromMe ? 'justify-end' : 'justify-start'}`}
+                            >
+                              <div className={`max-w-[80%] ${isFromMe ? '' : 'flex items-start space-x-2'}`}>
+                                {!isFromMe && (
+                                  <Avatar className="h-6 w-6 flex-shrink-0">
+                                    <AvatarImage src={message.sender_info.avatar_url} />
+                                    <AvatarFallback className="text-xs">
+                                      {message.sender_info.name.charAt(0).toUpperCase()}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                )}
+                                <div>
+                                  <div
+                                    className={`rounded-lg px-3 py-2 text-sm ${
+                                      isFromMe
+                                        ? 'bg-primary text-primary-foreground'
+                                        : 'bg-muted text-muted-foreground'
+                                    }`}
+                                  >
+                                    {message.content}
+                                  </div>
+                                  <p className={`text-xs text-muted-foreground mt-1 ${isFromMe ? 'text-right' : 'text-left'}`}>
+                                    {formatMessageDate(message.created_at)}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    {/* Zone d'envoi mobile */}
+                    {(() => {
+                      const conversation = conversations.find(c => c.id === selectedConversation);
+                      if (!conversation?.is_participant_registered) {
+                        return (
+                          <Alert>
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertDescription className="text-sm">
+                              Ce message provient d'un invité. Contactez directement par 
+                              email ({conversation?.participant_email}) ou téléphone.
+                            </AlertDescription>
+                          </Alert>
+                        );
+                      }
+
+                      return (
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={newMessage}
+                            onChange={(e) => setNewMessage(e.target.value)}
+                            placeholder="Tapez votre message..."
+                            className="flex-1 px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                            onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                            disabled={messagesLoading}
+                          />
+                          <Button 
+                            onClick={handleSendMessage}
+                            disabled={!newMessage.trim() || messagesLoading}
+                            size="sm"
+                          >
+                            <Send className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      );
+                    })()}
+                  </CardContent>
+                </Card>
+              ) : (
+                // Liste conversations mobile
+                <div>
+                  <div className="mb-4">
+                    <h2 className="text-lg font-semibold">Messages</h2>
+                    <p className="text-sm text-muted-foreground">
+                      {metrics.totalConversations} conversation{metrics.totalConversations !== 1 ? 's' : ''}
+                      {metrics.unreadMessages > 0 && (
+                        <span className="ml-2 text-destructive">
+                          • {metrics.unreadMessages} non lu{metrics.unreadMessages > 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+
+                  {messagesLoading ? (
+                    <div className="text-center py-8">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto mb-2"></div>
+                      <p className="text-sm text-muted-foreground">Chargement...</p>
+                    </div>
+                  ) : conversations.length === 0 ? (
+                    <Card>
+                      <CardContent className="text-center py-12">
+                        <MessageCircle className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                        <p className="text-sm text-muted-foreground">
+                          Aucune conversation pour le moment
+                        </p>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <div className="space-y-3">
+                      {conversations.map((conversation) => (
+                        <Card 
+                          key={conversation.id} 
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() => handleSelectConversation(conversation.id)}
+                        >
+                          <CardContent className="p-4">
+                            <div className="flex items-start gap-3">
+                              <Avatar className="h-12 w-12 flex-shrink-0">
+                                <AvatarImage src={conversation.participant_avatar} />
+                                <AvatarFallback>
+                                  {conversation.participant_name.charAt(0).toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                              
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between mb-1">
+                                  <div className="flex items-center gap-2">
+                                    <h3 className="font-medium text-sm truncate">{conversation.participant_name}</h3>
+                                    {!conversation.is_participant_registered && (
+                                      <Badge variant="outline" className="text-xs">Invité</Badge>
+                                    )}
+                                  </div>
+                                  <span className="text-xs text-muted-foreground flex-shrink-0">
+                                    {formatMessageDate(conversation.last_message_at)}
+                                  </span>
+                                </div>
+                                
+                                <p className="text-xs text-muted-foreground mb-2 truncate">
+                                  {conversation.listing_title}
+                                </p>
+                                <p className="text-sm text-foreground line-clamp-2 mb-2">
+                                  {conversation.last_message}
+                                </p>
+                                
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs text-primary font-medium">
+                                    {formatPrice(conversation.listing_price, conversation.listing_currency)}
+                                  </span>
+                                  {conversation.unread_count > 0 && (
+                                    <Badge variant="destructive" className="text-xs">
+                                      {conversation.unread_count}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Version desktop - Layout original 3 colonnes */}
+            <div className="hidden md:grid grid-cols-1 lg:grid-cols-3 gap-6 h-[600px]">
               {/* Liste des conversations */}
               <Card className="lg:col-span-1">
                 <CardHeader>
@@ -678,7 +1015,7 @@ const MerchantDashboard = () => {
                 </CardContent>
               </Card>
 
-              {/* Interface de conversation */}
+              {/* Interface de conversation desktop */}
               <div className="lg:col-span-2">
                 {selectedConversation ? (
                   <Card className="h-full flex flex-col">
@@ -717,7 +1054,7 @@ const MerchantDashboard = () => {
                       })()}
                     </CardHeader>
 
-                    {/* Zone des messages */}
+                    {/* Zone des messages desktop */}
                     <CardContent className="flex-1 flex flex-col min-h-0">
                       <div className="flex-1 overflow-y-auto mb-4 space-y-3 max-h-[300px]">
                         {messagesLoading ? (
@@ -773,7 +1110,7 @@ const MerchantDashboard = () => {
                         )}
                       </div>
 
-                      {/* Zone d'envoi de message */}
+                      {/* Zone d'envoi desktop */}
                       {(() => {
                         const conversation = conversations.find(c => c.id === selectedConversation);
                         if (!conversation?.is_participant_registered) {
@@ -827,13 +1164,13 @@ const MerchantDashboard = () => {
             </div>
           </TabsContent>
 
-          {/* Onglet Paramètres */}
+          {/* Onglet Paramètres - CONSERVÉ AVEC ADAPTATIONS MOBILE */}
           <TabsContent value="settings">
-            <div className="space-y-6">
+            <div className="space-y-4 md:space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Settings className="h-5 w-5" />
+                  <CardTitle className="flex items-center gap-2 text-base md:text-lg">
+                    <Settings className="h-4 w-4 md:h-5 md:w-5" />
                     Paramètres du Compte
                   </CardTitle>
                   <CardDescription>
@@ -841,14 +1178,14 @@ const MerchantDashboard = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    <Button onClick={() => navigate("/profile")} variant="outline">
+                  <div className="space-y-3 md:space-y-4">
+                    <Button onClick={() => navigate("/profile")} variant="outline" className="w-full justify-start">
                       Modifier mon profil
                     </Button>
-                    <Button onClick={() => navigate("/my-listings")} variant="outline">
+                    <Button onClick={() => navigate("/my-listings")} variant="outline" className="w-full justify-start">
                       Voir toutes mes annonces
                     </Button>
-                    <Button onClick={refreshProfile} variant="outline">
+                    <Button onClick={refreshProfile} variant="outline" className="w-full justify-start">
                       Actualiser mes données
                     </Button>
                   </div>
@@ -859,25 +1196,25 @@ const MerchantDashboard = () => {
               {profileStats && (
                 <Card>
                   <CardHeader>
-                    <CardTitle>Statistiques</CardTitle>
+                    <CardTitle className="text-base md:text-lg">Statistiques</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <p className="text-sm font-medium">Total des annonces</p>
-                        <p className="text-2xl font-bold">{profileStats.totalListings}</p>
+                        <p className="text-xl md:text-2xl font-bold">{profileStats.totalListings}</p>
                       </div>
                       <div>
                         <p className="text-sm font-medium">Annonces actives</p>
-                        <p className="text-2xl font-bold">{profileStats.activeListings}</p>
+                        <p className="text-xl md:text-2xl font-bold">{profileStats.activeListings}</p>
                       </div>
                       <div>
                         <p className="text-sm font-medium">Vues totales</p>
-                        <p className="text-2xl font-bold">{metrics.totalViews.toLocaleString()}</p>
+                        <p className="text-xl md:text-2xl font-bold">{metrics.totalViews.toLocaleString()}</p>
                       </div>
                       <div>
                         <p className="text-sm font-medium">Note moyenne</p>
-                        <p className="text-2xl font-bold">
+                        <p className="text-xl md:text-2xl font-bold">
                           {metrics.averageRating > 0 ? metrics.averageRating.toFixed(1) : '--'}
                         </p>
                       </div>

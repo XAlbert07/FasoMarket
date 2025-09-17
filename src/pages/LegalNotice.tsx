@@ -1,4 +1,4 @@
-import { Building, Gavel, Users, FileText } from "lucide-react";
+import { Building, Users, FileText, Shield, Gavel } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -8,150 +8,147 @@ const LegalNotice = () => {
     <div className="min-h-screen bg-background">
       <Header />
       
-      <main className="container mx-auto px-4 py-12">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-12">
-            <h1 className="text-4xl font-heading font-bold mb-4">
+      <main className="container mx-auto px-3 sm:px-4 py-6 sm:py-12">
+        <div className="max-w-3xl mx-auto">
+          {/* En-tête optimisé mobile */}
+          <div className="text-center mb-8 sm:mb-12">
+            <h1 className="text-2xl sm:text-4xl font-heading font-bold mb-3 sm:mb-4 leading-tight">
               Mentions Légales
             </h1>
-            <p className="text-muted-foreground text-lg">
+            <p className="text-muted-foreground text-base sm:text-lg px-2">
               Informations légales concernant FasoMarket
             </p>
           </div>
 
-          <div className="space-y-8">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Building className="mr-2 h-5 w-5" />
-                  Informations sur l'Éditeur
+          <div className="space-y-4 sm:space-y-6">
+            
+            {/* Section Contact - La plus importante pour les utilisateurs */}
+            <Card className="shadow-sm">
+              <CardHeader className="pb-3 sm:pb-4">
+                <CardTitle className="flex items-center text-lg sm:text-xl">
+                  <Building className="mr-2 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+                  <span>Éditeur du Site</span>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-3 sm:space-y-4">
                 <div>
-                  <h3 className="font-semibold mb-2">Dénomination sociale :</h3>
-                  <p className="text-muted-foreground">FasoMarket SARL</p>
+                  <h3 className="font-semibold mb-1 text-sm sm:text-base">Nom du projet :</h3>
+                  <p className="text-muted-foreground text-sm sm:text-base">FasoMarket</p>
                 </div>
                 
                 <div>
-                  <h3 className="font-semibold mb-2">Siège social :</h3>
-                  <p className="text-muted-foreground">
-                    Secteur 15, Avenue Kwame Nkrumah<br />
-                    Ouagadougou, Burkina Faso
+                  <h3 className="font-semibold mb-1 text-sm sm:text-base">Statut :</h3>
+                  <p className="text-muted-foreground text-sm sm:text-base">
+                    Projet en développement
                   </p>
                 </div>
                 
                 <div>
-                  <h3 className="font-semibold mb-2">RCCM :</h3>
-                  <p className="text-muted-foreground">BF-OUA-2024-XXXXX</p>
+                  <h3 className="font-semibold mb-1 text-sm sm:text-base">Contact :</h3>
+                  <p className="text-muted-foreground text-sm sm:text-base">
+                    Email : contact@fasomarket.com<br />
+                    Localisation : Koudougou, Burkina Faso
+                  </p>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Hébergement - Information technique importante */}
+            <Card className="shadow-sm">
+              <CardHeader className="pb-3 sm:pb-4">
+                <CardTitle className="flex items-center text-lg sm:text-xl">
+                  <Gavel className="mr-2 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+                  <span>Hébergement</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div>
+                  <h3 className="font-semibold mb-2 text-sm sm:text-base">Hébergeur du site :</h3>
+                  <p className="text-muted-foreground text-sm sm:text-base leading-relaxed">
+                    Supabase Inc.<br />
+                    970 Toa Payoh North #07-04<br />
+                    Singapore 318992<br />
+                    <span className="inline-block mt-2">
+                      Site web : <a href="https://supabase.com" className="text-primary underline">supabase.com</a>
+                    </span>
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Propriété Intellectuelle - Simplifié */}
+            <Card className="shadow-sm">
+              <CardHeader className="pb-3 sm:pb-4">
+                <CardTitle className="flex items-center text-lg sm:text-xl">
+                  <FileText className="mr-2 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+                  <span>Propriété Intellectuelle</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 sm:space-y-4">
+                <p className="text-muted-foreground text-sm sm:text-base leading-relaxed">
+                  Le contenu de ce site (design, textes, logos, fonctionnalités) est protégé par le droit de la propriété intellectuelle.
+                </p>
+                
+                <p className="text-muted-foreground text-sm sm:text-base leading-relaxed">
+                  Toute reproduction ou utilisation non autorisée est interdite sans accord préalable.
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Responsabilité - Essentiel pour une marketplace */}
+            <Card className="shadow-sm">
+              <CardHeader className="pb-3 sm:pb-4">
+                <CardTitle className="flex items-center text-lg sm:text-xl">
+                  <Shield className="mr-2 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+                  <span>Limitation de Responsabilité</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 sm:space-y-4">
+                <p className="text-muted-foreground text-sm sm:text-base leading-relaxed">
+                  FasoMarket fonctionne comme une plateforme permettant aux utilisateurs de publier des annonces.
+                </p>
                 
                 <div>
-                  <h3 className="font-semibold mb-2">IFU :</h3>
-                  <p className="text-muted-foreground">00XXXXXXX</p>
-                </div>
-                
-                <div>
-                  <h3 className="font-semibold mb-2">Capital social :</h3>
-                  <p className="text-muted-foreground">5 000 000 FCFA</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Users className="mr-2 h-5 w-5" />
-                  Directeur de Publication
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  Directeur de la publication : [Nom du Directeur]<br />
-                  Qualité : Gérant de FasoMarket SARL
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Gavel className="mr-2 h-5 w-5" />
-                  Hébergement
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="font-semibold mb-2">Hébergeur du site :</h3>
-                    <p className="text-muted-foreground">
-                      Supabase Inc.<br />
-                      970 Toa Payoh North #07-04<br />
-                      Singapore 318992
-                    </p>
-                  </div>
-                  
-                  <div>
-                    <h3 className="font-semibold mb-2">Contact hébergeur :</h3>
-                    <p className="text-muted-foreground">
-                      Site web : https://supabase.com<br />
-                      Email : support@supabase.io
-                    </p>
+                  <h3 className="font-semibold mb-2 text-sm sm:text-base">Nous ne sommes pas responsables de :</h3>
+                  <div className="space-y-1 text-muted-foreground text-sm sm:text-base">
+                    <p>• La véracité des annonces publiées</p>
+                    <p>• Les transactions entre utilisateurs</p>
+                    <p>• La qualité des biens et services proposés</p>
+                    <p>• Les litiges entre acheteurs et vendeurs</p>
                   </div>
                 </div>
+                
+                <div className="bg-blue-50 dark:bg-blue-950/20 p-3 sm:p-4 rounded-lg mt-4">
+                  <p className="text-blue-800 dark:text-blue-200 text-sm leading-relaxed">
+                    <strong>À savoir :</strong> FasoMarket est une nouvelle plateforme qui développe continuellement ses services pour mieux servir la communauté burkinabè.
+                  </p>
+                </div>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <FileText className="mr-2 h-5 w-5" />
-                  Propriété Intellectuelle
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-muted-foreground">
-                  L'ensemble des contenus présents sur le site FasoMarket (textes, images, graphismes, logos, icônes, sons, logiciels) constitue une œuvre protégée par les lois en vigueur sur la propriété intellectuelle.
-                </p>
-                
-                <p className="text-muted-foreground">
-                  Toute reproduction, représentation, modification, publication, adaptation de tout ou partie des éléments du site, quel que soit le moyen ou le procédé utilisé, est interdite, sauf autorisation écrite préalable.
-                </p>
-                
-                <p className="text-muted-foreground">
-                  Toute exploitation non autorisée du site ou de l'un quelconque des éléments qu'il contient sera considérée comme constitutive d'une contrefaçon et poursuivie conformément aux dispositions des articles L.335-2 et suivants du Code de Propriété Intellectuelle burkinabè.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Responsabilité</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-muted-foreground">
-                  FasoMarket agit en qualité d'intermédiaire technique permettant aux utilisateurs de publier et consulter des annonces. La responsabilité de FasoMarket ne saurait être engagée pour :
-                </p>
-                
-                <ul className="list-disc list-inside text-muted-foreground space-y-2">
-                  <li>La véracité ou l'exactitude des informations contenues dans les annonces</li>
-                  <li>Les transactions effectuées entre utilisateurs</li>
-                  <li>La qualité, la conformité ou la disponibilité des biens et services proposés</li>
-                  <li>Les dommages directs ou indirects résultant de l'utilisation du site</li>
-                </ul>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Droit Applicable</CardTitle>
+            {/* Droit applicable - Simplifié */}
+            <Card className="shadow-sm">
+              <CardHeader className="pb-3 sm:pb-4">
+                <CardTitle className="text-lg sm:text-xl">Droit Applicable</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground">
-                  Les présentes mentions légales sont régies par le droit burkinabè. En cas de litige, et après échec de toute tentative de règlement amiable, les tribunaux de Ouagadougou seront seuls compétents.
+                <p className="text-muted-foreground text-sm sm:text-base leading-relaxed">
+                  Ces mentions légales sont régies par le droit burkinabè. 
+                  En cas de litige, les tribunaux de Ouagadougou seront compétents après tentative de règlement amiable.
                 </p>
               </CardContent>
             </Card>
+
+            {/* Mise à jour */}
+            <Card className="shadow-sm bg-muted/30">
+              <CardContent className="pt-4 sm:pt-6">
+                <p className="text-muted-foreground text-xs sm:text-sm text-center">
+                  Dernière mise à jour : Septembre 2025<br />
+                  Ces mentions évoluent avec le développement du projet.
+                </p>
+              </CardContent>
+            </Card>
+            
           </div>
         </div>
       </main>
