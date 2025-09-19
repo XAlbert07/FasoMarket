@@ -603,7 +603,7 @@ const MyListings = () => {
                                   <Button 
                                     variant="ghost" 
                                     size="icon"
-                                    className="bg-white/80 hover:bg-white h-7 w-7 backdrop-blur-sm"
+                                    className="bg-background hover:bg-accent h-7 w-7 border border-border shadow-sm"
                                     disabled={operationLoading === listing.id}
                                   >
                                     <MoreVertical className="h-3 w-3" />
@@ -681,7 +681,7 @@ const MyListings = () => {
                               <Button 
                                 variant="secondary" 
                                 size="sm" 
-                                className="bg-white/90 hover:bg-white h-8 w-8 p-0 md:h-9 md:w-9"
+                                className="bg-background hover:bg-accent h-7 w-7 border border-border shadow-sm"
                                 disabled={operationLoading === listing.id}
                               >
                                 <MoreVertical className="h-3 w-3 md:h-4 md:w-4" />

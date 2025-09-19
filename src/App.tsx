@@ -1,9 +1,12 @@
+//App.tsx avec ScrollToTop intégré
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import ScrollToTop from "./components/ScrollToTop"; // Import du nouveau composant
 import Index from "./pages/Index";
 import Listings from "./pages/Listings";
 // Import du nouveau composant intelligent au lieu de ListingDetail
@@ -33,8 +36,6 @@ import  SanctionsManagementPage  from '@/pages/admin/components/SanctionsManagem
 import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
 
-
-
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -45,6 +46,13 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
+          {/* 
+            COMPOSANT SCROLL-TO-TOP
+            Placé immédiatement après BrowserRouter pour pouvoir accéder aux hooks de routage
+            Il écoute tous les changements de route et repositionne automatiquement le scroll
+          */}
+          <ScrollToTop />
+          
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/listings" element={<Listings />} />
@@ -70,7 +78,6 @@ const App = () => (
                 </ProtectedRoute>
               } 
             />
-            
             
             <Route path="/publish" element={<PublishListing />} />
             <Route path="/login" element={<Login />} />

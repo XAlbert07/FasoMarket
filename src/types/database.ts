@@ -58,6 +58,251 @@ export interface Report {
   report_type: 'listing' | 'profile';
 }
 
+
+
+
+  // Interface pour les données brutes de recherche stockées en base
+  //Chaque recherche effectuée par un utilisateur est enregistrée ici
+ 
+export interface SearchAnalytics {
+  id: string;
+  // Données de la recherche
+  search_query: string; // Terme exact saisi par l'utilisateur
+  normalized_query: string; // Version normalisée pour l'analyse
+  location_query: string | null; // Lieu recherché (optionnel)
+  
+  // Métadonnées utilisateur
+  user_id: string | null; // Null pour les recherches anonymes
+  session_id: string | null; // ID de session pour tracer les recherches anonymes
+  user_agent: string | null; // Informations navigateur
+  ip_address: string | null; // Adresse IP pour les stats géographiques
+  
+  // Contexte de la recherche
+  source_page: string; // 'hero', 'header', 'listings', etc.
+  category_filter: string | null; // Catégorie sélectionnée
+  has_results: boolean; // Est-ce que la recherche a retourné des résultats
+  results_count: number; // Nombre de résultats trouvés
+  
+  // Comportement utilisateur
+  clicked_result: boolean; // L'utilisateur a-t-il cliqué sur un résultat
+  clicked_listing_id: string | null; // Quelle annonce a été cliquée
+  time_on_results: number | null; // Temps passé sur les résultats (secondes)
+  
+  // Horodatage
+  created_at: string;
+}
+
+/**
+ * Interface pour les données de recherches populaires
+ * Vue calculée basée sur les analytics de recherche
+ */
+export interface PopularSearch {
+  normalized_query: string; // Clé unique pour la recherche
+  display_query: string; // Version d'affichage (avec majuscules, etc.)
+  total_searches: number; // Nombre total de fois recherché
+  unique_users: number; // Nombre d'utilisateurs uniques
+  unique_sessions: number; // Nombre de sessions uniques
+  avg_results: number; // Nombre moyen de résultats
+  clicks: number; // Nombre de clics sur les résultats
+  popularity_score: number; // Score calculé de popularité
+  last_searched_at: string; // Dernière fois recherché
+  first_searched_at: string; // Première fois recherché
+}
+
+/**
+ * Interface pour les données à envoyer lors d'une nouvelle recherche
+ * Version simplifiée pour l'insertion
+ */
+export interface SearchTrackingData {
+  search_query: string;
+  location_query?: string;
+  user_id?: string;
+  session_id?: string;
+  source_page?: 'hero' | 'header' | 'listings' | 'category' | 'other';
+  category_filter?: string;
+  user_agent?: string;
+  // Les autres champs seront calculés automatiquement
+}
+
+/**
+ * Interface pour les résultats de recherche enrichis
+ * Utilisée quand on veut tracker les interactions avec les résultats
+ */
+export interface SearchResultsData {
+  analytics_id: string; // ID de l'entrée search_analytics correspondante
+  has_results: boolean;
+  results_count: number;
+  clicked_result?: boolean;
+  clicked_listing_id?: string;
+  time_on_results?: number;
+}
+
+// ========================================
+// TYPES POUR LES HOOKS ET COMPOSANTS
+// ========================================
+
+/**
+ * Type de retour du hook usePopularSearches
+ */
+export interface UsePopularSearchesReturn {
+  // Données principales
+  popularSearches: PopularSearch[];
+  loading: boolean;
+  error: string | null;
+  
+  // Métadonnées
+  lastUpdated: string | null;
+  totalSearches: number;
+  
+  // Actions
+  refreshPopularSearches: () => Promise<void>;
+  trackSearch: (data: SearchTrackingData) => Promise<void>;
+  updateSearchResults: (data: SearchResultsData) => Promise<void>;
+}
+
+/**
+ * Configuration pour l'affichage des recherches populaires
+ */
+export interface PopularSearchesConfig {
+  maxItems?: number; // Nombre max d'éléments à afficher (défaut: 5)
+  minSearches?: number; // Seuil minimum de recherches (défaut: 2)
+  excludeQueries?: string[]; // Termes à exclure de l'affichage
+  timeRange?: 'week' | 'month' | 'all'; // Période d'analyse
+  source?: 'hero' | 'all'; // Source des recherches à considérer
+}
+
+/**
+ * Statistiques de recherche pour l'admin dashboard
+ */
+export interface SearchStats {
+  totalSearches: number;
+  uniqueUsers: number;
+  topSearches: Array<{
+    query: string;
+    count: number;
+    trend: 'up' | 'down' | 'stable'; // Tendance par rapport à la période précédente
+  }>;
+  searchesWithResults: number;
+  searchesWithClicks: number;
+  avgResultsPerSearch: number;
+  conversionRate: number; // Pourcentage de recherches qui mènent à un clic
+  noResultsQueries: Array<{
+    query: string;
+    count: number;
+  }>; // Recherches qui ne donnent aucun résultat
+}
+
+// ========================================
+// TYPES EXISTANTS ÉTENDUS
+// ========================================
+
+// Extension de l'interface Database pour inclure les nouvelles tables
+export interface Database {
+  public: {
+    Tables: {
+      profiles: {
+        Row: Profile;
+        Insert: Omit<Profile, 'id' | 'created_at'> & { id?: string; created_at?: string };
+        Update: Partial<Omit<Profile, 'id'>>;
+      };
+      listings: {
+        Row: Listing;
+        Insert: Omit<Listing, 'id' | 'created_at' | 'updated_at'> & { id?: string; created_at?: string; updated_at?: string };
+        Update: Partial<Omit<Listing, 'id'>>;
+      };
+      search_analytics: {
+        Row: SearchAnalytics;
+        Insert: Omit<SearchAnalytics, 'id' | 'created_at'> & { id?: string; created_at?: string };
+        Update: Partial<Omit<SearchAnalytics, 'id' | 'created_at'>>;
+      };
+      // ... autres tables existantes (reports, etc.)
+    };
+    Views: {
+      popular_searches: {
+        Row: PopularSearch;
+      };
+    };
+  };
+}
+
+// ========================================
+// TYPES POUR LES FONCTIONS UTILITAIRES
+// ========================================
+
+/**
+ * Fonction pour normaliser une requête de recherche
+ * Supprime les accents, met en minuscules, etc.
+ */
+export type NormalizeSearchQuery = (query: string) => string;
+
+/**
+ * Fonction pour générer un ID de session
+ * Utilisé pour tracer les recherches d'utilisateurs anonymes
+ */
+export type GenerateSessionId = () => string;
+
+/**
+ * Options pour la fonction de tracking des recherches
+ */
+export interface TrackSearchOptions {
+  immediate?: boolean; // Envoyer immédiatement ou différer
+  includeMetadata?: boolean; // Inclure user-agent, IP, etc.
+  timeout?: number; // Timeout en ms pour l'envoi
+}
+
+// ========================================
+// CONSTANTES ET ÉNUMÉRATIONS
+// ========================================
+
+export const SEARCH_SOURCES = {
+  HERO: 'hero',
+  HEADER: 'header',
+  LISTINGS: 'listings',
+  CATEGORY: 'category',
+  OTHER: 'other'
+} as const;
+
+export const SEARCH_TIME_RANGES = {
+  WEEK: 'week',
+  MONTH: 'month',
+  ALL: 'all'
+} as const;
+
+// Types dérivés des constantes
+export type SearchSource = typeof SEARCH_SOURCES[keyof typeof SEARCH_SOURCES];
+export type SearchTimeRange = typeof SEARCH_TIME_RANGES[keyof typeof SEARCH_TIME_RANGES];
+
+// ========================================
+// TYPES POUR L'INTERFACE UTILISATEUR
+// ========================================
+
+/**
+ * Props pour le composant PopularSearches
+ */
+export interface PopularSearchesProps {
+  config?: PopularSearchesConfig;
+  onSearchClick?: (query: string) => void; // Callback quand on clique sur une recherche
+  className?: string;
+  variant?: 'hero' | 'sidebar' | 'modal'; // Différents styles d'affichage
+}
+
+/**
+ * Props pour le composant SearchTracker
+ * Composant invisible qui track les recherches
+ */
+export interface SearchTrackerProps {
+  enabled?: boolean; // Activer/désactiver le tracking
+  config?: TrackSearchOptions;
+}
+
+
+
+
+
+
+
+
+
 // ========================================
 // NOUVEAUX TYPES POUR LES ACTIONS ADMINISTRATIVES
 // ========================================
@@ -429,3 +674,28 @@ export interface Database {
     };
   };
 }
+
+
+// ========================================
+// TYPES GUARDS POUR LA SÉCURITÉ
+// ========================================
+
+export const isValidSearchSource = (source: string): source is SearchSource => {
+  return Object.values(SEARCH_SOURCES).includes(source as SearchSource);
+};
+
+export const isValidTimeRange = (range: string): range is SearchTimeRange => {
+  return Object.values(SEARCH_TIME_RANGES).includes(range as SearchTimeRange);
+};
+
+// Validation des données de tracking
+export const isValidSearchTrackingData = (data: any): data is SearchTrackingData => {
+  return (
+    typeof data === 'object' &&
+    typeof data.search_query === 'string' &&
+    data.search_query.trim().length > 0 &&
+    (data.location_query === undefined || typeof data.location_query === 'string') &&
+    (data.user_id === undefined || typeof data.user_id === 'string') &&
+    (data.source_page === undefined || isValidSearchSource(data.source_page))
+  );
+};

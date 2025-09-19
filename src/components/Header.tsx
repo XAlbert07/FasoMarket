@@ -7,6 +7,7 @@ import { useAuthContext } from "@/contexts/AuthContext"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useSearchTracking } from "@/hooks/usePopularSearches"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,6 +26,8 @@ export const Header = () => {
   
   // Récupération de l'état d'authentification
   const { user, profile, signOut, loading } = useAuthContext()
+  // Tracking de la recherche pour alimenter les analytics
+  const { trackSearch } = useSearchTracking()
 
   // Fermer les menus lors du changement de route
   useEffect(() => {
@@ -33,13 +36,27 @@ export const Header = () => {
   }, [location.pathname])
 
   // Fonction de recherche
-  const handleSearch = (e) => {
-    e.preventDefault()
-    if (searchQuery.trim()) {
-      navigate(`/listings?q=${encodeURIComponent(searchQuery.trim())}`)
-      setIsSearchOpen(false) // Fermer la recherche après soumission
+  const handleSearch = async (e) => {
+  e.preventDefault()
+  if (searchQuery.trim()) {
+    // Tracking de la recherche pour alimenter les analytics
+    try {
+      await trackSearch({
+        search_query: searchQuery.trim(),
+        location_query: undefined, // Pas de localisation dans le header
+        user_id: user?.id,
+        source_page: 'header', // Identifier que la recherche vient du header
+        category_filter: undefined
+      });
+    } catch (error) {
+      console.error('Erreur lors du tracking de la recherche depuis le header:', error);
+      // Le tracking ne doit jamais empêcher la recherche de fonctionner
     }
+
+    navigate(`/listings?q=${encodeURIComponent(searchQuery.trim())}`)
+    setIsSearchOpen(false) // Fermer la recherche après soumission
   }
+}
 
   // Gestion du clic sur "Publier" selon l'état de connexion
   const handlePublishClick = (e) => {
@@ -133,11 +150,11 @@ export const Header = () => {
                   onClick={() => setIsMenuOpen(!isMenuOpen)}
                 >
                   <Avatar className="h-7 w-7">
-                    <AvatarImage src={profile.avatar_url || ""} alt={profile.full_name || "User"} />
-                    <AvatarFallback className="text-xs bg-primary text-primary-foreground">
+                   <AvatarImage src={profile.avatar_url || ""} alt={profile.full_name || "User"} />
+                    <AvatarFallback className="text-xs bg-slate-100 text-slate-700 border border-slate-200">
                       {getUserInitials()}
-                    </AvatarFallback>
-                  </Avatar>
+                  </AvatarFallback>
+                 </Avatar>
                 </Button>
               ) : (
                 <Button variant="outline" size="sm" className="h-9 px-3 text-xs" asChild>
@@ -182,11 +199,11 @@ export const Header = () => {
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon">
                         <Avatar className="h-8 w-8">
-                          <AvatarImage src={profile.avatar_url || ""} alt={profile.full_name || "User"} />
-                          <AvatarFallback className="text-xs">
+                       <AvatarImage src={profile.avatar_url || ""} alt={profile.full_name || "User"} />
+                          <AvatarFallback className="text-xs bg-slate-100 text-slate-700 border border-slate-200">
                             {getUserInitials()}
-                          </AvatarFallback>
-                        </Avatar>
+                       </AvatarFallback>
+                       </Avatar>
                       </Button>
                     </DropdownMenuTrigger>
                     
@@ -336,11 +353,11 @@ export const Header = () => {
                 
                 <div className="flex items-center space-x-3">
                   <Avatar className="h-12 w-12">
-                    <AvatarImage src={profile.avatar_url || ""} alt={profile.full_name || "User"} />
-                    <AvatarFallback className="text-sm bg-primary text-primary-foreground">
-                      {getUserInitials()}
+                   <AvatarImage src={profile.avatar_url || ""} alt={profile.full_name || "User"} />
+                    <AvatarFallback className="text-sm bg-slate-100 text-slate-700 border border-slate-200">
+                     {getUserInitials()}
                     </AvatarFallback>
-                  </Avatar>
+                    </Avatar>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium leading-none mb-1">
                       {profile.full_name || "Utilisateur"}
