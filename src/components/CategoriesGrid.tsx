@@ -181,11 +181,11 @@ export const CategoriesGrid = () => {
                           {category.name}
                         </h3>
                         <p className="text-sm text-muted-foreground">
-                          {category.count} annonce{category.count !== 1 ? 's' : ''}
+                          {category.count} annonce{parseInt(category.count.replace(/\D/g, '')) !== 1 ? 's' : ''}
                         </p>
                       </div>
                       
-                      {/* Badge populaire mobile */}
+                      {/* Badge populaire mobile - CORRECTION: Comparaison numérique correcte */}
                       {category.listing_count > 100 && (
                         <div className="bg-primary text-primary-foreground text-xs px-2 py-1 rounded-full font-medium mr-2 flex-shrink-0">
                           Populaire
@@ -244,14 +244,14 @@ export const CategoriesGrid = () => {
                       </h3>
                       
                       <p className="text-sm text-muted-foreground">
-                        {category.count} annonce{category.count !== 1 ? 's' : ''}
+                        {category.count} annonce{parseInt(category.count.replace(/\D/g, '')) !== 1 ? 's' : ''}
                       </p>
                     </div>
 
                     {/* Effet de survol avec dégradé */}
                     <div className="absolute inset-0 bg-gradient-primary opacity-0 group-hover:opacity-5 transition-opacity duration-300 rounded-xl" />
                     
-                    {/* Badge pour les catégories populaires */}
+                    {/* Badge pour les catégories populaires - CORRECTION: Comparaison numérique correcte */}
                     {category.listing_count > 100 && (
                       <div className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-xs px-2 py-1 rounded-full font-medium">
                         Populaire

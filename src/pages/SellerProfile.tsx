@@ -1,6 +1,5 @@
 // pages/SellerProfile.tsx
-// Version mobile-first avec design professionnel et UX optimisée
-// Conçue pour une expérience parfaite sur smartphone
+// Version complète avec affichage des annonces et avis
 
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useState, useRef, useEffect } from "react";
@@ -41,15 +40,16 @@ import {
   ChevronUp,
   ExternalLink,
   TrendingUp,
-  Award
+  Award,
+  Clock
 } from "lucide-react";
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { formatRelativeTime, formatPrice } from "@/lib/utils";
+import { formatRelativeTime, formatPrice, formatViewsCount, isListingNew } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthContext } from "@/contexts/AuthContext";
 
-// Hooks spécialisés avec gestion d'erreur robuste
+// Hooks spécialisés
 import { useSellerProfile } from '@/hooks/useSellerProfile';
 import { useSellerListings } from '@/hooks/useSellerListings';
 import { useSellerReviews } from '@/hooks/useSellerReviews';
@@ -78,8 +78,12 @@ const SellerProfile = () => {
   
   const { 
     listings,
-    loading: listingsLoading,
-    error: listingsError
+    loading,
+    error,
+    isEmpty,
+    hasResults,
+    pagination,
+    nextPage
   } = useSellerListings(sellerId || '', { 
     status: 'active',
     limit: 12
@@ -89,7 +93,8 @@ const SellerProfile = () => {
     reviews,
     stats: reviewsStats,
     loading: reviewsLoading,
-    error: reviewsError
+    error: reviewsError,
+    isEmpty: reviewsIsEmpty
   } = useSellerReviews(sellerId || '', { 
     limit: 8
   });
@@ -111,8 +116,8 @@ const SellerProfile = () => {
   }, []);
 
   // Gestion des états avec fallbacks intelligents
-  const loading = profileLoading;
-  const error = profileError || (!profile && !profileLoading ? 'Profil introuvable' : null);
+  const mainLoading = profileLoading;
+  const mainError = profileError || (!profile && !profileLoading ? 'Profil introuvable' : null);
 
   // Fonction de contact améliorée avec options multiples
   const handleContact = () => {
@@ -125,6 +130,41 @@ const SellerProfile = () => {
       return;
     }
     setShowContactOptions(true);
+  };
+
+  // Fonction pour rediriger vers la conversation directe dans Messages.tsx
+  const handleDirectMessage = () => {
+    if (!user) {
+      toast({
+        title: "Connexion requise",
+        description: "Vous devez être connecté pour envoyer des messages privés.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!profile || !sellerId) {
+      toast({
+        title: "Erreur",
+        description: "Informations du vendeur non disponibles",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const messageUrl = `/messages?` + new URLSearchParams({
+      sellerId: sellerId,
+      sellerName: profile.full_name,
+      sellerAvatar: profile.avatar_url || '',
+      direct: 'true'
+    }).toString();
+
+    navigate(messageUrl);
+    
+    toast({
+      title: "Ouverture de la conversation",
+      description: `Redirection vers votre conversation avec ${profile.full_name}...`,
+    });
   };
 
   // Contact direct par téléphone
@@ -263,13 +303,12 @@ const SellerProfile = () => {
     return badges;
   };
 
-  // Skeleton mobile optimisé
-  if (loading) {
+  // États de chargement et d'erreur
+  if (mainLoading) {
     return (
       <div className="min-h-screen bg-slate-50">
         <Header />
         <main className="pb-4">
-          {/* Hero skeleton */}
           <div className="bg-white">
             <div className="container mx-auto px-3 py-6">
               <div className="animate-pulse space-y-4">
@@ -280,15 +319,10 @@ const SellerProfile = () => {
                     <div className="h-4 bg-slate-200 rounded w-1/2"></div>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <div className="h-10 bg-slate-200 rounded flex-1"></div>
-                  <div className="h-10 bg-slate-200 rounded flex-1"></div>
-                </div>
               </div>
             </div>
           </div>
           
-          {/* Stats skeleton */}
           <div className="container mx-auto px-3 py-4">
             <div className="grid grid-cols-2 gap-3">
               {[...Array(4)].map((_, i) => (
@@ -305,8 +339,7 @@ const SellerProfile = () => {
     );
   }
 
-  // Gestion d'erreur optimisée mobile
-  if (error || !profile) {
+  if (mainError || !profile) {
     return (
       <div className="min-h-screen bg-slate-50">
         <Header />
@@ -390,19 +423,17 @@ const SellerProfile = () => {
                   </AvatarFallback>
                 </Avatar>
                 
-                {/* Indicateur en ligne */}
-                {new Date().getTime() - new Date(profile.last_seen || profile.created_at).getTime() < 3600000 && (
+                {new Date().getTime() - new Date(profile.created_at).getTime() < 3600000 && (
                   <div className="absolute bottom-0 right-0 h-5 w-5 bg-green-500 rounded-full border-3 border-white"></div>
                 )}
               </div>
               
-              <div className="flex-1 min-w-0 space-y-2">
+              <div className="flex-1 min-w-0 space-y-3">
                 <div>
                   <h1 className="text-xl font-bold text-slate-900 truncate">
                     {profile.full_name}
                   </h1>
                   
-                  {/* Badges de confiance */}
                   {trustBadges.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1">
                       {trustBadges.map((badge, index) => (
@@ -418,11 +449,10 @@ const SellerProfile = () => {
                   )}
                 </div>
 
-                {/* Évaluation et localisation */}
-                <div className="space-y-1">
+                <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <div className="flex items-center gap-1">
-                      {renderStars(profile.average_rating, "h-3 w-3")}
+                      {renderStars(profile.average_rating, "h-4 w-4")}
                     </div>
                     <span className="text-sm font-semibold text-slate-700">
                       {profile.average_rating.toFixed(1)}
@@ -432,15 +462,15 @@ const SellerProfile = () => {
                     </span>
                   </div>
                   
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
                     {profile.city && (
                       <div className="flex items-center gap-1">
-                        <MapPin className="h-3 w-3" />
+                        <MapPin className="h-4 w-4" />
                         <span>{profile.city}</span>
                       </div>
                     )}
                     <div className="flex items-center gap-1">
-                      <Calendar className="h-3 w-3" />
+                      <Calendar className="h-4 w-4" />
                       <span>Depuis {new Date(profile.created_at).getFullYear()}</span>
                     </div>
                   </div>
@@ -448,35 +478,21 @@ const SellerProfile = () => {
               </div>
             </div>
 
-            {/* Boutons d'action mobile */}
-            <div className="flex gap-2">
-              <Button onClick={handleContact} className="flex-1 h-12">
-                <MessageCircle className="h-4 w-4 mr-2" />
-                Contacter
-              </Button>
-              
-              <Button variant="outline" className="flex-1 h-12">
-                <Mail className="h-4 w-4 mr-2" />
-                Message
-              </Button>
-            </div>
-
-            {/* Bio expandable */}
             {profile.bio && (
-              <div className="bg-white/70 backdrop-blur-sm p-4 rounded-xl">
+              <div className="bg-white/80 backdrop-blur-sm p-4 rounded-xl border border-white/50 shadow-sm">
                 <div className="text-sm text-slate-700 leading-relaxed">
-                  <p className={showFullBio ? "" : "line-clamp-2"}>
+                  <p className={showFullBio ? "" : "line-clamp-3"}>
                     {profile.bio}
                   </p>
-                  {profile.bio.length > 100 && (
+                  {profile.bio.length > 150 && (
                     <button
                       onClick={() => setShowFullBio(!showFullBio)}
-                      className="text-blue-600 text-xs mt-1 flex items-center gap-1 hover:text-blue-700 transition-colors"
+                      className="text-blue-600 text-xs mt-2 flex items-center gap-1 hover:text-blue-700 transition-colors font-medium"
                     >
                       {showFullBio ? (
                         <>Voir moins <ChevronUp className="h-3 w-3" /></>
                       ) : (
-                        <>Voir plus <ChevronDown className="h-3 w-3" /></>
+                        <>Lire la suite <ChevronDown className="h-3 w-3" /></>
                       )}
                     </button>
                   )}
@@ -487,7 +503,7 @@ const SellerProfile = () => {
         </div>
       </div>
 
-      {/* Statistiques en grille mobile - 3 colonnes seulement */}
+      {/* Statistiques en grille mobile - DONNÉES CORRIGÉES */}
       <div className="bg-white border-b">
         <div className="container mx-auto px-3 py-4">
           <div className="grid grid-cols-3 gap-3">
@@ -496,7 +512,9 @@ const SellerProfile = () => {
                 <div className="flex items-center justify-center mb-2">
                   <Package className="h-6 w-6 text-blue-600" />
                 </div>
-                <div className="text-2xl font-bold text-blue-900">{profile.active_listings}</div>
+                <div className="text-2xl font-bold text-blue-900">
+                  {listings?.length || 0}
+                </div>
                 <p className="text-xs text-blue-700">Annonces</p>
               </CardContent>
             </Card>
@@ -506,7 +524,9 @@ const SellerProfile = () => {
                 <div className="flex items-center justify-center mb-2">
                   <Star className="h-6 w-6 text-yellow-600" />
                 </div>
-                <div className="text-2xl font-bold text-yellow-900">{profile.average_rating.toFixed(1)}</div>
+                <div className="text-2xl font-bold text-yellow-900">
+                  {profile.average_rating ? profile.average_rating.toFixed(1) : '0.0'}
+                </div>
                 <p className="text-xs text-yellow-700">Note</p>
               </CardContent>
             </Card>
@@ -516,7 +536,9 @@ const SellerProfile = () => {
                 <div className="flex items-center justify-center mb-2">
                   <MessageCircle className="h-6 w-6 text-green-600" />
                 </div>
-                <div className="text-2xl font-bold text-green-900">{profile.total_reviews}</div>
+                <div className="text-2xl font-bold text-green-900">
+                  {reviews?.length || 0}
+                </div>
                 <p className="text-xs text-green-700">Avis</p>
               </CardContent>
             </Card>
@@ -525,7 +547,6 @@ const SellerProfile = () => {
       </div>
 
       <main className="container mx-auto px-3 py-4">
-        {/* Alerte pour nouveaux vendeurs */}
         {profile.total_reviews === 0 && (
           <Alert className="mb-4 border-amber-200 bg-amber-50">
             <Info className="h-4 w-4 text-amber-600" />
@@ -536,298 +557,529 @@ const SellerProfile = () => {
           </Alert>
         )}
 
-        {/* Navigation par onglets mobile-first */}
+        {/* Navigation par onglets */}
         <div className="sticky top-16 z-10 bg-slate-50 pb-2 mb-4">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="grid w-full grid-cols-2 h-12">
               <TabsTrigger value="listings" className="text-sm">
-                Annonces ({profile.active_listings})
+                Annonces ({listings?.length || 0})
               </TabsTrigger>
               <TabsTrigger value="reviews" className="text-sm">
-                Avis ({profile.total_reviews})
+                Avis ({reviews?.length || 0})
               </TabsTrigger>
             </TabsList>
 
-            {/* Section des annonces optimisée mobile - Layout horizontal */}
+            {/* Contenu des annonces - MOBILE-FIRST comme dans Listings.tsx */}
             <TabsContent value="listings" className="mt-4 space-y-3">
-              {listingsLoading ? (
-                <div className="space-y-3">
+              {loading ? (
+                <div className="space-y-3 md:grid md:grid-cols-2 md:gap-3 md:space-y-0">
                   {[...Array(4)].map((_, i) => (
-                    <Card key={i} className="overflow-hidden border-0 shadow-sm">
-                      <div className="flex">
-                        <div className="w-24 h-24 bg-slate-200 animate-pulse flex-shrink-0"></div>
+                    <div key={i} className="bg-white rounded-lg overflow-hidden border animate-pulse">
+                      {/* Mobile skeleton */}
+                      <div className="md:hidden flex">
+                        <div className="w-32 aspect-square bg-slate-200"></div>
                         <div className="flex-1 p-3 space-y-2">
-                          <div className="h-4 bg-slate-200 rounded animate-pulse"></div>
-                          <div className="h-5 bg-slate-200 rounded w-1/2 animate-pulse"></div>
-                          <div className="h-3 bg-slate-200 rounded w-3/4 animate-pulse"></div>
+                          <div className="h-4 bg-slate-200 rounded w-3/4"></div>
+                          <div className="h-4 bg-slate-200 rounded w-1/2"></div>
                         </div>
                       </div>
-                    </Card>
+                      {/* Desktop skeleton */}
+                      <div className="hidden md:block">
+                        <div className="aspect-square bg-slate-200"></div>
+                        <div className="p-3 space-y-2">
+                          <div className="h-4 bg-slate-200 rounded w-3/4"></div>
+                          <div className="h-4 bg-slate-200 rounded w-1/2"></div>
+                        </div>
+                      </div>
+                    </div>
                   ))}
                 </div>
-              ) : listingsError ? (
+              ) : error ? (
+                <Alert className="border-red-200 bg-red-50">
+                  <AlertTriangle className="h-4 w-4 text-red-600" />
+                  <AlertDescription className="text-red-700 text-sm">
+                    Impossible de charger les annonces: {error}
+                  </AlertDescription>
+                </Alert>
+              ) : isEmpty ? (
                 <Card className="border-0 shadow-sm">
-                  <CardContent className="pt-8 pb-8 text-center">
-                    <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-red-500" />
-                    <h3 className="font-semibold mb-2">Erreur de chargement</h3>
-                    <p className="text-muted-foreground text-sm">
-                      Impossible de charger les annonces.
-                    </p>
-                  </CardContent>
-                </Card>
-              ) : listings.length === 0 ? (
-                <Card className="border-0 shadow-sm">
-                  <CardContent className="pt-16 pb-16 text-center">
-                    <Package className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-                    <h3 className="text-lg font-semibold mb-2">Aucune annonce</h3>
-                    <p className="text-muted-foreground text-sm max-w-sm mx-auto">
-                      Ce vendeur n'a pas d'annonces actives pour le moment.
-                    </p>
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="space-y-3">
-                  {listings.map((listing) => {
-                    const isFavorite = favorites.some(fav => fav.listing_id === listing.id);
-                    
-                    return (
-                      <Link key={listing.id} to={`/listing/${listing.id}`}>
-                        <Card className="group overflow-hidden border-0 shadow-sm hover:shadow-md transition-all duration-300 active:scale-[0.98] touch-manipulation">
-                          <div className="flex">
-                            {/* Image de l'annonce - taille fixe pour cohérence */}
-                            <div className="relative w-24 h-24 flex-shrink-0">
-                              <img
-                                src={listing.images[0] || '/placeholder.svg'}
-                                alt={listing.title}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                loading="lazy"
-                              />
-                              
-                              {/* Badge de condition en overlay */}
-                              <Badge 
-                                className="absolute top-1 right-1 text-xs py-0 px-1" 
-                                variant={listing.condition === 'new' ? 'default' : 'secondary'}
-                              >
-                                {listing.condition === 'new' ? 'Neuf' : 'Occ.'}
-                              </Badge>
-                              
-                              {/* Bouton favori optimisé tactile - positionné en bas à gauche */}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="absolute bottom-1 left-1 bg-white/90 hover:bg-white w-6 h-6 p-0 rounded-full shadow-sm"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  handleFavoriteToggle(listing.id);
-                                }}
-                                disabled={favLoading}
-                              >
-                                {isFavorite ? (
-                                  <Heart className="h-3 w-3 text-red-500 fill-current" />
-                                ) : (
-                                  <HeartOff className="h-3 w-3" />
-                                )}
-                              </Button>
-                            </div>
-
-                            {/* Contenu de l'annonce - informations à droite */}
-                            <div className="flex-1 p-3 min-w-0">
-                              {/* Titre de l'annonce - ligne principale */}
-                              <h3 className="font-semibold text-sm line-clamp-2 text-slate-900 mb-1 leading-tight">
-                                {listing.title}
-                              </h3>
-                              
-                              {/* Prix - élément le plus important */}
-                              <div className="text-lg font-bold text-blue-600 mb-2">
-                                {formatPrice(listing.price, listing.currency)}
-                              </div>
-                              
-                              {/* Métadonnées - localisation et vues */}
-                              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                <div className="flex items-center gap-1 flex-1 min-w-0">
-                                  <MapPin className="h-3 w-3 flex-shrink-0" />
-                                  <span className="truncate">{listing.location}</span>
-                                </div>
-                                <div className="flex items-center gap-1 ml-2 flex-shrink-0">
-                                  <Eye className="h-3 w-3" />
-                                  <span>{listing.views_count || 0}</span>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Indicateur de clic - flèche subtile */}
-                            <div className="flex items-center pr-2">
-                              <div className="w-1 h-8 bg-gradient-to-b from-transparent via-blue-200 to-transparent rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                            </div>
-                          </div>
-                        </Card>
-                      </Link>
-                    );
-                  })}
-                  
-                  {/* Message de fin de liste si beaucoup d'annonces */}
-                  {listings.length >= 12 && (
-                    <div className="text-center py-4">
-                      <p className="text-sm text-muted-foreground">
-                        {listings.length} annonces affichées
+                  <CardContent className="pt-8 pb-8 text-center space-y-4">
+                    <div className="w-16 h-16 mx-auto bg-gradient-to-br from-slate-400 to-slate-600 rounded-full flex items-center justify-center">
+                      <Package className="w-8 h-8 text-white" />
+                    </div>
+                    <div className="space-y-2">
+                      <h3 className="text-lg font-semibold">Aucune annonce active</h3>
+                      <p className="text-muted-foreground text-sm">
+                        Ce vendeur n'a pas d'annonces actives pour le moment.
                       </p>
                     </div>
-                  )}
-                </div>
-              )}
-            </TabsContent>
-
-            {/* Section des avis optimisée mobile */}
-            <TabsContent value="reviews" className="mt-4 space-y-4">
-              {reviewsLoading ? (
-                <div className="space-y-4">
-                  {[...Array(3)].map((_, i) => (
-                    <Card key={i} className="border-0 shadow-sm">
-                      <CardContent className="p-4">
-                        <div className="flex items-start gap-3 mb-3">
-                          <div className="h-10 w-10 bg-slate-200 rounded-full animate-pulse"></div>
-                          <div className="flex-1 space-y-2">
-                            <div className="h-4 bg-slate-200 rounded w-32 animate-pulse"></div>
-                            <div className="h-3 bg-slate-200 rounded w-20 animate-pulse"></div>
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <div className="h-4 bg-slate-200 rounded animate-pulse"></div>
-                          <div className="h-4 bg-slate-200 rounded w-3/4 animate-pulse"></div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              ) : reviewsError ? (
-                <Card className="border-0 shadow-sm">
-                  <CardContent className="pt-8 pb-8 text-center">
-                    <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-red-500" />
-                    <h3 className="font-semibold mb-2">Erreur de chargement</h3>
-                    <p className="text-muted-foreground text-sm">
-                      Impossible de charger les avis.
-                    </p>
-                  </CardContent>
-                </Card>
-              ) : reviews.length === 0 ? (
-                <Card className="border-0 shadow-sm">
-                  <CardContent className="pt-16 pb-16 text-center">
-                    <Star className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-                    <h3 className="text-lg font-semibold mb-2">Aucun avis</h3>
-                    <p className="text-muted-foreground text-sm max-w-sm mx-auto">
-                      Ce vendeur n'a pas encore reçu d'évaluations. 
-                      Soyez le premier à laisser un avis après un achat.
-                    </p>
                   </CardContent>
                 </Card>
               ) : (
-                <div className="space-y-4">
-                  {reviews.map((review) => (
-                    <Card key={review.id} className="border-0 shadow-sm hover:shadow-md transition-shadow">
-                      <CardContent className="p-4">
-                        <div className="flex items-start gap-3 mb-3">
-                          <Avatar className="h-10 w-10 border-2 border-slate-200">
-                            <AvatarFallback className="bg-gradient-to-br from-blue-400 to-purple-500 text-white text-sm font-semibold">
-                              {review.reviewer_name?.charAt(0).toUpperCase() || 'A'}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-2 mb-1">
-                              <h4 className="font-semibold text-sm text-slate-900 truncate">
-                                {review.reviewer_name || 'Acheteur vérifié'}
-                              </h4>
-                              <span className="text-xs text-muted-foreground whitespace-nowrap">
-                                {formatDistanceToNow(new Date(review.created_at), {
-                                  addSuffix: false,
-                                  locale: fr
-                                }).replace('il y a ', '')}
-                              </span>
-                            </div>
-                            
-                            <div className="flex items-center gap-2 mb-2">
-                              <div className="flex items-center gap-0.5">
-                                {renderStars(review.rating, "h-3 w-3")}
+                <>
+                  {/* AFFICHAGE MOBILE : Liste horizontale comme dans Listings.tsx SANS nom du vendeur */}
+                  <div className="block md:hidden space-y-3">
+                    {listings.map((listing) => {
+                      const isFavorite = favorites.some(fav => fav.listing_id === listing.id);
+                      
+                      return (
+                        <Link
+                          key={listing.id}
+                          to={`/listing/${listing.id}`}
+                          className="group block bg-white border rounded-lg overflow-hidden hover:shadow-md transition-all duration-300 active:scale-[0.98]"
+                        >
+                          <div className="flex">
+                            {/* Image à gauche - 35% de la largeur */}
+                            <div className="relative w-32 flex-shrink-0">
+                              <div className="relative aspect-square overflow-hidden">
+                                {listing.images && listing.images.length > 0 ? (
+                                  <img
+                                    src={listing.images[0]}
+                                    alt={listing.title}
+                                    className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                    loading="lazy"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
+                                    <Package className="w-8 h-8 text-slate-400" />
+                                  </div>
+                                )}
+                                
+                                {/* Badge "Nouveau" */}
+                                {isListingNew(listing.created_at) && (
+                                  <div className="absolute top-1 left-1">
+                                    <Badge className="bg-white/90 text-slate-700 text-xs" variant="secondary">
+                                      Nouveau
+                                    </Badge>
+                                  </div>
+                                )}
+                                
+                                {/* Bouton favori */}
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleFavoriteToggle(listing.id);
+                                  }}
+                                  disabled={favLoading}
+                                  className="absolute top-1 right-1 w-7 h-7 bg-white/80 hover:bg-white text-muted-foreground hover:text-primary backdrop-blur-sm rounded-full flex items-center justify-center transition-colors"
+                                >
+                                  {isFavorite ? (
+                                    <Heart className="h-3 w-3 fill-red-500 text-red-500" />
+                                  ) : (
+                                    <HeartOff className="h-3 w-3" />
+                                  )}
+                                </button>
                               </div>
-                              {review.transaction_confirmed && (
-                                <Badge className="text-xs px-1.5 py-0 bg-green-100 text-green-700 border-green-200">
-                                  <CheckCircle className="h-2 w-2 mr-1" />
-                                  Vérifié
-                                </Badge>
+                            </div>
+
+                            {/* Contenu à droite - 65% de la largeur SANS nom du vendeur */}
+                            <div className="flex-1 p-3 flex flex-col justify-between min-h-32">
+                              <div className="flex-1">
+                                {/* Titre - 2 lignes max */}
+                                <h3 className="font-semibold text-sm leading-tight text-slate-900 mb-1 line-clamp-2 group-hover:text-primary transition-colors">
+                                  {listing.title}
+                                </h3>
+                                
+                                {/* Prix - plus visible */}
+                                <div className="text-lg font-bold text-primary mb-2">
+                                  {formatPrice(listing.price, listing.currency || 'XOF')}
+                                </div>
+
+                                {/* Catégorie */}
+                                {listing.category && (
+                                  <Badge variant="secondary" className="text-xs mb-2">
+                                    {listing.category}
+                                  </Badge>
+                                )}
+                              </div>
+
+                              <div className="space-y-1">
+                                {/* Localisation et date */}
+                                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                  <div className="flex items-center gap-1">
+                                    {listing.location && (
+                                      <>
+                                        <MapPin className="h-3 w-3 flex-shrink-0" />
+                                        <span className="truncate">{listing.location}</span>
+                                      </>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-1 flex-shrink-0">
+                                    <Clock className="h-3 w-3" />
+                                    <span>{formatRelativeTime(listing.created_at)}</span>
+                                  </div>
+                                </div>
+                                
+                                {/* Stats populaires */}
+                                {listing.views_count > 0 && (
+                                  <div className="flex items-center gap-3 pt-1">
+                                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                      <Eye className="w-3 h-3" />
+                                      <span>{formatViewsCount(listing.views_count)}</span>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </Link>
+                      );
+                    })}
+                  </div>
+
+                  {/* AFFICHAGE DESKTOP : Grid classique avec annonces cliquables */}
+                  <div className="hidden md:grid md:grid-cols-2 gap-3">
+                    {listings.map((listing) => {
+                      const isFavorite = favorites.some(fav => fav.listing_id === listing.id);
+                      
+                      return (
+                        <Link
+                          key={listing.id}
+                          to={`/listing/${listing.id}`}
+                          className="group block bg-white border rounded-xl overflow-hidden hover:shadow-lg transition-all duration-300 hover:scale-[1.02]"
+                        >
+                          <div className="relative">
+                            <div className="aspect-[4/3] overflow-hidden">
+                              {listing.images && listing.images.length > 0 ? (
+                                <img
+                                  src={listing.images[0]}
+                                  alt={listing.title}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                  loading="lazy"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
+                                  <Package className="w-8 h-8 text-slate-400" />
+                                </div>
                               )}
                             </div>
                             
-                            {review.comment && (
-                              <p className="text-sm text-slate-700 leading-relaxed mb-2">
-                                "{review.comment}"
-                              </p>
+                            {isListingNew(listing.created_at) && (
+                              <Badge 
+                                className="absolute top-3 left-3 text-xs bg-white/90 text-slate-700 backdrop-blur-sm"
+                                variant="secondary"
+                              >
+                                Nouveau
+                              </Badge>
                             )}
                             
-                            {review.listing_title && (
-                              <div className="text-xs text-muted-foreground bg-slate-50 px-2 py-1 rounded">
-                                <Package className="h-3 w-3 inline mr-1" />
-                                {review.listing_title}
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleFavoriteToggle(listing.id);
+                              }}
+                              disabled={favLoading}
+                              className="absolute top-3 right-3 w-8 h-8 bg-white/80 hover:bg-white text-muted-foreground hover:text-primary backdrop-blur-sm rounded-full flex items-center justify-center transition-colors"
+                            >
+                              {isFavorite ? (
+                                <Heart className="w-4 h-4 fill-red-500 text-red-500" />
+                              ) : (
+                                <HeartOff className="w-4 h-4" />
+                              )}
+                            </button>
+                            
+                            {/* Stats de vues */}
+                            {listing.views_count > 0 && (
+                              <div className="absolute bottom-3 left-3 flex items-center gap-1 bg-black/50 text-white px-2 py-1 rounded text-sm">
+                                <Eye className="h-3 w-3" />
+                                <span>{formatViewsCount(listing.views_count)}</span>
                               </div>
                             )}
                           </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+
+                          {/* Contenu de la carte desktop */}
+                          <div className="p-4">
+                            <h3 className="font-semibold text-lg text-slate-900 mb-2 line-clamp-2 group-hover:text-blue-600 transition-colors">
+                              {listing.title}
+                            </h3>
+                            
+                            {/* Prix et catégorie */}
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="text-2xl font-bold text-blue-600">
+                                {formatPrice(listing.price, listing.currency || 'XOF')}
+                              </div>
+                              {listing.category && (
+                                <Badge variant="secondary">{listing.category}</Badge>
+                              )}
+                            </div>
+
+                            {/* Localisation et temps */}
+                            <div className="flex items-center justify-between text-sm text-muted-foreground">
+                              <div className="flex items-center gap-1">
+                                {listing.location && (
+                                  <>
+                                    <MapPin className="h-3 w-3" />
+                                    <span className="truncate">{listing.location}</span>
+                                  </>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                <span>{formatRelativeTime(listing.created_at)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </Link>
+                      );
+                    })}
+                  </div>
                   
-                  {/* Bouton voir plus si nécessaire */}
-                  {reviewsStats && reviewsStats.totalReviews > reviews.length && (
-                    <Card className="border-dashed border-2 border-slate-200">
-                      <CardContent className="pt-6 pb-6 text-center">
-                        <p className="text-muted-foreground mb-3 text-sm">
-                          {reviewsStats.totalReviews - reviews.length} autres avis disponibles
-                        </p>
-                        <Button variant="outline" size="sm" className="w-full">
-                          <Award className="h-4 w-4 mr-2" />
-                          Voir tous les avis
-                        </Button>
-                      </CardContent>
-                    </Card>
+                  {hasResults && pagination.hasNextPage && (
+                    <div className="text-center pt-4">
+                      <Button
+                        onClick={nextPage}
+                        variant="outline"
+                        disabled={loading}
+                        className="w-full"
+                      >
+                        {loading ? 'Chargement...' : `Voir plus d'annonces (${pagination.total - listings.length} restantes)`}
+                        <ExternalLink className="w-4 h-4 ml-2" />
+                      </Button>
+                    </div>
                   )}
+                </>
+              )}
+            </TabsContent>
+
+            {/* Contenu des avis - VERSION MOBILE-FIRST SANS "0% achat vérifié" */}
+            <TabsContent value="reviews" className="mt-4 space-y-4">
+              {reviewsLoading ? (
+                <div className="space-y-3 md:space-y-4">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className="bg-white p-3 md:p-4 rounded-xl border animate-pulse">
+                      <div className="flex items-center gap-2 md:gap-3 mb-3">
+                        <div className="h-8 w-8 md:h-10 md:w-10 bg-slate-200 rounded-full"></div>
+                        <div className="flex-1 space-y-1 md:space-y-2">
+                          <div className="h-3 md:h-4 bg-slate-200 rounded w-1/4"></div>
+                          <div className="h-2 md:h-3 bg-slate-200 rounded w-1/3"></div>
+                        </div>
+                      </div>
+                      <div className="space-y-1 md:space-y-2">
+                        <div className="h-2 md:h-3 bg-slate-200 rounded w-full"></div>
+                        <div className="h-2 md:h-3 bg-slate-200 rounded w-2/3"></div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
+              ) : reviewsError ? (
+                <Alert className="border-red-200 bg-red-50">
+                  <AlertTriangle className="h-4 w-4 text-red-600" />
+                  <AlertDescription className="text-red-700 text-sm">
+                    Impossible de charger les avis: {reviewsError}
+                  </AlertDescription>
+                </Alert>
+              ) : reviewsIsEmpty ? (
+                <Card className="border-0 shadow-sm">
+                  <CardContent className="pt-6 pb-6 md:pt-8 md:pb-8 text-center space-y-3 md:space-y-4">
+                    <div className="w-12 h-12 md:w-16 md:h-16 mx-auto bg-gradient-to-br from-amber-400 to-amber-600 rounded-full flex items-center justify-center">
+                      <MessageCircle className="w-6 h-6 md:w-8 md:h-8 text-white" />
+                    </div>
+                    <div className="space-y-1 md:space-y-2">
+                      <h3 className="text-base md:text-lg font-semibold">Aucun avis pour le moment</h3>
+                      <p className="text-muted-foreground text-sm">
+                        Ce vendeur n'a pas encore reçu d'avis de la part d'acheteurs.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <>
+                  {/* Statistiques des avis - MOBILE-FIRST SANS pourcentage d'achats vérifiés */}
+                  {reviewsStats && reviewsStats.totalReviews > 0 && (
+                    <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-3 md:p-4 rounded-xl border border-blue-100 mb-4">
+                      <div className="text-center mb-3 md:mb-4">
+                        <div className="text-xl md:text-2xl font-bold text-blue-600">
+                          {reviewsStats.averageRating.toFixed(1)}
+                        </div>
+                        <div className="flex items-center justify-center gap-1 mb-1">
+                          {renderStars(reviewsStats.averageRating, "h-3 w-3 md:h-4 md:w-4")}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {reviewsStats.totalReviews} avis
+                        </p>
+                      </div>
+                      
+                      {/* Distribution des notes - MOBILE optimisée */}
+                      <div className="space-y-1">
+                        {[5, 4, 3, 2, 1].map((rating) => {
+                          const count = reviewsStats.ratingDistribution[rating as keyof typeof reviewsStats.ratingDistribution];
+                          const percentage = reviewsStats.totalReviews > 0 ? (count / reviewsStats.totalReviews) * 100 : 0;
+                          
+                          return (
+                            <div key={rating} className="flex items-center gap-2 text-xs">
+                              <span className="w-6 md:w-8 text-xs">{rating} ★</span>
+                              <div className="flex-1 bg-gray-200 rounded-full h-1.5 md:h-2">
+                                <div 
+                                  className="bg-yellow-400 h-1.5 md:h-2 rounded-full transition-all duration-500"
+                                  style={{ width: `${percentage}%` }}
+                                ></div>
+                              </div>
+                              <span className="w-6 md:w-8 text-right text-muted-foreground text-xs">{count}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Liste des avis - MOBILE-FIRST */}
+                  <div className="space-y-3">
+                    {reviews.map((review) => (
+                      <Card key={review.id} className="border-0 shadow-sm hover:shadow-md transition-shadow">
+                        <CardContent className="p-3 md:p-4 space-y-2 md:space-y-3">
+                          {/* En-tête de l'avis - MOBILE optimisé */}
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0">
+                              <Avatar className="h-8 w-8 md:h-10 md:w-10 flex-shrink-0">
+                                <AvatarImage 
+                                  src={review.reviewer_avatar} 
+                                  alt={review.reviewer_name}
+                                />
+                                <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white text-xs md:text-sm">
+                                  {review.reviewer_name.charAt(0).toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                              
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1 md:gap-2 flex-wrap">
+                                  <h4 className="font-medium text-sm truncate">
+                                    {review.reviewer_name}
+                                  </h4>
+                                  {review.is_verified_purchase && (
+                                    <Badge className="bg-green-100 text-green-700 border-green-200 text-xs">
+                                      <CheckCircle className="w-2 h-2 md:w-3 md:h-3 mr-1" />
+                                      Vérifié
+                                    </Badge>
+                                  )}
+                                </div>
+                                
+                                <div className="flex items-center gap-1 md:gap-2 mt-1">
+                                  <div className="flex items-center gap-0.5 md:gap-1">
+                                    {renderStars(review.rating, "h-2.5 w-2.5 md:h-3 md:w-3")}
+                                  </div>
+                                  <span className="text-xs text-muted-foreground">
+                                    {formatRelativeTime(review.created_at)}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Produit concerné - MOBILE optimisé */}
+                          <div className="bg-slate-50 p-2 md:p-3 rounded-lg">
+                            <p className="text-xs text-muted-foreground mb-1">Produit :</p>
+                            <p className="text-xs md:text-sm font-medium line-clamp-1">
+                              {review.listing_title}
+                            </p>
+                          </div>
+
+                          {/* Commentaire - MOBILE optimisé */}
+                          {review.comment && review.comment.trim() !== '' && (
+                            <div className="pt-1">
+                              <p className="text-sm text-slate-700 leading-relaxed">
+                                "{review.comment}"
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Réponse du vendeur - MOBILE optimisé */}
+                          {review.response && (
+                            <div className="bg-blue-50 border-l-4 border-blue-200 p-2 md:p-3 rounded-r-lg mt-2">
+                              <div className="flex items-center gap-1 md:gap-2 mb-1 md:mb-2">
+                                <Avatar className="h-4 w-4 md:h-6 md:w-6">
+                                  <AvatarImage src={profile.avatar_url} alt={profile.full_name} />
+                                  <AvatarFallback className="bg-blue-600 text-white text-xs">
+                                    {profile.full_name.charAt(0).toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <span className="text-xs font-medium text-blue-700">
+                                  Réponse du vendeur
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {formatRelativeTime(review.response.created_at)}
+                                </span>
+                              </div>
+                              <p className="text-xs md:text-sm text-blue-800">
+                                {review.response.message}
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Actions sur l'avis - MOBILE simplifié */}
+                          <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                            <div className="flex items-center gap-2">
+                              {review.helpful_votes > 0 && (
+                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <span>👍</span>
+                                  <span className="hidden md:inline">
+                                    {review.helpful_votes} personnes trouvent cet avis utile
+                                  </span>
+                                  <span className="md:hidden">
+                                    {review.helpful_votes} utile
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                            
+                            <button className="text-xs text-muted-foreground hover:text-slate-600 transition-colors">
+                              Signaler
+                            </button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+
+                  {/* Bouton "Voir plus d'avis" - MOBILE optimisé */}
+                  {reviewsStats && reviews.length < reviewsStats.totalReviews && (
+                    <div className="text-center pt-4">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          navigate(`/seller/${sellerId}/reviews`);
+                        }}
+                        className="w-full"
+                      >
+                        Voir tous les avis ({reviewsStats.totalReviews})
+                        <ExternalLink className="w-4 h-4 ml-2" />
+                      </Button>
+                    </div>
+                  )}
+                </>
               )}
             </TabsContent>
           </Tabs>
         </div>
       </main>
 
-      {/* MOBILE STICKY BOTTOM BAR - Actions principales */}
+      {/* STICKY BAR OPTIMISÉE avec redirection vers Messages.tsx */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-3 lg:hidden z-20 shadow-lg">
         <div className="flex gap-2">
           <Button 
             onClick={handleContact} 
-            className="flex-1 h-12 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
+            variant="outline"
+            className="flex-1 h-12 border-blue-200 text-blue-700 hover:bg-blue-50"
           >
-            <MessageCircle className="h-5 w-5 mr-2" />
+            <Phone className="h-5 w-5 mr-2" />
             Contacter
           </Button>
           
           <Button 
-            variant="outline" 
-            className="flex-1 h-12"
-            onClick={() => {
-              // Logique pour message privé
-              toast({
-                title: "Message privé",
-                description: "Fonctionnalité de message privé à implémenter"
-              });
-            }}
+            onClick={handleDirectMessage}
+            className="flex-1 h-12 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
           >
-            <Mail className="h-5 w-5 mr-2" />
+            <MessageCircle className="h-5 w-5 mr-2" />
             Message
           </Button>
         </div>
       </div>
 
-      {/* Padding bottom pour compenser la sticky bar */}
+      {/* Padding pour la sticky bar */}
       <div className="h-20 lg:hidden"></div>
 
-      {/* Modal de contact optimisé mobile */}
+      {/* Modals */}
       <Dialog open={showContactOptions} onOpenChange={setShowContactOptions}>
         <DialogContent className="mx-3 rounded-xl sm:mx-auto bottom-0 sm:bottom-auto translate-y-0 sm:translate-y-[-50%] animate-slide-up">
           <DialogHeader>
@@ -871,16 +1123,13 @@ const SellerProfile = () => {
                 className="w-full h-12 justify-start"
                 onClick={() => {
                   setShowContactOptions(false);
-                  toast({
-                    title: "Message privé",
-                    description: "Redirection vers la messagerie..."
-                  });
+                  handleDirectMessage();
                 }}
               >
                 <Mail className="h-5 w-5 mr-3" />
                 <div className="text-left">
                   <div className="font-medium">Message privé</div>
-                  <div className="text-xs text-muted-foreground">Via FasoMarket</div>
+                  <div className="text-xs text-muted-foreground">Chat direct</div>
                 </div>
               </Button>
             </div>
@@ -898,7 +1147,6 @@ const SellerProfile = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Modal de partage optimisé mobile */}
       <Dialog open={isShareModalOpen} onOpenChange={setIsShareModalOpen}>
         <DialogContent className="mx-3 rounded-xl sm:mx-auto">
           <DialogHeader>

@@ -18,6 +18,37 @@ export interface Profile {
   updated_at: string | null;
 }
 
+/*export interface Listing {
+  id: string;
+  title: string;
+  description: string;
+  price: number;
+  currency: string;
+  category_id: string;
+  user_id: string;
+  location: string;
+  condition: 'new' | 'used' | 'refurbished';
+  status: 'active' | 'sold' | 'expired' | 'suspended';
+  images: string[];
+  contact_phone: string | null;
+  contact_email: string | null;
+  contact_whatsapp: string | null;
+  featured: boolean;
+  views_count: number;
+  created_at: string;
+  updated_at: string;
+  expires_at: string | null;
+
+  suspension_type: 'temporary' | 'permanent' | null;
+  suspended_until: string | null;
+  suspension_reason: string | null;
+  categories: Category | null; // Relation avec la catégorie
+} */
+
+
+
+// Remplacez votre interface Listing existante par cette version complète
+
 export interface Listing {
   id: string;
   title: string;
@@ -38,7 +69,78 @@ export interface Listing {
   created_at: string;
   updated_at: string;
   expires_at: string | null;
+  
+  // ========================================
+  // PROPRIÉTÉS POUR LA GESTION DES SUSPENSIONS
+  // ========================================
+  suspension_type: 'admin' | 'user' | 'system' | null;
+  suspended_until: string | null;
+  suspension_reason: string | null;
+  suspended_by: string | null;
+  
+  // ========================================
+  // PROPRIÉTÉS RELATIONNELLES (JOINTURES) - CORRECTION PRINCIPALE
+  // ========================================
+  
+  /**
+   * Informations du profil utilisateur (propriétaire de l'annonce)
+   * Cette propriété est ajoutée par enrichissement dans les hooks
+   */
+  profiles?: {
+    id: string;
+    full_name: string | null;
+    phone: string | null;
+    email: string | null;
+    avatar_url: string | null;
+    bio: string | null;
+    location: string | null;
+  } | null;
+  
+  /**
+   * Informations de la catégorie (chargée via jointure ou enrichissement)
+   */
+  categories?: {
+    id: string;
+    name: string;
+    slug: string;
+    icon: string | null;
+    description: string | null;
+  } | null;
+  
+  /**
+   * Nom de la catégorie pour la compatibilité avec l'ancien code
+   * Ajouté par enrichissement ou par défaut
+   */
+  category?: string;
+  
+  // ========================================
+  // MÉTADONNÉES OPTIONNELLES
+  // ========================================
+  favorites_count?: number;
+  messages_count?: number;
+  is_favorited?: boolean;
+  popularity_score?: number;
 }
+
+
+
+
+
+
+
+export interface Category {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  icon: string | null;
+  parent_id: string | null;
+  created_at: string;
+}
+
+
+
+
 
 export interface Report {
   id: string;
@@ -432,6 +534,26 @@ export interface ReportStats {
   topReasons: Array<{ reason: string; count: number }>;
 }
 
+export interface DashboardStats {
+  totalUsers: number;
+  totalListings: number;
+  totalReports: number;
+  pendingReports: number;
+  activeSanctions: number;
+  weeklyGrowth: {
+    users: number;
+    listings: number;
+    reports: number;
+  };
+  systemHealth: {
+    responseTime: number;
+    resolutionRate: number;
+    uptime: number;
+  };
+}
+
+
+
 export interface AdminDashboardStats {
   totalUsers: number;
   totalListings: number;
@@ -527,14 +649,83 @@ export const SANCTION_TYPES = {
 } as const;
 
 
-// types/admin.ts (par exemple)
-export type SanctionsStats = {
-  totalSanctions: number;
-  activeSanctions: number;
-  resolvedSanctions: number;
+//  Interface SanctionsStats 
+// Cette interface unifie les propriétés utilisées dans le hook useAdminSanctions
+
+export interface SanctionsStats {
+  // Compteurs principaux des sanctions actives
+  totalActive: number;           // Nombre total de sanctions actives
+  userSanctions: number;         // Sanctions d'utilisateurs actives
+  listingSanctions: number;      // Sanctions d'annonces actives
+  
+  // Classification par durée
+  temporaryCount: number;        // Sanctions temporaires
+  permanentCount: number;        // Sanctions permanentes
+  
+  // Alertes et notifications
+  expiringSoon: number;          // Sanctions expirant dans 24h
+  expiredToday: number;          // Sanctions ayant expiré aujourd'hui
+  createdToday: number;          // Nouvelles sanctions créées aujourd'hui
+  
+  // Propriétés de compatibilité avec l'ancienne interface
+  // Ces propriétés maintiennent la compatibilité avec les composants existants
+  totalSanctions?: number;       // Alias pour totalActive
+  activeSanctions?: number;      // Alias pour totalActive
+  resolvedSanctions?: number;    // Sanctions résolues (révoquées + expirées)
+}
+
+// Interface étendue pour les statistiques détaillées (optionnelle)
+export interface DetailedSanctionsStats extends SanctionsStats {
+  // Statistiques par type de sanction
+  warningsCount: number;
+  suspensionsCount: number;
+  permanentBansCount: number;
+  
+  // Statistiques temporelles
+  thisWeekCount: number;
+  thisMonthCount: number;
+  averageDuration: number;       // En jours
+  
+  // Statistiques de résolution
+  revokedCount: number;
+  autoExpiredCount: number;
+  totalResolvedCount: number;
+  
+  // Ratios et métriques
+  resolutionRate: number;        // Pourcentage de sanctions résolues
+  escalationRate: number;        // Pourcentage devenant permanentes
+}
+
+// Fonction utilitaire pour créer des stats par défaut
+export const createDefaultSanctionsStats = (): SanctionsStats => ({
+  totalActive: 0,
+  userSanctions: 0,
+  listingSanctions: 0,
+  temporaryCount: 0,
+  permanentCount: 0,
+  expiringSoon: 0,
+  expiredToday: 0,
+  createdToday: 0,
+  // Propriétés de compatibilité
+  totalSanctions: 0,
+  activeSanctions: 0,
+  resolvedSanctions: 0
+});
+
+// Type guard pour vérifier la validité des stats
+export const isValidSanctionsStats = (stats: any): stats is SanctionsStats => {
+  return (
+    typeof stats === 'object' &&
+    typeof stats.totalActive === 'number' &&
+    typeof stats.userSanctions === 'number' &&
+    typeof stats.listingSanctions === 'number' &&
+    typeof stats.temporaryCount === 'number' &&
+    typeof stats.permanentCount === 'number' &&
+    typeof stats.expiringSoon === 'number' &&
+    typeof stats.expiredToday === 'number' &&
+    typeof stats.createdToday === 'number'
+  );
 };
-
-
 
 export type HealthIndicatorsProps = {
   dashboardStats: DashboardStats;
@@ -558,6 +749,7 @@ export const ACTION_TYPES = {
   WARN_USER: 'warn_user',
   REMOVE_LISTING: 'remove_listing',
   SUSPEND_LISTING: 'suspend_listing'
+  
 } as const;
 
 export const PRIORITY_LEVELS = {
@@ -643,7 +835,7 @@ export const isValidActionType = (action: string): action is ActionType => {
 // TYPES POUR LA BASE DE DONNÉES SUPABASE
 // ========================================
 
-export interface Database {
+/*export interface Database {
   public: {
     Tables: {
       profiles: {
@@ -673,7 +865,7 @@ export interface Database {
       };
     };
   };
-}
+} */
 
 
 // ========================================
@@ -699,3 +891,34 @@ export const isValidSearchTrackingData = (data: any): data is SearchTrackingData
     (data.source_page === undefined || isValidSearchSource(data.source_page))
   );
 };
+
+
+
+// Interface pour les filtres de recherche
+export interface SearchFilters {
+  query?: string;
+  category?: string;
+  location?: string;
+  condition?: 'new' | 'used' | 'refurbished';
+  priceMin?: number;
+  priceMax?: number;
+  sortBy?: 'date' | 'price_asc' | 'price_desc' | 'views';
+  userId?: string;
+}
+
+
+
+
+// Interface pour les favoris des utilisateurs
+export interface Favorite {
+  id: string;
+  user_id: string;
+  listing_id: string;
+  created_at: string;
+  
+  // Propriété relationnelle optionnelle
+  listing?: Listing | null;
+}
+
+
+

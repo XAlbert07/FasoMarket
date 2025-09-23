@@ -1,18 +1,41 @@
 // pages/admin/components/AlertsSection.tsx
+// Version mobile-first complètement refactorisée et synchronisée
+
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Package, Shield, Clock, Users, Activity, TrendingDown, Timer, Ban } from "lucide-react";
+import { 
+  AlertTriangle, 
+  Package, 
+  Shield, 
+  Timer, 
+  Activity, 
+  ChevronRight,
+  Users,
+  Ban,
+  Clock
+} from "lucide-react";
 
+// Interface simplifiée et focalisée sur les données essentielles
 interface AlertsSectionProps {
+  // Données principales synchronisées avec useAdminDashboard
   pendingReportsCount: number;
   needsReviewCount: number;
   suspendedUsersCount: number;
-  // Nouvelles props pour les sanctions
   sanctionsExpiringSoon?: number;
   activeSanctionsCount?: number;
+  urgentActionsCount?: number;
+  
+  // Actions fonctionnelles
+  onNavigateToReports?: () => void;
+  onNavigateToListings?: () => void;
+  onNavigateToUsers?: () => void;
   onNavigateToSanctions?: () => void;
+  onRefreshData?: () => void;
+  
+  // État de chargement pour synchronisation
+  isLoading?: boolean;
 }
 
 const AlertsSection: React.FC<AlertsSectionProps> = ({
@@ -21,333 +44,321 @@ const AlertsSection: React.FC<AlertsSectionProps> = ({
   suspendedUsersCount,
   sanctionsExpiringSoon = 0,
   activeSanctionsCount = 0,
-  onNavigateToSanctions
+  urgentActionsCount = 0,
+  onNavigateToReports,
+  onNavigateToListings,
+  onNavigateToUsers,
+  onNavigateToSanctions,
+  onRefreshData,
+  isLoading = false
 }) => {
-  // Configuration des alertes avec leurs niveaux de priorité - MISE À JOUR
-  const alerts = [
+  
+  // Configuration des alertes avec logique simplifiée et mobile-first
+  const alertsConfig = [
     {
       id: 'pending-reports',
-      title: 'Signalements en attente',
-      description: 'Signalements non traités nécessitant une attention immédiate',
+      title: 'Signalements',
       count: pendingReportsCount,
       icon: AlertTriangle,
-      priority: 'high',
-      color: 'border-red-200 bg-red-50',
-      iconColor: 'text-red-600',
-      badgeVariant: 'destructive' as const,
+      variant: 'critical' as const,
+      action: onNavigateToReports,
+      actionLabel: 'Traiter',
       show: pendingReportsCount > 0,
-      threshold: { warning: 3, critical: 10 },
-      action: 'Traiter les signalements'
+      description: `${pendingReportsCount} signalement${pendingReportsCount > 1 ? 's' : ''} en attente`
     },
     {
       id: 'needs-review',
-      title: 'Annonces à réviser',
-      description: 'Nouvelles annonces en attente de modération',
+      title: 'À réviser',
       count: needsReviewCount,
       icon: Package,
-      priority: 'medium',
-      color: 'border-orange-200 bg-orange-50',
-      iconColor: 'text-orange-600',
-      badgeVariant: 'secondary' as const,
+      variant: 'warning' as const,
+      action: onNavigateToListings,
+      actionLabel: 'Réviser',
       show: needsReviewCount > 0,
-      threshold: { warning: 5, critical: 20 },
-      action: 'Réviser les annonces'
+      description: `${needsReviewCount} annonce${needsReviewCount > 1 ? 's' : ''} à modérer`
     },
     {
       id: 'suspended-users',
-      title: 'Utilisateurs suspendus',
-      description: 'Comptes actuellement suspendus nécessitant un suivi',
+      title: 'Suspensions',
       count: suspendedUsersCount,
-      icon: Shield,
-      priority: 'medium',
-      color: 'border-yellow-200 bg-yellow-50',
-      iconColor: 'text-yellow-600',
-      badgeVariant: 'secondary' as const,
+      icon: Users,
+      variant: 'warning' as const,
+      action: onNavigateToUsers,
+      actionLabel: 'Gérer',
       show: suspendedUsersCount > 0,
-      threshold: { warning: 2, critical: 8 },
-      action: 'Gérer les suspensions'
+      description: `${suspendedUsersCount} utilisateur${suspendedUsersCount > 1 ? 's' : ''} suspendu${suspendedUsersCount > 1 ? 's' : ''}`
     },
-    // NOUVELLE alerte pour les sanctions expirant bientôt
     {
       id: 'sanctions-expiring',
-      title: 'Sanctions expirant bientôt',
-      description: 'Sanctions qui expirent dans les 24h - action requise',
+      title: 'Sanctions expirent',
       count: sanctionsExpiringSoon,
       icon: Timer,
-      priority: 'high',
-      color: 'border-orange-300 bg-orange-100',
-      iconColor: 'text-orange-700',
-      badgeVariant: 'destructive' as const,
+      variant: 'critical' as const,
+      action: onNavigateToSanctions,
+      actionLabel: 'Urgent',
       show: sanctionsExpiringSoon > 0,
-      threshold: { warning: 1, critical: 5 },
-      action: 'Gérer les sanctions'
+      description: `${sanctionsExpiringSoon} sanction${sanctionsExpiringSoon > 1 ? 's' : ''} expire${sanctionsExpiringSoon > 1 ? 'nt' : ''} bientôt`
     }
   ];
 
-  // Alertes système incluant les sanctions - MISE À JOUR
-  const systemAlerts = [
-    {
-      id: 'performance',
-      title: 'Performance dégradée détectée',
-      description: 'Temps de réponse API supérieur à la normale',
-      severity: 'warning',
-      timestamp: new Date(Date.now() - 15 * 60 * 1000),
-      resolved: false,
-      icon: TrendingDown
-    },
-    // NOUVELLE alerte système pour les sanctions actives
-    ...(activeSanctionsCount > 10 ? [{
-      id: 'high-sanctions',
-      title: 'Nombre élevé de sanctions actives',
-      description: `${activeSanctionsCount} sanctions en cours - surveillance recommandée`,
-      severity: 'warning' as const,
-      timestamp: new Date(Date.now() - 30 * 60 * 1000),
-      resolved: false,
-      icon: Ban
-    }] : [])
-  ];
+  // Filtrer les alertes visibles
+  const visibleAlerts = alertsConfig.filter(alert => alert.show);
+  const totalAlerts = visibleAlerts.reduce((sum, alert) => sum + alert.count, 0);
+  
+  // Calculer le niveau de criticité global
+  const criticalAlertsCount = visibleAlerts.filter(alert => alert.variant === 'critical').length;
+  const systemCriticality = criticalAlertsCount > 0 ? 'critical' : 
+                           visibleAlerts.length > 2 ? 'warning' : 'normal';
 
-  const getAlertUrgency = (alert: typeof alerts[0]) => {
-    if (alert.count >= alert.threshold.critical) return 'Critique';
-    if (alert.count >= alert.threshold.warning) return 'Attention';
-    return 'Normal';
-  };
-
-  const getUrgencyColor = (urgency: string) => {
-    switch (urgency) {
-      case 'Critique': return 'text-red-600';
-      case 'Attention': return 'text-orange-600';
-      default: return 'text-green-600';
+  // Fonction utilitaire pour obtenir les styles selon la variante
+  const getAlertStyles = (variant: 'critical' | 'warning') => {
+    if (variant === 'critical') {
+      return {
+        container: 'border-red-200 bg-red-50 hover:bg-red-100',
+        icon: 'text-red-600',
+        badge: 'bg-red-500 text-white',
+        button: 'bg-red-500 hover:bg-red-600 text-white'
+      };
     }
+    return {
+      container: 'border-orange-200 bg-orange-50 hover:bg-orange-100',
+      icon: 'text-orange-600',
+      badge: 'bg-orange-500 text-white',
+      button: 'bg-orange-500 hover:bg-orange-600 text-white'
+    };
   };
 
-  const visibleAlerts = alerts.filter(alert => alert.show);
-  const totalAlertCount = visibleAlerts.reduce((sum, alert) => sum + alert.count, 0);
-
-  // Si aucune alerte n'est visible, afficher un état sain
-  if (visibleAlerts.length === 0 && systemAlerts.filter(a => !a.resolved).length === 0) {
+  // État de système sain - Version mobile-first simplifiée
+  if (visibleAlerts.length === 0 && !isLoading) {
     return (
-      <Card className="mt-6 border-green-200 bg-green-50">
-        <CardHeader>
-          <CardTitle className="text-green-800 flex items-center">
-            <Activity className="h-5 w-5 mr-2" />
-            Système en bonne santé
-            <Badge variant="default" className="ml-2 bg-green-600">
-              Aucune alerte
-            </Badge>
-          </CardTitle>
-          <p className="text-sm text-green-700">
-            Toutes les métriques sont dans les normes - aucune action requise
-          </p>
-        </CardHeader>
-        {activeSanctionsCount > 0 && (
-          <CardContent>
-            <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-blue-700">
-                  <Shield className="h-4 w-4 inline mr-1" />
-                  {activeSanctionsCount} sanction(s) active(s) en surveillance normale
-                </p>
-                {onNavigateToSanctions && (
-                  <Button size="sm" variant="outline" onClick={onNavigateToSanctions}>
-                    Voir les sanctions
-                  </Button>
-                )}
+      <div className="w-full mt-4">
+        <Card className="border-green-200 bg-green-50">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
+                  <Activity className="h-4 w-4 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-medium text-green-800">Système opérationnel</h3>
+                  <p className="text-sm text-green-600">Aucune action requise</p>
+                </div>
               </div>
+              
+              {/* Info sanctions actives même quand système sain */}
+              {activeSanctionsCount > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onNavigateToSanctions}
+                  className="text-blue-600 border-blue-300 hover:bg-blue-50"
+                >
+                  <Shield className="h-4 w-4 mr-2" />
+                  {activeSanctionsCount} active{activeSanctionsCount > 1 ? 's' : ''}
+                </Button>
+              )}
             </div>
           </CardContent>
-        )}
-      </Card>
+        </Card>
+      </div>
     );
   }
 
+  // Interface principale des alertes - Design mobile-first
   return (
-    <Card className="mt-6 border-orange-200 bg-gradient-to-r from-orange-50 to-red-50">
-      <CardHeader>
-        <CardTitle className="text-orange-800 flex items-center justify-between">
-          <div className="flex items-center">
-            <AlertTriangle className="h-5 w-5 mr-2 animate-pulse" />
-            Centre d'alertes - Actions requises
-            <Badge variant="destructive" className="ml-2">
-              {totalAlertCount}
-            </Badge>
-          </div>
-          {/* NOUVEAU : Badge spécial pour sanctions critiques */}
-          {sanctionsExpiringSoon > 0 && (
-            <Badge className="bg-red-500 text-white animate-bounce">
-              {sanctionsExpiringSoon} sanction(s) expire(nt) bientôt !
-            </Badge>
-          )}
-        </CardTitle>
-        <p className="text-sm text-orange-700">
-          Éléments nécessitant une attention administrative immédiate
-        </p>
-      </CardHeader>
-      <CardContent>
-        {/* Alertes de contenu */}
-        {visibleAlerts.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
-            {visibleAlerts.map((alert) => {
-              const Icon = alert.icon;
-              const urgency = getAlertUrgency(alert);
-              const urgencyColor = getUrgencyColor(urgency);
+    <div className="w-full mt-4">
+      <Card className={`border-2 ${
+        systemCriticality === 'critical' ? 'border-red-300 bg-gradient-to-br from-red-50 to-orange-50' :
+        systemCriticality === 'warning' ? 'border-orange-300 bg-gradient-to-br from-orange-50 to-yellow-50' :
+        'border-gray-300 bg-gray-50'
+      }`}>
+        
+        {/* Header avec indicateur de criticité - Mobile optimisé */}
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                systemCriticality === 'critical' ? 'bg-red-500 animate-pulse' :
+                systemCriticality === 'warning' ? 'bg-orange-500' : 'bg-gray-500'
+              }`}>
+                <AlertTriangle className="h-4 w-4 text-white" />
+              </div>
               
-              return (
-                <div key={alert.id} className={`relative p-4 bg-white rounded-lg border-2 ${alert.color} hover:shadow-md transition-shadow`}>
-                  {/* Indicateur d'urgence critique */}
-                  {urgency === 'Critique' && (
-                    <div className="absolute -top-1 -right-1">
-                      <div className="w-3 h-3 bg-red-500 rounded-full animate-ping"></div>
-                      <div className="absolute top-0 w-3 h-3 bg-red-600 rounded-full"></div>
-                    </div>
-                  )}
-                  
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start space-x-3 flex-1">
-                      <div className={`p-2 rounded-lg ${alert.color}`}>
-                        <Icon className={`h-5 w-5 ${alert.iconColor}`} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-medium text-gray-900 truncate">{alert.title}</h3>
-                        <p className="text-sm text-gray-600 mt-1">{alert.description}</p>
-                        
-                        {/* Niveau d'urgence */}
-                        <div className="flex items-center justify-between mt-3">
-                          <span className={`text-xs font-medium ${urgencyColor}`}>
-                            {urgency}
-                          </span>
-                          <Badge variant={alert.badgeVariant}>
-                            {alert.count} {alert.count > 1 ? 'éléments' : 'élément'}
-                          </Badge>
-                        </div>
-                        
-                        {/* Barre de progression basée sur les seuils */}
-                        <div className="mt-2">
-                          <div className="w-full bg-gray-200 rounded-full h-1">
-                            <div 
-                              className={`h-1 rounded-full transition-all duration-300 ${
-                                urgency === 'Critique' ? 'bg-red-500' :
-                                urgency === 'Attention' ? 'bg-orange-500' : 'bg-green-500'
-                              }`}
-                              style={{ 
-                                width: `${Math.min((alert.count / alert.threshold.critical) * 100, 100)}%` 
-                              }}
-                            />
-                          </div>
-                        </div>
-                        
-                        {/* Bouton d'action - MISE À JOUR avec navigation vers sanctions */}
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          className="mt-3 w-full text-xs"
-                          onClick={alert.id === 'sanctions-expiring' && onNavigateToSanctions ? onNavigateToSanctions : undefined}
-                        >
-                          {alert.action}
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+              <div>
+                <CardTitle className={`text-lg ${
+                  systemCriticality === 'critical' ? 'text-red-800' :
+                  systemCriticality === 'warning' ? 'text-orange-800' : 'text-gray-800'
+                }`}>
+                  Centre d'alertes
+                </CardTitle>
+                <p className="text-sm text-gray-600 mt-1">
+                  {totalAlerts} élément{totalAlerts > 1 ? 's' : ''} nécessitent une attention
+                </p>
+              </div>
+            </div>
 
-        {/* Alertes système - MISE À JOUR */}
-        {systemAlerts.filter(a => !a.resolved).length > 0 && (
-          <div className="border-t pt-4">
-            <h4 className="font-medium text-gray-900 mb-3 flex items-center">
-              <Activity className="h-4 w-4 mr-2" />
-              Alertes système
-            </h4>
-            <div className="space-y-2">
-              {systemAlerts
-                .filter(alert => !alert.resolved)
-                .map((alert) => {
+            {/* Badge de criticité */}
+            <Badge className={`${
+              systemCriticality === 'critical' ? 'bg-red-500 animate-bounce' :
+              systemCriticality === 'warning' ? 'bg-orange-500' : 'bg-gray-500'
+            } text-white`}>
+              {totalAlerts}
+            </Badge>
+          </div>
+        </CardHeader>
+
+        <CardContent className="pt-0">
+          {isLoading ? (
+            // État de chargement mobile-friendly
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="animate-pulse">
+                  <div className="h-16 bg-gray-200 rounded-lg"></div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <>
+              {/* Liste des alertes - Stack vertical mobile-first */}
+              <div className="space-y-3 mb-4">
+                {visibleAlerts.map((alert) => {
                   const Icon = alert.icon;
-                  const timeAgo = Math.floor((Date.now() - alert.timestamp.getTime()) / (1000 * 60));
+                  const styles = getAlertStyles(alert.variant);
                   
                   return (
-                    <div key={alert.id} className="flex items-center justify-between p-3 bg-white rounded-lg border">
-                      <div className="flex items-center space-x-3">
-                        <Icon className={`h-4 w-4 ${
-                          alert.severity === 'critical' ? 'text-red-600' :
-                          alert.severity === 'warning' ? 'text-orange-600' : 'text-blue-600'
-                        }`} />
-                        <div>
-                          <p className="font-medium text-sm">{alert.title}</p>
-                          <p className="text-xs text-gray-500">{alert.description}</p>
+                    <div
+                      key={alert.id}
+                      className={`relative p-4 rounded-lg border-2 transition-all duration-200 ${styles.container}`}
+                    >
+                      {/* Indicateur de criticité pour alertes critiques */}
+                      {alert.variant === 'critical' && (
+                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-ping">
+                          <div className="absolute inset-0 w-3 h-3 bg-red-600 rounded-full"></div>
                         </div>
-                      </div>
-                      <div className="text-right">
-                        <Badge variant={
-                          alert.severity === 'critical' ? 'destructive' :
-                          alert.severity === 'warning' ? 'secondary' : 'default'
-                        }>
-                          {alert.severity}
-                        </Badge>
-                        <p className="text-xs text-gray-500 mt-1">
-                          <Clock className="h-3 w-3 inline mr-1" />
-                          Il y a {timeAgo}min
-                        </p>
+                      )}
+
+                      <div className="flex items-center justify-between">
+                        {/* Contenu principal */}
+                        <div className="flex items-center space-x-3 flex-1">
+                          <div className={`p-2 rounded-lg ${styles.container}`}>
+                            <Icon className={`h-5 w-5 ${styles.icon}`} />
+                          </div>
+                          
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-1">
+                              <h3 className="font-medium text-gray-900">{alert.title}</h3>
+                              <Badge className={styles.badge}>
+                                {alert.count}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-gray-600">{alert.description}</p>
+                          </div>
+                        </div>
+
+                        {/* Bouton d'action - Fonctionnel et responsive */}
+                        <div className="ml-3">
+                          <Button
+                            size="sm"
+                            onClick={alert.action}
+                            disabled={!alert.action}
+                            className={`${styles.button} min-w-[80px] justify-center`}
+                          >
+                            <span className="hidden sm:inline mr-2">{alert.actionLabel}</span>
+                            <ChevronRight className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   );
                 })}
-            </div>
-          </div>
-        )}
-
-        {/* Statistiques d'alertes - MISE À JOUR avec sanctions */}
-        <div className="mt-4 p-3 bg-white/50 rounded-lg">
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
-            <div>
-              <div className="text-lg font-bold text-red-600">{pendingReportsCount}</div>
-              <div className="text-xs text-gray-600">Signalements</div>
-            </div>
-            <div>
-              <div className="text-lg font-bold text-orange-600">{needsReviewCount}</div>
-              <div className="text-xs text-gray-600">Révisions</div>
-            </div>
-            <div>
-              <div className="text-lg font-bold text-yellow-600">{suspendedUsersCount}</div>
-              <div className="text-xs text-gray-600">Suspensions</div>
-            </div>
-            {/* NOUVELLE colonne pour sanctions */}
-            <div>
-              <div className="text-lg font-bold text-purple-600">{activeSanctionsCount}</div>
-              <div className="text-xs text-gray-600">Sanctions actives</div>
-            </div>
-            <div>
-              <div className="text-lg font-bold text-green-600">
-                {systemAlerts.filter(a => a.resolved).length}
               </div>
-              <div className="text-xs text-gray-600">Résolues</div>
-            </div>
-          </div>
-        </div>
 
-        {/* Actions globales - MISE À JOUR */}
-        <div className="mt-4 flex flex-wrap gap-2 justify-center">
-          <Button size="sm" variant="outline">
-            Traiter toutes les alertes
-          </Button>
-          {onNavigateToSanctions && activeSanctionsCount > 0 && (
-            <Button size="sm" variant="outline" onClick={onNavigateToSanctions}>
-              <Shield className="h-4 w-4 mr-1" />
-              Gérer les sanctions ({activeSanctionsCount})
-            </Button>
+              {/* Actions globales - Horizontal sur desktop, vertical sur mobile */}
+              <div className="border-t pt-4">
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                  {/* Action de rafraîchissement - Toujours disponible */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onRefreshData}
+                    disabled={isLoading}
+                    className="flex-1 sm:flex-none"
+                  >
+                    <Activity className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                    <span className="sm:inline">Actualiser</span>
+                  </Button>
+
+                  {/* Actions contextuelles selon les alertes présentes */}
+                  {pendingReportsCount > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={onNavigateToReports}
+                      className="flex-1 sm:flex-none text-red-700 border-red-300 hover:bg-red-50"
+                    >
+                      <AlertTriangle className="h-4 w-4 mr-2" />
+                      Signalements ({pendingReportsCount})
+                    </Button>
+                  )}
+
+                  {sanctionsExpiringSoon > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={onNavigateToSanctions}
+                      className="flex-1 sm:flex-none text-orange-700 border-orange-300 hover:bg-orange-50 animate-pulse"
+                    >
+                      <Timer className="h-4 w-4 mr-2" />
+                      Sanctions urgentes
+                    </Button>
+                  )}
+                </div>
+
+                {/* Résumé statistique compact - Mobile optimisé */}
+                {totalAlerts > 0 && (
+                  <div className="mt-3 p-3 bg-white/70 rounded-lg">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-sm">
+                      <div>
+                        <div className={`text-lg font-bold ${
+                          pendingReportsCount > 0 ? 'text-red-600' : 'text-gray-400'
+                        }`}>
+                          {pendingReportsCount}
+                        </div>
+                        <div className="text-xs text-gray-600">Signalements</div>
+                      </div>
+                      <div>
+                        <div className={`text-lg font-bold ${
+                          needsReviewCount > 0 ? 'text-orange-600' : 'text-gray-400'
+                        }`}>
+                          {needsReviewCount}
+                        </div>
+                        <div className="text-xs text-gray-600">À réviser</div>
+                      </div>
+                      <div>
+                        <div className={`text-lg font-bold ${
+                          suspendedUsersCount > 0 ? 'text-yellow-600' : 'text-gray-400'
+                        }`}>
+                          {suspendedUsersCount}
+                        </div>
+                        <div className="text-xs text-gray-600">Suspensions</div>
+                      </div>
+                      <div>
+                        <div className={`text-lg font-bold ${
+                          activeSanctionsCount > 0 ? 'text-purple-600' : 'text-gray-400'
+                        }`}>
+                          {activeSanctionsCount}
+                        </div>
+                        <div className="text-xs text-gray-600">Sanctions</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
           )}
-          <Button size="sm" variant="outline">
-            Exporter le rapport d'alertes
-          </Button>
-          <Button size="sm" variant="outline">
-            Configuration des seuils
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 

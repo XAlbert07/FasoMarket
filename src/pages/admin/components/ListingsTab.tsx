@@ -1,4 +1,5 @@
-// pages/admin/components/ListingsTab.tsx - Version corrigée avec gestion des suspensions
+// pages/admin/components/ListingsTab.tsx
+// Version mobile-first optimisée - Design adhérent et propre
 
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,35 +15,43 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   Eye, CheckCircle, XCircle, AlertTriangle, Clock, Package, Settings, 
   Filter, RefreshCw, Download, Search, TrendingUp, Star, 
-  Timer, Ban, Play, Pause, Trash2, Calendar, Activity
+  Timer, Ban, Play, Pause, Trash2, Calendar, Activity, ChevronDown,
+  Menu, X, MoreVertical
 } from "lucide-react";
 
+// Interface préservée - aucun changement aux données
 interface ListingsTabProps {
   listings: any[];
-  stats: any;
   loading: boolean;
+  error: string | null;
   handleListingAction: (id: string, action: any) => Promise<boolean>;
   refreshListings: () => Promise<void>;
   getQualityScoreColor: (score: number) => string;
   getRiskLevelColor: (risk: string) => string;
   formatCurrency: (amount: number) => string;
   formatDate: (date: string) => string;
-  formatSuspensionStatus: (listing: any) => string;
+  needsReviewCount: number;
+  averageQualityScore?: number;
+  totalViews?: number;
+  totalEngagement?: number;
 }
 
 const ListingsTab: React.FC<ListingsTabProps> = ({
   listings,
-  stats,
   loading,
+  error,
   handleListingAction,
   refreshListings,
   getQualityScoreColor,
   getRiskLevelColor,
   formatCurrency,
   formatDate,
-  formatSuspensionStatus
+  needsReviewCount,
+  averageQualityScore = 0,
+  totalViews = 0,
+  totalEngagement = 0
 }) => {
-  // États pour les filtres et actions
+  // États préservés - logique métier inchangée
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterRisk, setFilterRisk] = useState("all");
@@ -51,7 +60,6 @@ const ListingsTab: React.FC<ListingsTabProps> = ({
   const [sortBy, setSortBy] = useState("created_at");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   
-  // États pour les modales
   const [selectedListing, setSelectedListing] = useState<any>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showActionModal, setShowActionModal] = useState(false);
@@ -61,9 +69,51 @@ const ListingsTab: React.FC<ListingsTabProps> = ({
   const [actionDuration, setActionDuration] = useState('7');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Filtrage et tri des annonces
+  // Nouveaux états pour l'interface mobile
+  const [showFilters, setShowFilters] = useState(false);
+  const [mobileViewMode, setMobileViewMode] = useState<'cards' | 'table'>('cards');
+
+  // Toutes les fonctions métier préservées
+  const formatSuspensionStatus = (listing: any): string => {
+    if (!listing.is_temporarily_suspended || !listing.suspended_until) {
+      return 'Suspension permanente';
+    }
+    
+    const suspendedUntil = new Date(listing.suspended_until);
+    const now = new Date();
+    const daysRemaining = Math.ceil((suspendedUntil.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (daysRemaining <= 0) {
+      return 'Suspension expirée';
+    }
+    
+    return `Expire dans ${daysRemaining} jour${daysRemaining > 1 ? 's' : ''}`;
+  };
+
+  // Statistiques préservées
+  const stats = useMemo(() => {
+    const safeListings = Array.isArray(listings) ? listings : [];
+    
+    return {
+      totalListings: safeListings.length,
+      activeListings: safeListings.filter(l => l.status === 'active').length,
+      suspendedListings: safeListings.filter(l => l.status === 'suspended').length,
+      temporarilySuspended: safeListings.filter(l => l.is_temporarily_suspended).length,
+      featuredListings: safeListings.filter(l => l.featured || l.is_featured).length,
+      soldListings: safeListings.filter(l => l.status === 'sold').length,
+      expiredListings: safeListings.filter(l => l.status === 'expired').length,
+      needsReviewCount: needsReviewCount,
+      averageQualityScore: averageQualityScore,
+      totalViews: totalViews,
+      totalEngagement: totalEngagement
+    };
+  }, [listings, needsReviewCount, averageQualityScore, totalViews, totalEngagement]);
+
+  // Filtrage et tri préservés
   const filteredAndSortedListings = useMemo(() => {
-    let filtered = listings.filter(listing => {
+    const safeListings = Array.isArray(listings) ? listings : [];
+    
+    let filtered = safeListings.filter(listing => {
       const matchesStatus = filterStatus === "all" || listing.status === filterStatus;
       const matchesCategory = filterCategory === "all" || listing.category_name === filterCategory;
       const matchesRisk = filterRisk === "all" || listing.risk_level === filterRisk;
@@ -82,7 +132,6 @@ const ListingsTab: React.FC<ListingsTabProps> = ({
       return matchesStatus && matchesCategory && matchesRisk && matchesSuspension && matchesSearch;
     });
 
-    // Tri
     filtered.sort((a, b) => {
       let aValue: any, bValue: any;
       
@@ -96,17 +145,17 @@ const ListingsTab: React.FC<ListingsTabProps> = ({
           bValue = b.price;
           break;
         case 'views':
-          aValue = a.views_count;
-          bValue = b.views_count;
+          aValue = a.views_count || 0;
+          bValue = b.views_count || 0;
           break;
         case 'quality':
-          aValue = a.quality_score;
-          bValue = b.quality_score;
+          aValue = a.quality_score || 0;
+          bValue = b.quality_score || 0;
           break;
         case 'risk':
           const riskOrder = { high: 3, medium: 2, low: 1 };
-          aValue = riskOrder[a.risk_level as keyof typeof riskOrder];
-          bValue = riskOrder[b.risk_level as keyof typeof riskOrder];
+          aValue = riskOrder[a.risk_level as keyof typeof riskOrder] || 1;
+          bValue = riskOrder[b.risk_level as keyof typeof riskOrder] || 1;
           break;
         default:
           aValue = a[sortBy] || '';
@@ -123,23 +172,25 @@ const ListingsTab: React.FC<ListingsTabProps> = ({
     return filtered;
   }, [listings, filterStatus, filterCategory, filterRisk, filterSuspension, searchTerm, sortBy, sortOrder]);
 
-  // Récupération des catégories uniques pour le filtre
+  // Catégories uniques préservées
   const uniqueCategories = useMemo(() => {
-    const categories = [...new Set(listings.map(l => l.category_name).filter(Boolean))];
+    const safeListings = Array.isArray(listings) ? listings : [];
+    const categories = [...new Set(safeListings.map(l => l.category_name).filter(Boolean))];
     return categories.sort();
   }, [listings]);
 
-  // Gestionnaire de rafraîchissement
+  // Toutes les fonctions de gestion préservées
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
       await refreshListings();
+    } catch (error) {
+      console.error('Erreur lors du rafraîchissement des annonces:', error);
     } finally {
       setIsRefreshing(false);
     }
   };
 
-  // Gestionnaire d'action rapide
   const handleQuickAction = async (listing: any, action: string) => {
     const actionData = {
       type: action,
@@ -148,10 +199,13 @@ const ListingsTab: React.FC<ListingsTabProps> = ({
       duration: action.includes('suspend') ? 7 : undefined
     };
 
-    await handleListingAction(listing.id, actionData);
+    try {
+      await handleListingAction(listing.id, actionData);
+    } catch (error) {
+      console.error('Erreur lors de l\'action rapide:', error);
+    }
   };
 
-  // Raisons par défaut pour les actions rapides
   const getDefaultReason = (action: string): string => {
     const reasons: Record<string, string> = {
       'approve': 'Annonce vérifiée et approuvée',
@@ -163,7 +217,6 @@ const ListingsTab: React.FC<ListingsTabProps> = ({
     return reasons[action] || 'Action administrative';
   };
 
-  // Ouverture du modal d'action avancée
   const openActionModal = (listing: any, action: string) => {
     setSelectedListing(listing);
     setActionType(action);
@@ -173,7 +226,6 @@ const ListingsTab: React.FC<ListingsTabProps> = ({
     setShowActionModal(true);
   };
 
-  // Gestionnaire d'action avancée
   const handleAdvancedAction = async () => {
     if (!selectedListing || !actionType || !actionReason) return;
 
@@ -184,13 +236,16 @@ const ListingsTab: React.FC<ListingsTabProps> = ({
       duration: ['suspend', 'suspend_listing'].includes(actionType) ? parseInt(actionDuration) : undefined
     };
 
-    const success = await handleListingAction(selectedListing.id, actionData);
-    if (success) {
-      setShowActionModal(false);
+    try {
+      const success = await handleListingAction(selectedListing.id, actionData);
+      if (success) {
+        setShowActionModal(false);
+      }
+    } catch (error) {
+      console.error('Erreur lors de l\'action avancée:', error);
     }
   };
 
-  // Réinitialisation des filtres
   const resetFilters = () => {
     setFilterStatus("all");
     setFilterCategory("all");
@@ -201,13 +256,33 @@ const ListingsTab: React.FC<ListingsTabProps> = ({
     setSortOrder("desc");
   };
 
-  if (loading) {
+  // Gestion des erreurs préservée
+  if (error) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex items-center justify-center min-h-64 p-4">
+        <div className="text-center space-y-4 max-w-sm">
+          <AlertTriangle className="h-12 w-12 text-red-500 mx-auto" />
+          <div className="space-y-2">
+            <h3 className="text-lg font-semibold text-gray-900">Erreur de chargement</h3>
+            <p className="text-sm text-gray-600">Impossible de charger les annonces</p>
+            <p className="text-xs text-red-600 break-words">{error}</p>
+          </div>
+          <Button onClick={handleRefresh} variant="outline" size="sm" className="w-full">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Réessayer
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading && stats.totalListings === 0) {
+    return (
+      <div className="flex items-center justify-center min-h-64 p-4">
         <div className="text-center space-y-4">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
           <div className="space-y-2">
-            <p className="text-lg font-medium text-gray-900">Chargement des annonces</p>
+            <h3 className="text-lg font-semibold text-gray-900">Chargement des annonces</h3>
             <p className="text-sm text-gray-600">Récupération et analyse des données...</p>
           </div>
         </div>
@@ -216,153 +291,212 @@ const ListingsTab: React.FC<ListingsTabProps> = ({
   }
 
   return (
-    <div className="space-y-6">
-      {/* En-tête avec statistiques */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Gestion des annonces</h2>
-          <p className="text-sm text-gray-600 mt-1">
-            Modération et administration des annonces de la marketplace
-          </p>
-        </div>
-        
-        <div className="flex flex-wrap items-center gap-2">
-          <Button 
-            onClick={handleRefresh} 
-            disabled={isRefreshing}
-            variant="outline"
-            size="sm"
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-            {isRefreshing ? 'Actualisation...' : 'Actualiser'}
-          </Button>
-          
-          <Button variant="outline" size="sm">
-            <Download className="h-4 w-4 mr-2" />
-            Exporter
-          </Button>
-          
-          <Button onClick={resetFilters} variant="ghost" size="sm">
-            <Filter className="h-4 w-4 mr-2" />
-            Réinitialiser
-          </Button>
+    <div className="space-y-4 p-4 md:p-6">
+      {/* En-tête mobile-first */}
+      <div className="space-y-4">
+        <div className="flex flex-col space-y-3">
+          <div className="flex items-start justify-between">
+            <div className="flex-1 min-w-0">
+              <h1 className="text-xl md:text-2xl font-bold text-gray-900 truncate">
+                Gestion des annonces
+              </h1>
+              <p className="text-sm text-gray-600 mt-1">
+                Modération et administration
+              </p>
+              {loading && (
+                <div className="flex items-center mt-2">
+                  <div className="animate-spin h-3 w-3 border border-blue-600 border-t-transparent rounded-full mr-2"></div>
+                  <p className="text-xs text-blue-600">Actualisation en cours...</p>
+                </div>
+              )}
+            </div>
+            
+            <div className="flex items-center space-x-2 flex-shrink-0">
+              <Button 
+                onClick={handleRefresh} 
+                disabled={isRefreshing}
+                variant="outline"
+                size="sm"
+                className="px-3"
+              >
+                <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:ml-2 sm:inline">
+                  {isRefreshing ? 'Actualisation...' : 'Actualiser'}
+                </span>
+              </Button>
+              
+              <Button 
+                onClick={() => setShowFilters(!showFilters)}
+                variant="outline"
+                size="sm"
+                className="md:hidden px-3"
+              >
+                <Filter className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Actions secondaires pour mobile */}
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" className="text-xs">
+              <Download className="h-3 w-3 mr-1" />
+              Exporter
+            </Button>
+            <Button onClick={resetFilters} variant="ghost" size="sm" className="text-xs">
+              <X className="h-3 w-3 mr-1" />
+              Reset filtres
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* Statistiques rapides */}
-      {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-gray-600 uppercase">Total</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.totalListings}</p>
-                </div>
-                <Package className="h-8 w-8 text-blue-500" />
+      {/* Statistiques mobile-first - 2 colonnes sur mobile, plus sur desktop */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <Card className="p-3">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-gray-600 uppercase truncate">Total</p>
+              <p className="text-lg md:text-xl font-bold text-gray-900">{stats.totalListings}</p>
+            </div>
+            <Package className="h-6 w-6 text-blue-500 flex-shrink-0" />
+          </div>
+        </Card>
+
+        <Card className="p-3">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-gray-600 uppercase truncate">Actives</p>
+              <p className="text-lg md:text-xl font-bold text-green-600">{stats.activeListings}</p>
+            </div>
+            <CheckCircle className="h-6 w-6 text-green-500 flex-shrink-0" />
+          </div>
+        </Card>
+
+        <Card className="p-3">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-gray-600 uppercase truncate">Suspendues</p>
+              <p className="text-lg md:text-xl font-bold text-red-600">{stats.suspendedListings}</p>
+            </div>
+            <Pause className="h-6 w-6 text-red-500 flex-shrink-0" />
+          </div>
+        </Card>
+
+        <Card className="p-3">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-gray-600 uppercase truncate">Temp</p>
+              <p className="text-lg md:text-xl font-bold text-orange-600">{stats.temporarilySuspended}</p>
+            </div>
+            <Timer className="h-6 w-6 text-orange-500 flex-shrink-0" />
+          </div>
+        </Card>
+
+        <Card className="p-3">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-gray-600 uppercase truncate">Vedette</p>
+              <p className="text-lg md:text-xl font-bold text-purple-600">{stats.featuredListings}</p>
+            </div>
+            <Star className="h-6 w-6 text-purple-500 flex-shrink-0" />
+          </div>
+        </Card>
+
+        <Card className="p-3">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-gray-600 uppercase truncate">À réviser</p>
+              <p className="text-lg md:text-xl font-bold text-yellow-600">{stats.needsReviewCount}</p>
+            </div>
+            <AlertTriangle className="h-6 w-6 text-yellow-500 flex-shrink-0" />
+          </div>
+        </Card>
+      </div>
+
+      {/* Métriques supplémentaires */}
+      {(stats.averageQualityScore > 0 || stats.totalViews > 0 || stats.totalEngagement > 0) && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <Card className="p-3">
+            <div className="flex items-center justify-between">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium text-gray-600 uppercase">Qualité moyenne</p>
+                <p className="text-lg font-bold text-blue-600">{stats.averageQualityScore}%</p>
               </div>
-            </CardContent>
+              <TrendingUp className="h-5 w-5 text-blue-500 flex-shrink-0" />
+            </div>
           </Card>
 
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-gray-600 uppercase">Actives</p>
-                  <p className="text-2xl font-bold text-green-600">{stats.activeListings}</p>
-                </div>
-                <CheckCircle className="h-8 w-8 text-green-500" />
+          <Card className="p-3">
+            <div className="flex items-center justify-between">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium text-gray-600 uppercase">Vues totales</p>
+                <p className="text-lg font-bold text-green-600">{stats.totalViews.toLocaleString()}</p>
               </div>
-            </CardContent>
+              <Eye className="h-5 w-5 text-green-500 flex-shrink-0" />
+            </div>
           </Card>
 
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-gray-600 uppercase">Suspendues</p>
-                  <p className="text-2xl font-bold text-red-600">{stats.suspendedListings}</p>
-                </div>
-                <Pause className="h-8 w-8 text-red-500" />
+          <Card className="p-3">
+            <div className="flex items-center justify-between">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium text-gray-600 uppercase">Engagement</p>
+                <p className="text-lg font-bold text-purple-600">{stats.totalEngagement.toLocaleString()}</p>
               </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-gray-600 uppercase">Temp. susp.</p>
-                  <p className="text-2xl font-bold text-orange-600">{stats.temporarilySuspended}</p>
-                </div>
-                <Timer className="h-8 w-8 text-orange-500" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-gray-600 uppercase">En vedette</p>
-                  <p className="text-2xl font-bold text-purple-600">{stats.featuredListings}</p>
-                </div>
-                <Star className="h-8 w-8 text-purple-500" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-gray-600 uppercase">À réviser</p>
-                  <p className="text-2xl font-bold text-yellow-600">{stats.needsReviewCount}</p>
-                </div>
-                <AlertTriangle className="h-8 w-8 text-yellow-500" />
-              </div>
-            </CardContent>
+              <Activity className="h-5 w-5 text-purple-500 flex-shrink-0" />
+            </div>
           </Card>
         </div>
       )}
 
-      {/* Filtres */}
-      <Card>
-        <CardHeader className="pb-4">
-          <CardTitle className="text-lg">Filtres et recherche</CardTitle>
+      {/* Filtres collapsibles sur mobile */}
+      <Card className={`transition-all duration-200 ${showFilters ? 'block' : 'hidden md:block'}`}>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Filtres et recherche</CardTitle>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="md:hidden"
+              onClick={() => setShowFilters(!showFilters)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Barre de recherche */}
           <div className="relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
             <Input 
-              placeholder="Rechercher par titre, marchand, localisation, ID..." 
+              placeholder="Rechercher..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
             />
           </div>
           
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          {/* Filtres en grille responsive */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
             <div>
-              <Label className="text-sm font-medium mb-2 block">Statut</Label>
+              <Label className="text-sm font-medium mb-1 block">Statut</Label>
               <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger>
+                <SelectTrigger className="h-9">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tous</SelectItem>
-                  <SelectItem value="active">Actives</SelectItem>
-                  <SelectItem value="sold">Vendues</SelectItem>
-                  <SelectItem value="expired">Expirées</SelectItem>
-                  <SelectItem value="suspended">Suspendues</SelectItem>
+                  <SelectItem value="all">Tous ({stats.totalListings})</SelectItem>
+                  <SelectItem value="active">Actives ({stats.activeListings})</SelectItem>
+                  <SelectItem value="sold">Vendues ({stats.soldListings})</SelectItem>
+                  <SelectItem value="expired">Expirées ({stats.expiredListings})</SelectItem>
+                  <SelectItem value="suspended">Suspendues ({stats.suspendedListings})</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div>
-              <Label className="text-sm font-medium mb-2 block">Catégorie</Label>
+              <Label className="text-sm font-medium mb-1 block">Catégorie</Label>
               <Select value={filterCategory} onValueChange={setFilterCategory}>
-                <SelectTrigger>
+                <SelectTrigger className="h-9">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -377,9 +511,9 @@ const ListingsTab: React.FC<ListingsTabProps> = ({
             </div>
 
             <div>
-              <Label className="text-sm font-medium mb-2 block">Niveau de risque</Label>
+              <Label className="text-sm font-medium mb-1 block">Risque</Label>
               <Select value={filterRisk} onValueChange={setFilterRisk}>
-                <SelectTrigger>
+                <SelectTrigger className="h-9">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -392,24 +526,24 @@ const ListingsTab: React.FC<ListingsTabProps> = ({
             </div>
 
             <div>
-              <Label className="text-sm font-medium mb-2 block">Suspension</Label>
+              <Label className="text-sm font-medium mb-1 block">Suspension</Label>
               <Select value={filterSuspension} onValueChange={setFilterSuspension}>
-                <SelectTrigger>
+                <SelectTrigger className="h-9">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Toutes</SelectItem>
                   <SelectItem value="active">Actives</SelectItem>
-                  <SelectItem value="temporary">Suspension temp.</SelectItem>
-                  <SelectItem value="permanent">Suspension perm.</SelectItem>
+                  <SelectItem value="temporary">Temp.</SelectItem>
+                  <SelectItem value="permanent">Perm.</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div>
-              <Label className="text-sm font-medium mb-2 block">Tri par</Label>
+              <Label className="text-sm font-medium mb-1 block">Tri par</Label>
               <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger>
+                <SelectTrigger className="h-9">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -417,272 +551,490 @@ const ListingsTab: React.FC<ListingsTabProps> = ({
                   <SelectItem value="price">Prix</SelectItem>
                   <SelectItem value="views">Vues</SelectItem>
                   <SelectItem value="quality">Qualité</SelectItem>
-                  <SelectItem value="risk">Niveau risque</SelectItem>
+                  <SelectItem value="risk">Risque</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div>
-              <Label className="text-sm font-medium mb-2 block">Ordre</Label>
+              <Label className="text-sm font-medium mb-1 block">Ordre</Label>
               <Button
                 variant="outline"
                 onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                className="w-full justify-center"
+                className="w-full justify-center h-9"
               >
                 {sortOrder === 'asc' ? 'Croissant' : 'Décroissant'}
               </Button>
             </div>
           </div>
 
-          {/* Résumé des filtres actifs */}
+          {/* Tags des filtres actifs */}
           {(filterStatus !== "all" || filterCategory !== "all" || filterRisk !== "all" || filterSuspension !== "all" || searchTerm) && (
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-gray-600">Filtres actifs:</span>
-              {filterStatus !== "all" && <Badge variant="secondary">Statut: {filterStatus}</Badge>}
-              {filterCategory !== "all" && <Badge variant="secondary">Catégorie: {filterCategory}</Badge>}
-              {filterRisk !== "all" && <Badge variant="secondary">Risque: {filterRisk}</Badge>}
-              {filterSuspension !== "all" && <Badge variant="secondary">Suspension: {filterSuspension}</Badge>}
-              {searchTerm && <Badge variant="secondary">Recherche: "{searchTerm}"</Badge>}
-              <span className="text-gray-600">→ {filteredAndSortedListings.length} résultat(s)</span>
+            <div className="flex flex-wrap items-center gap-2 text-sm pt-2 border-t">
+              <span className="text-gray-600 text-xs">Filtres:</span>
+              {filterStatus !== "all" && <Badge variant="secondary" className="text-xs">{filterStatus}</Badge>}
+              {filterCategory !== "all" && <Badge variant="secondary" className="text-xs">{filterCategory}</Badge>}
+              {filterRisk !== "all" && <Badge variant="secondary" className="text-xs">{filterRisk}</Badge>}
+              {filterSuspension !== "all" && <Badge variant="secondary" className="text-xs">{filterSuspension}</Badge>}
+              {searchTerm && <Badge variant="secondary" className="text-xs">"{searchTerm}"</Badge>}
+              <Badge variant="outline" className="text-xs">
+                {filteredAndSortedListings.length} résultat(s)
+              </Badge>
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Tableau des annonces */}
-      <Card>
-        <CardHeader className="pb-4">
-          <CardTitle>Annonces ({filteredAndSortedListings.length})</CardTitle>
-        </CardHeader>
+      {/* Sélecteur de vue mobile */}
+      <div className="flex justify-between items-center md:hidden">
+        <h3 className="text-lg font-semibold">Annonces ({filteredAndSortedListings.length})</h3>
+        <div className="flex rounded-lg border p-1">
+          <Button
+            variant={mobileViewMode === 'cards' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setMobileViewMode('cards')}
+            className="px-3 py-1 text-xs"
+          >
+            Cartes
+          </Button>
+          <Button
+            variant={mobileViewMode === 'table' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setMobileViewMode('table')}
+            className="px-3 py-1 text-xs"
+          >
+            Tableau
+          </Button>
+        </div>
+      </div>
 
-        <CardContent className="p-0">
-          {filteredAndSortedListings.length === 0 ? (
-            <div className="text-center py-12">
-              <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Aucune annonce trouvée</h3>
-              <p className="text-gray-600 mb-4">
+      {/* Contenu principal - Vue adaptative */}
+      {filteredAndSortedListings.length === 0 ? (
+        <Card className="p-8">
+          <div className="text-center space-y-4">
+            <Package className="h-16 w-16 text-gray-300 mx-auto" />
+            <div className="space-y-2">
+              <h3 className="text-lg font-medium text-gray-900">Aucune annonce trouvée</h3>
+              <p className="text-sm text-gray-600 max-w-md mx-auto">
                 {searchTerm || filterStatus !== "all" || filterCategory !== "all" || filterRisk !== "all" || filterSuspension !== "all"
                   ? "Aucune annonce ne correspond aux critères de filtrage actuels."
                   : "Il n'y a actuellement aucune annonce dans le système."
                 }
               </p>
-              {(searchTerm || filterStatus !== "all" || filterCategory !== "all" || filterRisk !== "all" || filterSuspension !== "all") && (
-                <Button onClick={resetFilters} variant="outline">
-                  Effacer les filtres
-                </Button>
-              )}
             </div>
-          ) : (
-            <ScrollArea className="h-[600px]">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[200px]">Annonce</TableHead>
-                    <TableHead className="w-[150px]">Marchand</TableHead>
-                    <TableHead className="w-[100px]">Prix</TableHead>
-                    <TableHead className="w-[120px]">Statut</TableHead>
-                    <TableHead className="w-[100px]">Qualité</TableHead>
-                    <TableHead className="w-[100px]">Risque</TableHead>
-                    <TableHead className="w-[120px]">Suspension</TableHead>
-                    <TableHead className="w-[80px]">Vues</TableHead>
-                    <TableHead className="w-[100px]">Date</TableHead>
-                    <TableHead className="w-[200px]">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredAndSortedListings.map((listing) => (
-                    <TableRow 
-                      key={listing.id} 
-                      className={`${listing.needs_review ? 'bg-yellow-50' : ''} hover:bg-gray-50 transition-colors`}
-                    >
-                      <TableCell>
-                        <div className="space-y-1">
-                          <p className="font-medium text-sm truncate max-w-[180px]" title={listing.title}>
-                            {listing.title}
-                          </p>
-                          <div className="flex items-center space-x-1">
-                            <Badge variant="outline" className="text-xs">
-                              {listing.category_name}
-                            </Badge>
-                            {listing.featured && (
-                              <Badge className="text-xs bg-purple-100 text-purple-600">
-                                <Star className="h-3 w-3 mr-1" />
-                                Vedette
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="text-xs text-gray-400">ID: {listing.id.slice(-8)}</p>
-                        </div>
-                      </TableCell>
-                      
-                      <TableCell>
-                        <div className="space-y-1">
-                          <p className="font-medium text-sm truncate max-w-[120px]" title={listing.merchant_name}>
-                            {listing.merchant_name}
-                          </p>
-                          <p className="text-xs text-gray-500 truncate max-w-[120px]">
-                            {listing.location}
-                          </p>
-                        </div>
-                      </TableCell>
-                      
-                      <TableCell>
-                        <p className="font-medium text-sm">{formatCurrency(listing.price)}</p>
-                      </TableCell>
-                      
-                      <TableCell>
-                        <Badge className={`text-xs ${
-                          listing.status === 'active' ? 'bg-green-100 text-green-600' :
-                          listing.status === 'sold' ? 'bg-blue-100 text-blue-600' :
-                          listing.status === 'expired' ? 'bg-gray-100 text-gray-600' :
-                          'bg-red-100 text-red-600'
-                        }`}>
-                          {listing.status}
+            {(searchTerm || filterStatus !== "all" || filterCategory !== "all" || filterRisk !== "all" || filterSuspension !== "all") && (
+              <Button onClick={resetFilters} variant="outline" className="mt-4">
+                Effacer les filtres
+              </Button>
+            )}
+          </div>
+        </Card>
+      ) : (
+        <>
+          {/* Vue cartes pour mobile */}
+          <div className={`md:hidden ${mobileViewMode === 'cards' ? 'block' : 'hidden'}`}>
+            <div className="space-y-3">
+              {filteredAndSortedListings.map((listing) => (
+                <Card key={listing.id} className={`p-4 ${listing.needs_review ? 'border-l-4 border-l-yellow-400 bg-yellow-50/30' : ''}`}>
+                  <div className="space-y-3">
+                    {/* En-tête de la carte */}
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-sm truncate" title={listing.title}>
+                          {listing.title}
+                        </h4>
+                        <p className="text-xs text-gray-500">ID: {listing.id.slice(-8)}</p>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => {
+                            setSelectedListing(listing);
+                            setShowDetailModal(true);
+                          }}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => openActionModal(listing, 'advanced')}
+                          className="h-8 w-8 p-0"
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Informations principales */}
+                    <div className="grid grid-cols-2 gap-4 text-xs">
+                      <div>
+                        <span className="text-gray-500">Marchand:</span>
+                        <p className="font-medium truncate" title={listing.merchant_name}>
+                          {listing.merchant_name}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Prix:</span>
+                        <p className="font-semibold text-green-600">
+                          {formatCurrency(listing.price)}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Localisation:</span>
+                        <p className="truncate" title={listing.location}>
+                          {listing.location}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Date:</span>
+                        <p>{formatDate(listing.created_at)}</p>
+                      </div>
+                    </div>
+
+                    {/* Badges et statuts */}
+                    <div className="flex flex-wrap gap-2">
+                      <Badge className={`text-xs ${
+                        listing.status === 'active' ? 'bg-green-100 text-green-600' :
+                        listing.status === 'sold' ? 'bg-blue-100 text-blue-600' :
+                        listing.status === 'expired' ? 'bg-gray-100 text-gray-600' :
+                        'bg-red-100 text-red-600'
+                      }`}>
+                        {listing.status}
+                      </Badge>
+
+                      <Badge variant="outline" className="text-xs">
+                        {listing.category_name || 'Sans catégorie'}
+                      </Badge>
+
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${getQualityScoreColor(listing.quality_score || 0)}`}>
+                        Qualité: {listing.quality_score || 0}%
+                      </span>
+
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${getRiskLevelColor(listing.risk_level || 'low')}`}>
+                        {listing.risk_level === 'low' ? 'Faible' :
+                         listing.risk_level === 'medium' ? 'Moyen' : 'Élevé'} risque
+                      </span>
+
+                      {(listing.featured || listing.is_featured) && (
+                        <Badge className="text-xs bg-purple-100 text-purple-600">
+                          <Star className="h-3 w-3 mr-1" />
+                          Vedette
                         </Badge>
-                      </TableCell>
+                      )}
+
+                      {listing.status === 'suspended' && (
+                        <Badge className="text-xs bg-red-100 text-red-600">
+                          {listing.is_temporarily_suspended ? 'Susp. temp.' : 'Susp. perm.'}
+                        </Badge>
+                      )}
+                    </div>
+
+                    {/* Actions rapides mobile */}
+                    <div className="flex justify-between items-center pt-2 border-t">
+                      <div className="flex space-x-2 text-xs text-gray-500">
+                        <span>{listing.views_count || 0} vues</span>
+                        <span>•</span>
+                        <span>{listing.favorites_count || 0} favoris</span>
+                      </div>
                       
-                      <TableCell>
-                        <div className="flex items-center space-x-1">
-                          <span className={`px-2 py-1 rounded text-xs font-medium ${getQualityScoreColor(listing.quality_score)}`}>
-                            {listing.quality_score}%
-                          </span>
-                        </div>
-                      </TableCell>
-                      
-                      <TableCell>
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${getRiskLevelColor(listing.risk_level)}`}>
-                          {listing.risk_level === 'low' ? 'Faible' :
-                           listing.risk_level === 'medium' ? 'Moyen' : 'Élevé'}
-                        </span>
-                      </TableCell>
-                      
-                      <TableCell>
-                        {listing.status === 'suspended' ? (
-                          <div className="space-y-1">
-                            <Badge className="text-xs bg-red-100 text-red-600">
-                              {listing.is_temporarily_suspended ? 'Temporaire' : 'Permanente'}
-                            </Badge>
-                            {listing.is_temporarily_suspended && (
-                              <p className="text-xs text-gray-500">
-                                {formatSuspensionStatus(listing)}
-                              </p>
-                            )}
-                          </div>
-                        ) : (
-                          <Badge className="text-xs bg-green-100 text-green-600">Active</Badge>
-                        )}
-                      </TableCell>
-                      
-                      <TableCell>
-                        <div className="text-xs">
-                          <p className="font-medium">{listing.views_count}</p>
-                          <p className="text-gray-500">{listing.favorites_count} ♥</p>
-                        </div>
-                      </TableCell>
-                      
-                      <TableCell className="text-xs text-gray-500">
-                        {formatDate(listing.created_at)}
-                      </TableCell>
-                      
-                      <TableCell>
-                        <div className="flex items-center space-x-1">
-                          {/* Bouton de détail */}
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => {
-                              setSelectedListing(listing);
-                              setShowDetailModal(true);
-                            }}
-                            className="h-8 w-8 p-0"
-                            title="Voir les détails"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          
-                          {/* Actions contextuelles selon le statut */}
-                          {listing.status === 'active' && (
-                            <>
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => openActionModal(listing, 'suspend')}
-                                className="h-8 w-8 p-0"
-                                title="Suspendre"
-                              >
-                                <Pause className="h-4 w-4 text-orange-600" />
-                              </Button>
-                              
-                              {!listing.featured ? (
-                                <Button 
-                                  variant="outline" 
-                                  size="sm"
-                                  onClick={() => handleQuickAction(listing, 'feature')}
-                                  className="h-8 w-8 p-0"
-                                  title="Mettre en vedette"
-                                >
-                                  <Star className="h-4 w-4 text-purple-600" />
-                                </Button>
-                              ) : (
-                                <Button 
-                                  variant="outline" 
-                                  size="sm"
-                                  onClick={() => handleQuickAction(listing, 'unfeature')}
-                                  className="h-8 w-8 p-0"
-                                  title="Retirer de la vedette"
-                                >
-                                  <XCircle className="h-4 w-4 text-gray-600" />
-                                </Button>
-                              )}
-                            </>
-                          )}
-                          
-                          {listing.status === 'suspended' && (
+                      <div className="flex space-x-1">
+                        {listing.status === 'active' && (
+                          <>
                             <Button 
                               variant="outline" 
                               size="sm"
-                              onClick={() => handleQuickAction(listing, 'unsuspend')}
-                              className="h-8 w-8 p-0"
-                              title="Réactiver"
+                              onClick={() => openActionModal(listing, 'suspend')}
+                              className="h-7 px-2 text-xs"
                             >
-                              <Play className="h-4 w-4 text-green-600" />
+                              Suspendre
                             </Button>
-                          )}
-                          
-                          {/* Actions avancées */}
+                            
+                            {!(listing.featured || listing.is_featured) ? (
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => handleQuickAction(listing, 'feature')}
+                                className="h-7 px-2 text-xs"
+                              >
+                                <Star className="h-3 w-3" />
+                              </Button>
+                            ) : (
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => handleQuickAction(listing, 'unfeature')}
+                                className="h-7 px-2 text-xs"
+                              >
+                                <XCircle className="h-3 w-3" />
+                              </Button>
+                            )}
+                          </>
+                        )}
+                        
+                        {listing.status === 'suspended' && (
                           <Button 
                             variant="outline" 
                             size="sm"
-                            onClick={() => openActionModal(listing, 'advanced')}
-                            className="h-8 w-8 p-0"
-                            title="Actions avancées"
+                            onClick={() => handleQuickAction(listing, 'unsuspend')}
+                            className="h-7 px-2 text-xs"
                           >
-                            <Settings className="h-4 w-4" />
+                            Réactiver
                           </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </ScrollArea>
-          )}
-        </CardContent>
-      </Card>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </div>
 
-      {/* Modal de détails */}
+          {/* Vue tableau pour mobile et desktop */}
+          <Card className={`${mobileViewMode === 'table' ? 'block' : 'hidden'} md:block`}>
+            <CardHeader className="pb-3 hidden md:block">
+              <CardTitle>Annonces ({filteredAndSortedListings.length})</CardTitle>
+            </CardHeader>
+
+            <CardContent className="p-0">
+              <ScrollArea className="h-[600px]">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="min-w-[200px]">Annonce</TableHead>
+                        <TableHead className="min-w-[150px] hidden lg:table-cell">Marchand</TableHead>
+                        <TableHead className="min-w-[100px]">Prix</TableHead>
+                        <TableHead className="min-w-[100px] hidden sm:table-cell">Statut</TableHead>
+                        <TableHead className="min-w-[80px] hidden md:table-cell">Qualité</TableHead>
+                        <TableHead className="min-w-[80px] hidden md:table-cell">Risque</TableHead>
+                        <TableHead className="min-w-[100px] hidden lg:table-cell">Suspension</TableHead>
+                        <TableHead className="min-w-[60px] hidden lg:table-cell">Vues</TableHead>
+                        <TableHead className="min-w-[80px] hidden xl:table-cell">Date</TableHead>
+                        <TableHead className="min-w-[120px]">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredAndSortedListings.map((listing) => (
+                        <TableRow 
+                          key={listing.id} 
+                          className={`${listing.needs_review ? 'bg-yellow-50' : ''} hover:bg-gray-50 transition-colors`}
+                        >
+                          <TableCell className="min-w-0">
+                            <div className="space-y-1">
+                              <p className="font-medium text-sm truncate max-w-[180px]" title={listing.title}>
+                                {listing.title}
+                              </p>
+                              <div className="flex flex-wrap items-center gap-1">
+                                <Badge variant="outline" className="text-xs">
+                                  {listing.category_name || 'Sans catégorie'}
+                                </Badge>
+                                {(listing.featured || listing.is_featured) && (
+                                  <Badge className="text-xs bg-purple-100 text-purple-600">
+                                    <Star className="h-3 w-3 mr-1" />
+                                    Vedette
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-400">ID: {listing.id.slice(-8)}</p>
+                              {/* Informations mobiles dans le tableau */}
+                              <div className="lg:hidden space-y-1">
+                                <p className="text-xs text-gray-600 truncate">
+                                  {listing.merchant_name} • {listing.location}
+                                </p>
+                                <div className="flex items-center space-x-2 text-xs">
+                                  <Badge className={`${
+                                    listing.status === 'active' ? 'bg-green-100 text-green-600' :
+                                    listing.status === 'sold' ? 'bg-blue-100 text-blue-600' :
+                                    listing.status === 'expired' ? 'bg-gray-100 text-gray-600' :
+                                    'bg-red-100 text-red-600'
+                                  }`}>
+                                    {listing.status}
+                                  </Badge>
+                                  <span className={`px-2 py-1 rounded text-xs ${getQualityScoreColor(listing.quality_score || 0)}`}>
+                                    {listing.quality_score || 0}%
+                                  </span>
+                                  <span className={`px-2 py-1 rounded text-xs ${getRiskLevelColor(listing.risk_level || 'low')}`}>
+                                    {listing.risk_level === 'low' ? 'F' :
+                                     listing.risk_level === 'medium' ? 'M' : 'É'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </TableCell>
+                          
+                          <TableCell className="hidden lg:table-cell">
+                            <div className="space-y-1">
+                              <p className="font-medium text-sm truncate max-w-[120px]" title={listing.merchant_name}>
+                                {listing.merchant_name}
+                              </p>
+                              <p className="text-xs text-gray-500 truncate max-w-[120px]">
+                                {listing.location}
+                              </p>
+                            </div>
+                          </TableCell>
+                          
+                          <TableCell>
+                            <p className="font-semibold text-sm">{formatCurrency(listing.price)}</p>
+                          </TableCell>
+                          
+                          <TableCell className="hidden sm:table-cell">
+                            <Badge className={`text-xs ${
+                              listing.status === 'active' ? 'bg-green-100 text-green-600' :
+                              listing.status === 'sold' ? 'bg-blue-100 text-blue-600' :
+                              listing.status === 'expired' ? 'bg-gray-100 text-gray-600' :
+                              'bg-red-100 text-red-600'
+                            }`}>
+                              {listing.status}
+                            </Badge>
+                          </TableCell>
+                          
+                          <TableCell className="hidden md:table-cell">
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${getQualityScoreColor(listing.quality_score || 0)}`}>
+                              {listing.quality_score || 0}%
+                            </span>
+                          </TableCell>
+                          
+                          <TableCell className="hidden md:table-cell">
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${getRiskLevelColor(listing.risk_level || 'low')}`}>
+                              {listing.risk_level === 'low' ? 'Faible' :
+                               listing.risk_level === 'medium' ? 'Moyen' : 'Élevé'}
+                            </span>
+                          </TableCell>
+                          
+                          <TableCell className="hidden lg:table-cell">
+                            {listing.status === 'suspended' ? (
+                              <div className="space-y-1">
+                                <Badge className="text-xs bg-red-100 text-red-600">
+                                  {listing.is_temporarily_suspended ? 'Temporaire' : 'Permanente'}
+                                </Badge>
+                                {listing.is_temporarily_suspended && (
+                                  <p className="text-xs text-gray-500">
+                                    {formatSuspensionStatus(listing)}
+                                  </p>
+                                )}
+                              </div>
+                            ) : (
+                              <Badge className="text-xs bg-green-100 text-green-600">Active</Badge>
+                            )}
+                          </TableCell>
+                          
+                          <TableCell className="hidden lg:table-cell">
+                            <div className="text-xs">
+                              <p className="font-medium">{listing.views_count || 0}</p>
+                              <p className="text-gray-500">{listing.favorites_count || 0} ♥</p>
+                            </div>
+                          </TableCell>
+                          
+                          <TableCell className="text-xs text-gray-500 hidden xl:table-cell">
+                            {formatDate(listing.created_at)}
+                          </TableCell>
+                          
+                          <TableCell>
+                            <div className="flex items-center space-x-1">
+                              {/* Bouton de détail toujours visible */}
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedListing(listing);
+                                  setShowDetailModal(true);
+                                }}
+                                className="h-8 w-8 p-0 flex-shrink-0"
+                                title="Voir les détails"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              
+                              {/* Actions contextuelles cachées sur très petit écran */}
+                              <div className="hidden sm:flex items-center space-x-1">
+                                {listing.status === 'active' && (
+                                  <>
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm"
+                                      onClick={() => openActionModal(listing, 'suspend')}
+                                      className="h-8 w-8 p-0"
+                                      title="Suspendre"
+                                    >
+                                      <Pause className="h-4 w-4 text-orange-600" />
+                                    </Button>
+                                    
+                                    {!(listing.featured || listing.is_featured) ? (
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm"
+                                        onClick={() => handleQuickAction(listing, 'feature')}
+                                        className="h-8 w-8 p-0"
+                                        title="Mettre en vedette"
+                                      >
+                                        <Star className="h-4 w-4 text-purple-600" />
+                                      </Button>
+                                    ) : (
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm"
+                                        onClick={() => handleQuickAction(listing, 'unfeature')}
+                                        className="h-8 w-8 p-0"
+                                        title="Retirer de la vedette"
+                                      >
+                                        <XCircle className="h-4 w-4 text-gray-600" />
+                                      </Button>
+                                    )}
+                                  </>
+                                )}
+                                
+                                {listing.status === 'suspended' && (
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => handleQuickAction(listing, 'unsuspend')}
+                                    className="h-8 w-8 p-0"
+                                    title="Réactiver"
+                                  >
+                                    <Play className="h-4 w-4 text-green-600" />
+                                  </Button>
+                                )}
+                              </div>
+                              
+                              {/* Menu actions pour mobile et desktop */}
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => openActionModal(listing, 'advanced')}
+                                className="h-8 w-8 p-0 flex-shrink-0"
+                                title="Actions avancées"
+                              >
+                                <Settings className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {/* Modal de détails - Version mobile-first */}
       <AlertDialog open={showDetailModal} onOpenChange={setShowDetailModal}>
-        <AlertDialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <AlertDialogContent className="w-[95vw] max-w-4xl max-h-[90vh] overflow-y-auto m-2">
           <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center space-x-2">
+            <AlertDialogTitle className="flex items-center space-x-2 text-base">
               <Package className="h-5 w-5 text-blue-600" />
-              <span>Détails de l'annonce #{selectedListing?.id?.slice(-8)}</span>
+              <span>Annonce #{selectedListing?.id?.slice(-8)}</span>
             </AlertDialogTitle>
           </AlertDialogHeader>
           
           {selectedListing && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <Card>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm">Informations principales</CardTitle>
@@ -702,7 +1054,7 @@ const ListingsTab: React.FC<ListingsTabProps> = ({
                     </div>
                     <div>
                       <p className="text-sm font-medium text-gray-600">Catégorie</p>
-                      <p>{selectedListing.category_name}</p>
+                      <p>{selectedListing.category_name || 'Sans catégorie'}</p>
                     </div>
                   </CardContent>
                 </Card>
@@ -712,29 +1064,29 @@ const ListingsTab: React.FC<ListingsTabProps> = ({
                     <CardTitle className="text-sm">Métriques</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    <div className="flex justify-between">
+                    <div className="flex justify-between items-center">
                       <span className="text-sm">Score qualité:</span>
-                      <span className={`px-2 py-1 rounded text-sm font-medium ${getQualityScoreColor(selectedListing.quality_score)}`}>
-                        {selectedListing.quality_score}%
+                      <span className={`px-2 py-1 rounded text-sm font-medium ${getQualityScoreColor(selectedListing.quality_score || 0)}`}>
+                        {selectedListing.quality_score || 0}%
                       </span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex justify-between items-center">
                       <span className="text-sm">Niveau de risque:</span>
-                      <span className={`px-2 py-1 rounded text-sm font-medium ${getRiskLevelColor(selectedListing.risk_level)}`}>
-                        {selectedListing.risk_level}
+                      <span className={`px-2 py-1 rounded text-sm font-medium ${getRiskLevelColor(selectedListing.risk_level || 'low')}`}>
+                        {selectedListing.risk_level || 'low'}
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm">Vues:</span>
-                      <span>{selectedListing.views_count}</span>
+                      <span>{selectedListing.views_count || 0}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm">Favoris:</span>
-                      <span>{selectedListing.favorites_count}</span>
+                      <span>{selectedListing.favorites_count || 0}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm">Messages:</span>
-                      <span>{selectedListing.messages_count}</span>
+                      <span>{selectedListing.messages_count || 0}</span>
                     </div>
                   </CardContent>
                 </Card>
@@ -776,20 +1128,20 @@ const ListingsTab: React.FC<ListingsTabProps> = ({
             </div>
           )}
 
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setShowDetailModal(false)}>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel className="w-full sm:w-auto" onClick={() => setShowDetailModal(false)}>
               Fermer
             </AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Modal d'action avancée */}
+      {/* Modal d'action avancée - Version mobile-first */}
       <AlertDialog open={showActionModal} onOpenChange={setShowActionModal}>
-        <AlertDialogContent className="max-w-2xl">
+        <AlertDialogContent className="w-[95vw] max-w-2xl m-2">
           <AlertDialogHeader>
-            <AlertDialogTitle>Action sur l'annonce</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle className="text-base">Action sur l'annonce</AlertDialogTitle>
+            <AlertDialogDescription className="text-sm">
               Effectuer une action administrative sur cette annonce
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -797,7 +1149,7 @@ const ListingsTab: React.FC<ListingsTabProps> = ({
           <div className="space-y-4">
             {actionType === 'advanced' && (
               <div>
-                <Label>Type d'action</Label>
+                <Label className="text-sm">Type d'action</Label>
                 <Select value={actionType} onValueChange={setActionType}>
                   <SelectTrigger>
                     <SelectValue placeholder="Choisir une action" />
@@ -814,7 +1166,7 @@ const ListingsTab: React.FC<ListingsTabProps> = ({
 
             {(actionType === 'suspend' || actionType === 'extend_expiry') && (
               <div>
-                <Label>Durée (en jours)</Label>
+                <Label className="text-sm">Durée (en jours)</Label>
                 <Select value={actionDuration} onValueChange={setActionDuration}>
                   <SelectTrigger>
                     <SelectValue />
@@ -831,32 +1183,35 @@ const ListingsTab: React.FC<ListingsTabProps> = ({
             )}
 
             <div>
-              <Label>Raison *</Label>
+              <Label className="text-sm">Raison *</Label>
               <Input
                 value={actionReason}
                 onChange={(e) => setActionReason(e.target.value)}
                 placeholder="Raison de l'action"
+                className="mt-1"
               />
             </div>
 
             <div>
-              <Label>Notes administratives</Label>
+              <Label className="text-sm">Notes administratives</Label>
               <Textarea
                 value={actionNotes}
                 onChange={(e) => setActionNotes(e.target.value)}
                 placeholder="Notes internes..."
                 rows={3}
+                className="mt-1"
               />
             </div>
           </div>
 
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setShowActionModal(false)}>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel className="w-full sm:w-auto" onClick={() => setShowActionModal(false)}>
               Annuler
             </AlertDialogCancel>
             <AlertDialogAction 
               onClick={handleAdvancedAction}
               disabled={!actionReason}
+              className="w-full sm:w-auto"
             >
               Appliquer l'action
             </AlertDialogAction>

@@ -64,6 +64,30 @@ interface RealContactLead {
   listing_id: string;
 }
 
+
+const extractSenderData = (sender: any) => {
+  if (!sender) {
+    return { full_name: 'Utilisateur', email: 'N/A', phone: null };
+  }
+  
+  if (Array.isArray(sender)) {
+    const senderObj = sender[0] || {};
+    return {
+      full_name: senderObj.full_name || 'Utilisateur',
+      email: senderObj.email || 'N/A',
+      phone: senderObj.phone || null
+    };
+  }
+  
+  return {
+    full_name: sender.full_name || 'Utilisateur',
+    email: sender.email || 'N/A',
+    phone: sender.phone || null
+  };
+};
+
+
+
 const OwnerListingDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -210,11 +234,13 @@ const OwnerListingDetail = () => {
       // Transformation des messages en format unifié
       if (messages) {
         messages.forEach(msg => {
+
+          const senderData = extractSenderData(msg.sender);
           realContacts.push({
             id: msg.id,
-            prospectName: msg.sender?.full_name || 'Utilisateur',
-            prospectEmail: msg.sender?.email || 'N/A',
-            prospectPhone: msg.sender?.phone || null,
+            prospectName: senderData.full_name,
+            prospectEmail: senderData.email,
+            prospectPhone: senderData.phone,
             contactedAt: msg.created_at,
             contactMethod: 'message',
             message: msg.content,

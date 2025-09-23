@@ -1,12 +1,11 @@
 // pages/Messages.tsx
-// Page de messagerie unifiée mobile-first avec design professionnel
-// Optimisée pour 90% d'utilisateurs mobiles
+// Page de messagerie avec ouverture directe de conversation via paramètres URL
 
 import { useState, useEffect, useRef } from 'react';
 import { useMessages, Conversation, UnifiedMessage } from '@/hooks/useMessages';
 import { useGuestMessages } from '@/hooks/useGuestMessages';
 import { useAuthContext } from '@/contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom'; // Import ajouté
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { Button } from '@/components/ui/button';
@@ -39,6 +38,7 @@ import { cn } from '@/lib/utils';
 const Messages = () => {
   const { user } = useAuthContext();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams(); // Hook pour récupérer les paramètres URL
   const { 
     conversations, 
     messages, 
@@ -62,10 +62,55 @@ const Messages = () => {
 
   useEffect(() => {
     if (selectedConversation && window.innerWidth < 768) {
-      // Focus automatique sur l'input sur mobile après un petit délai
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [selectedConversation]);
+
+  // NOUVELLE LOGIQUE: Gestion de l'ouverture directe de conversation via URL
+  useEffect(() => {
+    const sellerId = searchParams.get('sellerId');
+    const sellerName = searchParams.get('sellerName');
+    const isDirect = searchParams.get('direct') === 'true';
+
+    // Si on a les paramètres pour une conversation directe
+    if (sellerId && sellerName && isDirect && conversations.length > 0) {
+      // Chercher la conversation existante avec ce vendeur
+      const existingConversation = conversations.find(conv => 
+        conv.participant_id === sellerId
+      );
+
+      if (existingConversation) {
+        // Si une conversation existe, l'ouvrir directement
+        console.log('🎯 Ouverture de conversation existante avec:', sellerName);
+        handleSelectConversation(existingConversation);
+      } else {
+        // Si aucune conversation n'existe, créer une "conversation fantôme" pour initier le chat
+        const phantomConversation: Conversation = {
+          id: `phantom_${sellerId}`,
+          listing_id: '', // Sera défini quand l'utilisateur enverra le premier message depuis une annonce
+          listing_title: 'Nouvelle conversation',
+          listing_price: 0,
+          listing_currency: 'CFA',
+          participant_id: sellerId,
+          participant_name: sellerName,
+          participant_email: '', // Non disponible depuis le profil
+          participant_avatar: searchParams.get('sellerAvatar') || undefined,
+          is_participant_registered: true,
+          last_message: 'Commencez votre conversation...',
+          last_message_at: new Date().toISOString(),
+          unread_count: 0,
+          total_messages: 0,
+          conversation_type: 'standard'
+        };
+
+        console.log('✨ Création d\'une nouvelle conversation avec:', sellerName);
+        setSelectedConversation(phantomConversation);
+      }
+
+      // Nettoyer l'URL après traitement
+      navigate('/messages', { replace: true });
+    }
+  }, [searchParams, conversations, navigate]);
 
   // Marquer les messages comme lus
   useEffect(() => {
@@ -86,7 +131,11 @@ const Messages = () => {
   // Sélection de conversation avec animation
   const handleSelectConversation = async (conversation: Conversation) => {
     setSelectedConversation(conversation);
-    await fetchMessages(conversation.listing_id, conversation.participant_id);
+    
+    // Éviter de charger les messages pour les conversations fantômes
+    if (!conversation.id.startsWith('phantom_')) {
+      await fetchMessages(conversation.listing_id, conversation.participant_id);
+    }
     
     if (conversation.conversation_type === 'guest' && conversation.unread_count > 0) {
       messages
@@ -99,22 +148,39 @@ const Messages = () => {
     }
   };
 
-  // Envoi de message avec feedback visuel
+  // Envoi de message avec gestion des conversations fantômes
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!selectedConversation || !newMessage.trim()) return;
     if (!selectedConversation.participant_id || !selectedConversation.is_participant_registered) return;
 
+    // Si c'est une conversation fantôme, elle devient réelle après le premier message
+    const isPhantomConversation = selectedConversation.id.startsWith('phantom_');
+    
+    if (isPhantomConversation) {
+      // Pour une conversation fantôme, on doit d'abord créer une vraie conversation
+      // Cela nécessiterait idéalement un ID d'annonce, mais on peut laisser vide
+      console.log('📝 Premier message dans une nouvelle conversation');
+    }
+
     const success = await sendMessage(
-      selectedConversation.listing_id,
+      selectedConversation.listing_id || '', // listing_id peut être vide pour une conversation générale
       selectedConversation.participant_id,
       newMessage.trim()
     );
 
     if (success) {
       setNewMessage('');
-      inputRef.current?.focus(); // Maintenir le focus
+      inputRef.current?.focus();
+      
+      // Si c'était une conversation fantôme, recharger la liste des conversations
+      if (isPhantomConversation) {
+        // La conversation devrait maintenant apparaître dans la liste normale
+        setTimeout(() => {
+          window.location.reload(); // Simple rechargement pour récupérer la nouvelle conversation
+        }, 1000);
+      }
     }
   };
 
@@ -151,13 +217,11 @@ const Messages = () => {
     <div className="min-h-screen bg-slate-50">
       <Header />
       
-      {/* MOBILE-FIRST: Vue conversation ou liste selon sélection */}
-      <main className="flex flex-col h-[calc(100vh-80px)]"> {/* Hauteur fixe pour mobile */}
+      <main className="flex flex-col h-[calc(100vh-80px)]">
         
         {/* Mode mobile : Liste des conversations */}
         {(!selectedConversation || window.innerWidth >= 768) && (
           <div className="flex-1 flex flex-col">
-            {/* Header fixe avec recherche */}
             <div className="bg-white border-b px-3 py-4 sticky top-0 z-10">
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
@@ -172,7 +236,6 @@ const Messages = () => {
                   </Badge>
                 </div>
                 
-                {/* Barre de recherche mobile-first */}
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -185,7 +248,6 @@ const Messages = () => {
               </div>
             </div>
 
-            {/* Liste des conversations optimisée mobile */}
             <ScrollArea className="flex-1">
               <div className="px-3 py-2">
                 {loading ? (
@@ -222,7 +284,6 @@ const Messages = () => {
                         onClick={() => handleSelectConversation(conversation)}
                       >
                         <div className="flex items-start gap-3">
-                          {/* Avatar amélioré avec indicateur de statut */}
                           <div className="relative flex-shrink-0">
                             <Avatar className="h-12 w-12 border-2 border-white shadow-sm">
                               <AvatarImage src={conversation.participant_avatar} />
@@ -236,7 +297,6 @@ const Messages = () => {
                               </AvatarFallback>
                             </Avatar>
                             
-                            {/* Indicateur de type d'utilisateur */}
                             <div className={cn(
                               "absolute -bottom-0.5 -right-0.5 h-5 w-5 rounded-full border-2 border-white flex items-center justify-center shadow-sm",
                               conversation.is_participant_registered 
@@ -250,14 +310,12 @@ const Messages = () => {
                               )}
                             </div>
                             
-                            {/* Point en ligne si récent */}
                             {new Date().getTime() - new Date(conversation.last_message_at).getTime() < 300000 && (
                               <div className="absolute -top-1 -right-1 h-3 w-3 bg-green-400 rounded-full border border-white animate-pulse"></div>
                             )}
                           </div>
                           
                           <div className="flex-1 min-w-0 space-y-1">
-                            {/* Header avec nom et badges */}
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex items-center gap-2 min-w-0">
                                 {conversation.is_participant_registered && conversation.participant_id ? (
@@ -303,16 +361,16 @@ const Messages = () => {
                               </div>
                             </div>
                             
-                            {/* Info produit avec prix */}
-                            <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 px-2 py-1 rounded-md">
-                              <div className="w-2 h-2 bg-blue-400 rounded-full flex-shrink-0"></div>
-                              <span className="truncate">{conversation.listing_title}</span>
-                              <span className="font-semibold text-blue-600 whitespace-nowrap">
-                                {conversation.listing_price.toLocaleString()} {conversation.listing_currency}
-                              </span>
-                            </div>
+                            {conversation.listing_title && conversation.listing_title !== 'Nouvelle conversation' && (
+                              <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 px-2 py-1 rounded-md">
+                                <div className="w-2 h-2 bg-blue-400 rounded-full flex-shrink-0"></div>
+                                <span className="truncate">{conversation.listing_title}</span>
+                                <span className="font-semibold text-blue-600 whitespace-nowrap">
+                                  {conversation.listing_price.toLocaleString()} {conversation.listing_currency}
+                                </span>
+                              </div>
+                            )}
                             
-                            {/* Dernier message avec preview */}
                             <div className="flex items-center justify-between">
                               <p className={cn(
                                 "text-sm truncate",
@@ -341,7 +399,7 @@ const Messages = () => {
             window.innerWidth >= 768 ? "md:flex" : (selectedConversation ? "flex" : "hidden")
           )}>
             
-            {/* Header de conversation fixe */}
+            {/* Header de conversation fixe avec bouton retour */}
             <div className="bg-white border-b px-4 py-3 sticky top-0 z-10 shadow-sm">
               <div className="flex items-center gap-3">
                 <Button
@@ -386,9 +444,11 @@ const Messages = () => {
                     )}
                   </div>
                   
-                  <p className="text-xs text-muted-foreground truncate">
-                    {selectedConversation.listing_title} • {selectedConversation.listing_price.toLocaleString()} {selectedConversation.listing_currency}
-                  </p>
+                  {selectedConversation.listing_title && selectedConversation.listing_title !== 'Nouvelle conversation' && (
+                    <p className="text-xs text-muted-foreground truncate">
+                      {selectedConversation.listing_title} • {selectedConversation.listing_price.toLocaleString()} {selectedConversation.listing_currency}
+                    </p>
+                  )}
                 </div>
                 
                 <Button variant="ghost" size="sm" className="p-2">
@@ -397,15 +457,22 @@ const Messages = () => {
               </div>
             </div>
             
-            {/* Zone des messages avec scroll optimisé */}
+            {/* Zone des messages */}
             <ScrollArea className="flex-1 px-4">
               <div className="py-4 space-y-4">
-                {messages.length === 0 ? (
+                {messages.length === 0 && !selectedConversation.id.startsWith('phantom_') ? (
                   <div className="text-center py-12">
                     <div className="w-12 h-12 mx-auto mb-3 bg-slate-100 rounded-full flex items-center justify-center">
                       <MessageCircle className="h-6 w-6 text-slate-400" />
                     </div>
                     <p className="text-sm text-muted-foreground">Le début de votre conversation</p>
+                  </div>
+                ) : selectedConversation.id.startsWith('phantom_') ? (
+                  <div className="text-center py-12">
+                    <div className="w-12 h-12 mx-auto mb-3 bg-blue-100 rounded-full flex items-center justify-center">
+                      <MessageCircle className="h-6 w-6 text-blue-500" />
+                    </div>
+                    <p className="text-sm text-muted-foreground">Commencez votre conversation avec {selectedConversation.participant_name}</p>
                   </div>
                 ) : (
                   messages.map((message, index) => {
@@ -415,7 +482,6 @@ const Messages = () => {
                     
                     return (
                       <div key={message.id}>
-                        {/* Alert pour premier message invité */}
                         {isFirstGuestMessage && (
                           <Alert className="mb-4 border-orange-200 bg-orange-50">
                             <AlertCircle className="h-4 w-4 text-orange-600" />
@@ -442,7 +508,6 @@ const Messages = () => {
                           </Alert>
                         )}
                         
-                        {/* Bulle de message moderne */}
                         <div className={cn(
                           "flex items-end gap-2",
                           isFromCurrentUser ? "justify-end" : "justify-start"

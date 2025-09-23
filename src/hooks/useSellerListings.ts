@@ -19,6 +19,7 @@ export interface SellerListing {
   category_id: string;
   category_name: string;
   favorites_count: number;
+  category?: string;
 }
 
 // Interface pour les options de filtrage et tri

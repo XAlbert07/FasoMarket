@@ -67,6 +67,7 @@ export const Footer = () => {
     { name: "Conseils sécurité", href: "/help-support" },
     { name: "Aide & Support", href: "/help-support" },
     { name: "À propos", href: "/about" },
+    //{ name: "Blog", href: "/blog", external: true },
     { name: "Blog", href: "#", external: true },
     { name: "Télécharger l'app", href: "#", external: true }
   ]

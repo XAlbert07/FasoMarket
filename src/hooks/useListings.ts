@@ -1,4 +1,4 @@
-// hooks/useListings.ts - VERSION CORRIGÉE POUR COMPATIBILITÉ SUPABASE
+// hooks/useListings.ts - VERSION CORRIGÉE POUR ÉLIMINER LES ERREURS TYPESCRIPT
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -7,10 +7,9 @@ import { Listing, SearchFilters } from '@/types/database';
 import { useToast } from '@/hooks/use-toast';
 import { useListingViews } from '@/hooks/useListingViews';
 
-
 /**
  * Hook principal pour la gestion des collections d'annonces
- * VERSION CORRIGÉE - Compatible avec votre schéma Supabase actuel
+ * VERSION CORRIGÉE - Elimination des erreurs TypeScript
  */
 export const useListings = () => {
   const [listings, setListings] = useState<Listing[]>([]);
@@ -19,43 +18,43 @@ export const useListings = () => {
   const { toast } = useToast();
 
   /**
-   * Fonction utilitaire pour résoudre l'ID d'une catégorie à partir de son nom
-   * Cette fonction fait le pont entre l'ancien système (noms) et le nouveau (IDs)
+   * Fonction pour résoudre l'ID d'une catégorie à partir de son nom
+   * CORRECTION: Typage explicite des données de retour
    */
   const resolveCategoryId = useCallback(async (categoryName: string): Promise<string | null> => {
     try {
       console.log(`Recherche de l'ID pour la catégorie: "${categoryName}"`);
       
-      // Rechercher d'abord par nom exact
+      // Rechercher d'abord par nom exact - CORRECTION: Typage explicite
       let { data, error } = await supabase
         .from('categories')
-        .select('id')
+        .select('id, name')
         .eq('name', categoryName)
         .single();
 
-      if (data && !error) {
-        console.log(`Catégorie trouvée par nom exact: ${data.id}`);
+      if (data && !error && data.name) { // CORRECTION: Vérification de l'existence de 'name'
+        console.log(`Catégorie trouvée par nom exact: ${data.id} (${data.name})`);
         return data.id;
       }
 
-      // Si pas trouvé, essayer par slug (nom en minuscules sans accents)
+      // Si pas trouvé, essayer par slug
       const slug = categoryName.toLowerCase()
         .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '') // Supprime les accents
-        .replace(/\s+/g, '-'); // Remplace les espaces par des tirets
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, '-');
 
       ({ data, error } = await supabase
         .from('categories')
-        .select('id')
+        .select('id, name, slug')
         .eq('slug', slug)
         .single());
 
-      if (data && !error) {
-        console.log(`Catégorie trouvée par slug: ${data.id}`);
+      if (data && !error && data.name) { // CORRECTION: Vérification de l'existence de 'name'
+        console.log(`Catégorie trouvée par slug: ${data.id} (${data.name})`);
         return data.id;
       }
 
-      // Si toujours pas trouvé, essayer une recherche floue
+      // Recherche floue - CORRECTION: Typage explicite
       ({ data, error } = await supabase
         .from('categories')
         .select('id, name')
@@ -63,7 +62,7 @@ export const useListings = () => {
         .limit(1)
         .single());
 
-      if (data && !error) {
+      if (data && !error && data.name) { // CORRECTION: Vérification explicite
         console.log(`Catégorie trouvée par recherche floue: ${data.id} (${data.name})`);
         return data.id;
       }
@@ -78,41 +77,64 @@ export const useListings = () => {
 
   /**
    * Fonction pour enrichir une annonce avec les données des tables liées
-   * Effectue des requêtes séparées pour éviter les problèmes de jointure
+   * CORRECTION: Typage plus strict et gestion des propriétés optionnelles
    */
-  const enrichListing = useCallback(async (listing: any) => {
-    let enrichedListing = { ...listing };
+  const enrichListing = useCallback(async (listing: any): Promise<Listing> => {
+    // Initialiser avec les données de base et un typage correct
+    let enrichedListing: Listing = {
+      ...listing,
+      // S'assurer que toutes les propriétés requises sont présentes avec des valeurs par défaut
+      profiles: undefined,
+      categories: undefined,
+      category: undefined
+    };
 
     try {
       // Récupération des données du profil utilisateur
       if (listing.user_id) {
-        const { data: profileData } = await supabase
+        const { data: profileData, error: profileError } = await supabase
           .from('profiles')
-          .select('full_name, phone, email')
+          .select('id, full_name, phone, email, avatar_url, bio, location')
           .eq('id', listing.user_id)
           .single();
         
-        if (profileData) {
-          enrichedListing.profiles = profileData;
+        if (profileData && !profileError) {
+          // CORRECTION: Assignation typée correcte
+          enrichedListing.profiles = {
+            id: profileData.id,
+            full_name: profileData.full_name,
+            phone: profileData.phone,
+            email: profileData.email,
+            avatar_url: profileData.avatar_url,
+            bio: profileData.bio,
+            location: profileData.location
+          };
         }
       }
 
       // Récupération des données de catégorie
       if (listing.category_id) {
-        const { data: categoryData } = await supabase
+        const { data: categoryData, error: categoryError } = await supabase
           .from('categories')
-          .select('name, icon, slug')
+          .select('id, name, slug, icon, description')
           .eq('id', listing.category_id)
           .single();
         
-        if (categoryData) {
-          enrichedListing.categories = categoryData;
-          // Ajout du nom de catégorie pour la compatibilité avec l'interface
+        if (categoryData && !categoryError) {
+          // CORRECTION: Assignation typée correcte
+          enrichedListing.categories = {
+            id: categoryData.id,
+            name: categoryData.name,
+            slug: categoryData.slug,
+            icon: categoryData.icon,
+            description: categoryData.description
+          };
+          // Ajout du nom de catégorie pour la compatibilité
           enrichedListing.category = categoryData.name;
         }
       }
 
-      // Si pas de catégorie trouvée, utiliser une valeur par défaut
+      // Assurer une catégorie par défaut si aucune n'est trouvée
       if (!enrichedListing.category) {
         enrichedListing.category = 'Catégorie inconnue';
       }
@@ -120,17 +142,14 @@ export const useListings = () => {
     } catch (enrichmentError) {
       console.warn('Impossible d\'enrichir les données de l\'annonce:', enrichmentError);
       // Assurer au minimum une catégorie par défaut
-      if (!enrichedListing.category) {
-        enrichedListing.category = 'Catégorie inconnue';
-      }
+      enrichedListing.category = 'Catégorie inconnue';
     }
 
     return enrichedListing;
   }, []);
 
   /**
-   * Fonction principale de récupération des annonces - VERSION SIMPLIFIÉE ET CORRIGÉE
-   * Utilise des requêtes séparées pour éviter les problèmes de jointure
+   * Fonction principale de récupération des annonces - VERSION CORRIGÉE
    */
   const fetchListings = useCallback(async (filters?: SearchFilters) => {
     setLoading(true);
@@ -139,34 +158,31 @@ export const useListings = () => {
     try {
       console.log('Début de fetchListings avec filtres:', filters);
 
-      // Requête de base simple - sans jointures qui posent problème
+      // Requête de base
       let query = supabase
         .from('listings')
-        .select('*') // Sélection simple de tous les champs de la table listings
+        .select('*')
         .eq('status', 'active')
         .order('created_at', { ascending: false });
 
-      // CORRECTION CRITIQUE : Gestion des catégories par nom
+      // Gestion des catégories par nom
       if (filters?.category) {
         console.log(`Filtrage par catégorie: "${filters.category}"`);
         
-        // Résoudre le nom de catégorie vers son ID
         const categoryId = await resolveCategoryId(filters.category);
         
         if (categoryId) {
           console.log(`ID de catégorie résolu: ${categoryId}`);
           query = query.eq('category_id', categoryId);
         } else {
-          // Si la catégorie n'est pas trouvée, ne retourner aucun résultat
-          // plutôt que de planter l'application
-          console.warn(`Catégorie "${filters.category}" introuvable. Aucune annonce ne sera retournée.`);
+          console.warn(`Catégorie "${filters.category}" introuvable.`);
           setListings([]);
           setLoading(false);
           return;
         }
       }
 
-      // Application des autres filtres (inchangés)
+      // Application des autres filtres
       if (filters?.query) {
         query = query.or(`title.ilike.%${filters.query}%,description.ilike.%${filters.query}%`);
       }
@@ -196,7 +212,6 @@ export const useListings = () => {
         query = query.order('views_count', { ascending: false });
       }
 
-      console.log('Exécution de la requête...');
       const { data, error } = await query;
 
       if (error) {
@@ -206,12 +221,13 @@ export const useListings = () => {
 
       console.log(`Requête réussie: ${data?.length || 0} annonces trouvées`);
 
-      // Enrichissement de chaque annonce avec les données liées
-      // Cette approche évite les problèmes de jointure en faisant des requêtes séparées
-      const enrichedListings = [];
-      for (const listing of data || []) {
-        const enrichedListing = await enrichListing(listing);
-        enrichedListings.push(enrichedListing);
+      // Enrichissement de chaque annonce - CORRECTION: Typage approprié
+      const enrichedListings: Listing[] = [];
+      if (data) {
+        for (const listing of data) {
+          const enrichedListing = await enrichListing(listing);
+          enrichedListings.push(enrichedListing);
+        }
       }
 
       setListings(enrichedListings);
@@ -231,8 +247,8 @@ export const useListings = () => {
   }, [toast, resolveCategoryId, enrichListing]);
 
   /**
-   * Version optimisée pour récupérer les annonces sans enrichissement
-   * Utilisée pour les cas où on a besoin de performances (comme les annonces récentes)
+   * Version simple sans enrichissement pour de meilleures performances
+   * CORRECTION: Typage approprié des données retournées
    */
   const fetchListingsSimple = useCallback(async (filters?: SearchFilters) => {
     setLoading(true);
@@ -241,7 +257,6 @@ export const useListings = () => {
     try {
       console.log('Début de fetchListingsSimple avec filtres:', filters);
 
-      // Requête simple sans enrichissement pour de meilleures performances
       let query = supabase
         .from('listings')
         .select('*')
@@ -287,10 +302,12 @@ export const useListings = () => {
 
       console.log(`Requête simple réussie: ${data?.length || 0} annonces trouvées`);
 
-      // Ajout simple d'une catégorie par défaut pour la compatibilité
-      const processedListings = (data || []).map(listing => ({
+      // CORRECTION: Transformation avec typage approprié
+      const processedListings: Listing[] = (data || []).map(listing => ({
         ...listing,
-        category: 'Non spécifiée' // Valeur par défaut simple
+        category: 'Non spécifiée', // Valeur par défaut simple
+        profiles: undefined, // Propriétés optionnelles explicites
+        categories: undefined
       }));
 
       setListings(processedListings);
@@ -311,7 +328,7 @@ export const useListings = () => {
 
   /**
    * Fonction pour récupérer les annonces d'un utilisateur spécifique
-   * Version simplifiée sans jointures problématiques
+   * CORRECTION: Typage approprié
    */
   const fetchUserListings = useCallback(async (userId: string) => {
     setLoading(true);
@@ -330,10 +347,12 @@ export const useListings = () => {
       
       console.log("Données récupérées:", data?.length || 0, "annonces");
       
-      // Enrichissement simple avec catégorie par défaut
-      const processedListings = (data || []).map(listing => ({
+      // CORRECTION: Enrichissement avec typage approprié
+      const processedListings: Listing[] = (data || []).map(listing => ({
         ...listing,
-        category: 'Non spécifiée' // Valeur par défaut pour la compatibilité
+        category: 'Non spécifiée',
+        profiles: undefined,
+        categories: undefined
       }));
       
       setListings(processedListings);
@@ -357,14 +376,13 @@ export const useListings = () => {
     loading,
     error,
     fetchListings,
-    fetchListingsSimple, // Nouvelle fonction pour les cas simples
+    fetchListingsSimple,
     fetchUserListings
   };
 };
 
 /**
- * Hook pour une annonce individuelle - VERSION SIMPLIFIÉE
- * Évite les jointures automatiques qui posent problème
+ * Hook pour une annonce individuelle - VERSION CORRIGÉE
  */
 export const useListing = (id: string) => {
   const [listing, setListing] = useState<Listing | null>(null);
@@ -383,7 +401,6 @@ export const useListing = (id: string) => {
     try {
       console.log(`Récupération de l'annonce: ${id}`);
       
-      // Requête simple pour l'annonce
       const { data, error } = await supabase
         .from('listings')
         .select('*')
@@ -395,19 +412,33 @@ export const useListing = (id: string) => {
         throw error;
       }
 
-      let enrichedListing = { ...data };
+      // CORRECTION: Initialisation avec typage approprié
+      let enrichedListing: Listing = {
+        ...data,
+        profiles: undefined,
+        categories: undefined,
+        category: 'Catégorie inconnue'
+      };
 
       try {
         // Enrichissement optionnel des données du profil
         if (data.user_id) {
           const { data: profileData } = await supabase
             .from('profiles')
-            .select('full_name, phone, email, avatar_url, bio, location')
+            .select('id, full_name, phone, email, avatar_url, bio, location')
             .eq('id', data.user_id)
             .single();
           
           if (profileData) {
-            enrichedListing.profiles = profileData;
+            enrichedListing.profiles = {
+              id: profileData.id,
+              full_name: profileData.full_name,
+              phone: profileData.phone,
+              email: profileData.email,
+              avatar_url: profileData.avatar_url,
+              bio: profileData.bio,
+              location: profileData.location
+            };
           }
         }
 
@@ -415,24 +446,24 @@ export const useListing = (id: string) => {
         if (data.category_id) {
           const { data: categoryData } = await supabase
             .from('categories')
-            .select('name, icon, slug, description')
+            .select('id, name, icon, slug, description')
             .eq('id', data.category_id)
             .single();
           
           if (categoryData) {
-            enrichedListing.categories = categoryData;
+            enrichedListing.categories = {
+              id: categoryData.id,
+              name: categoryData.name,
+              slug: categoryData.slug,
+              icon: categoryData.icon,
+              description: categoryData.description
+            };
             enrichedListing.category = categoryData.name;
           }
         }
 
-        // Assurer une catégorie par défaut
-        if (!enrichedListing.category) {
-          enrichedListing.category = 'Catégorie inconnue';
-        }
-
       } catch (enrichmentError) {
         console.warn('Impossible d\'enrichir les données de l\'annonce:', enrichmentError);
-        enrichedListing.category = 'Catégorie inconnue';
       }
 
       console.log('Annonce récupérée avec succès');
@@ -485,10 +516,7 @@ export const useListing = (id: string) => {
   };
 };
 
-/**
- * Hook de création/modification/suppression - INCHANGÉ
- * Fonctionne déjà correctement avec les category_id
- */
+// Le reste du code reste identique...
 export const useCreateListing = () => {
   const [loading, setLoading] = useState(false);
   const { user } = useAuthContext();
@@ -555,7 +583,6 @@ export const useCreateListing = () => {
     }
   }, [user, toast]);
 
-  // Fonction updateListing CORRIGÉE - Remplace celle qui ne fonctionnait pas
   const updateListing = useCallback(async (id: string, updates: Partial<Listing>) => {
     if (!user) {
       toast({
@@ -579,7 +606,6 @@ export const useCreateListing = () => {
     try {
       console.log('Début de la mise à jour de l\'annonce:', { id, updates, userId: user.id });
 
-      // D'abord vérifier que l'annonce existe et appartient à l'utilisateur
       const { data: existingListing, error: checkError } = await supabase
         .from('listings')
         .select('id, user_id, title')
@@ -599,7 +625,6 @@ export const useCreateListing = () => {
         throw new Error('Vous n\'avez pas les droits pour modifier cette annonce');
       }
 
-      // Préparer les données de mise à jour en excluant les champs non-modifiables
       const allowedFields = [
         'title', 'description', 'price', 'currency', 'category_id', 
         'location', 'condition', 'contact_phone', 'contact_email', 
@@ -613,24 +638,21 @@ export const useCreateListing = () => {
         }
       });
 
-      // Toujours mettre à jour le timestamp
       sanitizedUpdates.updated_at = new Date().toISOString();
 
       console.log('Données à mettre à jour:', sanitizedUpdates);
 
-      // Effectuer la mise à jour
       const { data, error } = await supabase
         .from('listings')
         .update(sanitizedUpdates)
         .eq('id', id)
-        .eq('user_id', user.id) // Double sécurité
+        .eq('user_id', user.id)
         .select()
         .single();
 
       if (error) {
         console.error('Erreur Supabase lors de la mise à jour:', error);
         
-        // Gestion spécifique des erreurs courantes
         if (error.code === 'PGRST116') {
           throw new Error('Aucune modification n\'a été effectuée');
         } else if (error.code === '23503') {
@@ -681,7 +703,6 @@ export const useCreateListing = () => {
     }
   }, [user, toast]);
 
-  // Fonction deleteListing CORRIGÉE - Version qui fonctionne vraiment
   const deleteListing = useCallback(async (id: string) => {
     if (!user) {
       toast({
@@ -705,7 +726,6 @@ export const useCreateListing = () => {
     try {
       console.log('Début de la suppression de l\'annonce:', { id, userId: user.id });
 
-      // Vérification préalable
       const { data: existingListing, error: checkError } = await supabase
         .from('listings')
         .select('id, user_id, title')
@@ -720,9 +740,7 @@ export const useCreateListing = () => {
         throw new Error('Vous n\'avez pas les droits pour supprimer cette annonce');
       }
 
-      // Supprimer d'abord les données liées pour éviter les erreurs de contrainte
-
-      // 1. Supprimer les favoris
+      // Supprimer les données liées
       const { error: favoritesError } = await supabase
         .from('favorites')
         .delete()
@@ -732,7 +750,6 @@ export const useCreateListing = () => {
         console.warn('Erreur suppression favoris (non critique):', favoritesError);
       }
 
-      // 2. Supprimer les messages
       const { error: messagesError } = await supabase
         .from('messages')
         .delete()
@@ -742,7 +759,6 @@ export const useCreateListing = () => {
         console.warn('Erreur suppression messages (non critique):', messagesError);
       }
 
-      // 3. Supprimer les messages d'invités si la table existe
       const { error: guestMessagesError } = await supabase
         .from('guest_messages')
         .delete()
@@ -752,7 +768,6 @@ export const useCreateListing = () => {
         console.warn('Erreur suppression guest_messages (non critique):', guestMessagesError);
       }
 
-      // 4. Supprimer les signalements liés
       const { error: reportsError } = await supabase
         .from('reports')
         .delete()
@@ -762,12 +777,12 @@ export const useCreateListing = () => {
         console.warn('Erreur suppression reports (non critique):', reportsError);
       }
 
-      // 5. Finalement, supprimer l'annonce
+      // Finalement, supprimer l'annonce
       const { error: deleteError } = await supabase
         .from('listings')
         .delete()
         .eq('id', id)
-        .eq('user_id', user.id); // Double sécurité
+        .eq('user_id', user.id);
 
       if (deleteError) {
         console.error('Erreur lors de la suppression de l\'annonce:', deleteError);
@@ -809,8 +824,8 @@ export const useCreateListing = () => {
 
   return {
     createListing,
-    updateListing,   // Version corrigée
-    deleteListing,   // Version corrigée
+    updateListing,
+    deleteListing,
     loading
   };
 };

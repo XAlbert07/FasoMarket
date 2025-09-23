@@ -35,6 +35,7 @@ import { SuspensionGuard } from '@/components/SuspensionGuard'
 import  SanctionsManagementPage  from '@/pages/admin/components/SanctionsManagementPage'
 import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
+import Blog from "./pages/Blog";
 
 const queryClient = new QueryClient();
 
@@ -96,6 +97,7 @@ const App = () => (
              <Route path="/Sanctions" element={<ProtectedRoute>< SanctionsManagementPage/></ProtectedRoute>} />
              <Route path="/forgot-password" element={<ForgotPassword />} />
              <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/blog" element={<Blog />} />
             
             {/* 
               ROUTE PROFIL VENDEUR : Permet de voir le profil public d'un vendeur

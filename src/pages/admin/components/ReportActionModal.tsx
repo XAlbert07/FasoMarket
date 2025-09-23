@@ -1,16 +1,27 @@
-// components/ReportActionModal.tsx - Version corrigée avec gestion des durées
+// pages/admin/components/ReportActionModal.tsx
+// Modal de sanctions avancées - Mobile First avec toutes les fonctionnalités
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle, AlertDialogFooter, AlertDialogCancel } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { AlertTriangle, Shield, Clock, Ban, Eye, FileX, AlertCircle, Calendar, Timer, Settings } from 'lucide-react';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Checkbox } from '@/components/ui/checkbox';
+
+import { 
+  AlertTriangle, Shield, Clock, Ban, Eye, FileX, AlertCircle, Calendar, 
+  Timer, Settings, Gavel, UserX, MessageSquare, Trash2, 
+  CheckCircle2, XCircle, Info, Zap, Target
+} from 'lucide-react';
+
+
+
 
 interface ReportActionModalProps {
   report: any;
@@ -25,29 +36,54 @@ const ReportActionModal: React.FC<ReportActionModalProps> = ({
   onClose,
   onAction
 }) => {
+  // États pour le formulaire de sanction
   const [selectedAction, setSelectedAction] = useState<string>('');
   const [reason, setReason] = useState('');
+  const [customReason, setCustomReason] = useState('');
   const [notes, setNotes] = useState('');
   const [duration, setDuration] = useState('7');
   const [customDuration, setCustomDuration] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [notifyUser, setNotifyUser] = useState(true);
+  const [currentStep, setCurrentStep] = useState(1);
 
-  // Configuration des actions possibles selon le type de signalement
+  // Réinitialiser le formulaire à l'ouverture
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedAction('');
+      setReason('');
+      setCustomReason('');
+      setNotes('');
+      setDuration('7');
+      setCustomDuration('');
+      setIsProcessing(false);
+      setShowPreview(false);
+      setNotifyUser(true);
+      setCurrentStep(1);
+    }
+  }, [isOpen]);
+
+  // Configuration des actions disponibles selon le type de signalement
   const getAvailableActions = () => {
     const baseActions = [
       { 
         id: 'approve', 
         label: 'Approuver le signalement', 
-        icon: Shield, 
+        icon: CheckCircle2, 
         color: 'green',
-        description: 'Confirmer que le signalement est fondé et prendre les mesures appropriées'
+        severity: 'low',
+        description: 'Confirmer que le signalement est fondé sans appliquer de sanction immédiate',
+        requiresDuration: false
       },
       { 
         id: 'dismiss', 
         label: 'Rejeter le signalement', 
-        icon: Eye, 
+        icon: XCircle, 
         color: 'gray',
-        description: 'Considérer le signalement comme non fondé et le fermer'
+        severity: 'low',
+        description: 'Considérer le signalement comme non fondé et le fermer',
+        requiresDuration: false
       }
     ];
 
@@ -55,33 +91,41 @@ const ReportActionModal: React.FC<ReportActionModalProps> = ({
       return [
         ...baseActions,
         { 
+          id: 'warn_user', 
+          label: 'Avertir le propriétaire', 
+          icon: AlertTriangle, 
+          color: 'yellow',
+          severity: 'low',
+          description: 'Envoyer un avertissement au propriétaire de l\'annonce',
+          requiresDuration: false
+        },
+        { 
           id: 'suspend_listing', 
           label: 'Suspendre l\'annonce temporairement', 
           icon: Timer, 
           color: 'orange',
-          description: 'Suspendre l\'annonce pour une durée limitée',
+          severity: 'medium',
+          description: 'Rendre l\'annonce invisible pendant une durée déterminée',
+          requiresDuration: true,
           supportsDuration: true
         },
         { 
           id: 'remove_listing', 
           label: 'Supprimer l\'annonce définitivement', 
-          icon: FileX, 
+          icon: Trash2, 
           color: 'red',
-          description: 'Supprimer définitivement l\'annonce (action irréversible)'
-        },
-        { 
-          id: 'warn_user', 
-          label: 'Avertir le propriétaire', 
-          icon: AlertTriangle, 
-          color: 'yellow',
-          description: 'Envoyer un avertissement au propriétaire de l\'annonce'
+          severity: 'high',
+          description: 'Supprimer définitivement l\'annonce (action irréversible)',
+          requiresDuration: false
         },
         { 
           id: 'suspend_user', 
           label: 'Suspendre le propriétaire temporairement', 
-          icon: Clock, 
+          icon: UserX, 
           color: 'orange',
+          severity: 'high',
           description: 'Suspendre temporairement le compte du propriétaire',
+          requiresDuration: true,
           supportsDuration: true
         },
         { 
@@ -89,7 +133,9 @@ const ReportActionModal: React.FC<ReportActionModalProps> = ({
           label: 'Bannir le propriétaire', 
           icon: Ban, 
           color: 'red',
+          severity: 'critical',
           description: 'Bannir définitivement ou temporairement le propriétaire',
+          requiresDuration: true,
           supportsDuration: true,
           allowPermanent: true
         }
@@ -102,14 +148,18 @@ const ReportActionModal: React.FC<ReportActionModalProps> = ({
           label: 'Avertir l\'utilisateur', 
           icon: AlertTriangle, 
           color: 'yellow',
-          description: 'Envoyer un avertissement à l\'utilisateur'
+          severity: 'low',
+          description: 'Envoyer un avertissement à l\'utilisateur',
+          requiresDuration: false
         },
         { 
           id: 'suspend_user', 
           label: 'Suspendre l\'utilisateur temporairement', 
-          icon: Clock, 
+          icon: UserX, 
           color: 'orange',
+          severity: 'high',
           description: 'Suspendre temporairement le compte de l\'utilisateur',
+          requiresDuration: true,
           supportsDuration: true
         },
         { 
@@ -117,7 +167,9 @@ const ReportActionModal: React.FC<ReportActionModalProps> = ({
           label: 'Bannir l\'utilisateur', 
           icon: Ban, 
           color: 'red',
+          severity: 'critical',
           description: 'Bannir définitivement ou temporairement l\'utilisateur',
+          requiresDuration: true,
           supportsDuration: true,
           allowPermanent: true
         }
@@ -128,78 +180,90 @@ const ReportActionModal: React.FC<ReportActionModalProps> = ({
   const availableActions = getAvailableActions();
   const selectedActionConfig = availableActions.find(a => a.id === selectedAction);
 
-  // Raisons prédéfinies selon le type d'action avec plus d'options
+  // Raisons prédéfinies selon le type d'action
   const getPredefinedReasons = (actionType: string) => {
     const reasonsMap: Record<string, string[]> = {
       'approve': [
         'Signalement fondé et vérifié',
         'Violation des conditions d\'utilisation confirmée',
         'Contenu inapproprié confirmé',
-        'Activité suspecte détectée'
+        'Activité suspecte détectée',
+        'Non-conformité aux standards de la plateforme'
       ],
       'dismiss': [
         'Signalement non fondé',
         'Informations insuffisantes',
         'Utilisation acceptable du service',
         'Malentendu ou erreur de signalement',
-        'Pas de violation des règles communautaires'
+        'Pas de violation des règles communautaires',
+        'Désaccord commercial normal'
       ],
       'warn_user': [
         'Premier avertissement - comportement limite',
         'Contenu inapproprié mineur',
         'Non-respect des bonnes pratiques',
         'Amélioration nécessaire du contenu',
-        'Rappel des règles communautaires'
+        'Rappel des règles communautaires',
+        'Description ou prix peu clair',
+        'Photos de qualité insuffisante'
       ],
       'suspend_user': [
         'Violations répétées des règles',
         'Comportement abusif envers d\'autres utilisateurs',
         'Non-respect des avertissements précédents',
         'Activité suspecte nécessitant investigation',
-        'Contenu inapproprié récurrent'
+        'Contenu inapproprié récurrent',
+        'Tentatives de contournement des règles',
+        'Prix artificiellement gonflés de manière répétée'
       ],
       'ban_user': [
         'Violations graves et répétées',
         'Fraude confirmée',
         'Comportement malveillant persistant',
-        'Tentative d\'escroquerie',
+        'Tentative d\'escroquerie avérée',
         'Création de comptes multiples (ban evasion)',
-        'Contenus illégaux ou dangereux'
+        'Contenus illégaux ou dangereux',
+        'Harcèlement ou menaces envers d\'autres utilisateurs',
+        'Utilisation de la plateforme à des fins criminelles'
       ],
       'suspend_listing': [
         'Contenu non conforme aux standards',
         'Prix suspect ou irréaliste',
         'Photos inappropriées ou trompeuses',
         'Description incomplète ou mensongère',
-        'Produit potentiellement contrefait'
+        'Produit potentiellement contrefait',
+        'Informations de contact invalides',
+        'Violation des règles de catégorisation'
       ],
       'remove_listing': [
         'Contenu illégal confirmé',
         'Fraude avérée',
         'Violation majeure des conditions',
         'Produit interdit sur la plateforme',
-        'Contenu dangereux pour les utilisateurs'
+        'Contenu dangereux pour les utilisateurs',
+        'Arnaque confirmée par investigation',
+        'Contenu pornographique ou violent'
       ]
     };
     
     return reasonsMap[actionType] || [];
   };
 
-  // Options de durée prédéfinies
+  // Options de durée selon l'action
   const getDurationOptions = () => {
     const baseOptions = [
-      { value: '1', label: '1 jour', description: 'Suspension très courte' },
+      { value: '1', label: '1 jour', description: 'Sanction très légère' },
       { value: '3', label: '3 jours', description: 'Avertissement sérieux' },
-      { value: '7', label: '7 jours', description: 'Suspension standard' },
-      { value: '14', label: '14 jours', description: 'Suspension prolongée' },
-      { value: '30', label: '30 jours', description: 'Sanction sévère' },
-      { value: '90', label: '90 jours', description: 'Suspension très longue' }
+      { value: '7', label: '1 semaine', description: 'Suspension standard' },
+      { value: '14', label: '2 semaines', description: 'Sanction modérée' },
+      { value: '30', label: '1 mois', description: 'Sanction sévère' },
+      { value: '90', label: '3 mois', description: 'Suspension longue' }
     ];
 
     if (selectedActionConfig?.allowPermanent) {
       return [
         ...baseOptions,
-        { value: '365', label: 'Bannissement permanent', description: 'Interdiction définitive' },
+        { value: '365', label: 'Bannissement permanent', description: '⚠️ Interdiction définitive' },
         { value: 'custom', label: 'Durée personnalisée', description: 'Spécifier une durée exacte' }
       ];
     }
@@ -210,36 +274,52 @@ const ReportActionModal: React.FC<ReportActionModalProps> = ({
     ];
   };
 
-  const handleSubmit = async () => {
-    if (!selectedAction || !reason) {
-      return;
+  // Validation du formulaire
+  const validateForm = () => {
+    if (!selectedAction) return { isValid: false, message: 'Veuillez sélectionner une action' };
+    if (!reason && reason !== 'custom') return { isValid: false, message: 'Veuillez sélectionner un motif' };
+    if (reason === 'custom' && !customReason.trim()) return { isValid: false, message: 'Veuillez saisir un motif personnalisé' };
+    
+    if (selectedActionConfig?.requiresDuration) {
+      if (duration === 'custom') {
+        const customDur = parseInt(customDuration);
+        if (isNaN(customDur) || customDur < 1) {
+          return { isValid: false, message: 'Veuillez entrer une durée valide' };
+        }
+        if (!selectedActionConfig?.allowPermanent && customDur > 90) {
+          return { isValid: false, message: 'La durée maximale pour cette action est de 90 jours' };
+        }
+      }
     }
+    
+    return { isValid: true, message: '' };
+  };
 
-    // Validation de la durée personnalisée
-    let finalDuration = parseInt(duration);
-    if (duration === 'custom') {
-      finalDuration = parseInt(customDuration);
-      
-      if (isNaN(finalDuration) || finalDuration < 1) {
-        alert('Veuillez entrer une durée valide (nombre de jours)');
-        return;
-      }
-      
-      if (!selectedActionConfig?.allowPermanent && finalDuration > 90) {
-        alert('La durée maximale pour cette action est de 90 jours');
-        return;
-      }
+  // Soumission du formulaire
+  const handleSubmit = async () => {
+    const validation = validateForm();
+    if (!validation.isValid) {
+      alert(validation.message);
+      return;
     }
 
     setIsProcessing(true);
     
     try {
+      let finalDuration = parseInt(duration);
+      if (duration === 'custom') {
+        finalDuration = parseInt(customDuration);
+      }
+
       const actionData = {
         type: selectedAction,
-        reason: reason === 'custom' ? document.querySelector<HTMLInputElement>('[data-custom-reason]')?.value || reason : reason,
+        reason: reason === 'custom' ? customReason : reason,
         notes: notes.trim() || undefined,
-        duration: selectedActionConfig?.supportsDuration ? finalDuration : undefined
+        duration: selectedActionConfig?.requiresDuration ? finalDuration : undefined,
+        notifyUser: notifyUser
       };
+
+      console.log('🔧 Exécution de l\'action avancée:', actionData);
 
       const success = await onAction(report.id, actionData);
       
@@ -253,126 +333,166 @@ const ReportActionModal: React.FC<ReportActionModalProps> = ({
     }
   };
 
+  // Fermeture et réinitialisation
   const handleClose = () => {
-    // Reset form
     setSelectedAction('');
     setReason('');
+    setCustomReason('');
     setNotes('');
     setDuration('7');
     setCustomDuration('');
+    setCurrentStep(1);
+    setShowPreview(false);
     onClose();
   };
 
-  const needsDuration = selectedActionConfig?.supportsDuration;
+  // Couleurs selon la sévérité
+  const getSeverityColor = (severity: string) => {
+    const colors = {
+      low: 'border-green-200 bg-green-50',
+      medium: 'border-orange-200 bg-orange-50',
+      high: 'border-red-200 bg-red-50',
+      critical: 'border-red-300 bg-red-100'
+    };
+    return colors[severity as keyof typeof colors] || colors.low;
+  };
+
+  const getSeverityTextColor = (severity: string) => {
+    const colors = {
+      low: 'text-green-800',
+      medium: 'text-orange-800', 
+      high: 'text-red-800',
+      critical: 'text-red-900'
+    };
+    return colors[severity as keyof typeof colors] || colors.low;
+  };
+
+  // Couleur de l'action selon le type
+  const getActionColor = (color: string) => {
+    const colors = {
+      red: 'bg-red-100 text-red-700 border-red-300',
+      orange: 'bg-orange-100 text-orange-700 border-orange-300',
+      yellow: 'bg-yellow-100 text-yellow-700 border-yellow-300',
+      green: 'bg-green-100 text-green-700 border-green-300',
+      gray: 'bg-gray-100 text-gray-700 border-gray-300'
+    };
+    return colors[color as keyof typeof colors] || colors.gray;
+  };
+
+  const needsDuration = selectedActionConfig?.requiresDuration;
   const isDestructiveAction = ['ban_user', 'remove_listing'].includes(selectedAction);
   const isPermanentAction = duration === '365';
+  const isCriticalAction = selectedActionConfig?.severity === 'critical';
 
   return (
     <AlertDialog open={isOpen} onOpenChange={handleClose}>
-      <AlertDialogContent className="max-w-4xl max-h-[95vh] overflow-y-auto">
+      <AlertDialogContent className="max-w-5xl max-h-[95vh] overflow-y-auto">
         <AlertDialogHeader>
-          <AlertDialogTitle className="flex items-center space-x-2">
-            <Settings className="h-5 w-5 text-blue-600" />
-            <span>Action administrative - Signalement #{report?.id?.slice(-8)}</span>
+          <AlertDialogTitle className="flex items-center space-x-3">
+            <Gavel className="h-6 w-6 text-blue-600" />
+            <div className="flex-1">
+              <div className="text-xl font-bold">Actions administratives</div>
+              <div className="text-sm font-normal text-gray-600 mt-1">
+                Signalement #{report?.id?.slice(-8)} • Type: {report?.report_type === 'listing' ? 'Annonce' : 'Profil'}
+              </div>
+            </div>
+            <Badge className="text-xs" variant={report?.priority === 'high' ? 'destructive' : 'outline'}>
+              Priorité {report?.priority}
+            </Badge>
           </AlertDialogTitle>
-          <AlertDialogDescription>
-            Choisissez l'action appropriée pour traiter ce signalement. Toutes les actions sont enregistrées pour audit.
+          <AlertDialogDescription className="text-base">
+            Choisissez l'action appropriée pour traiter ce signalement. 
+            Toutes les sanctions sont enregistrées dans l'historique d'audit.
           </AlertDialogDescription>
         </AlertDialogHeader>
 
+        {/* Contenu principal - responsive */}
         <div className="space-y-6">
-          {/* Résumé du signalement */}
-          <Card>
-            <CardContent className="p-6">
+          
+          {/* Étape 1 : Résumé du signalement */}
+          <Card className="border-blue-200 bg-blue-50">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg flex items-center space-x-2">
+                <Target className="h-5 w-5 text-blue-600" />
+                <span>Résumé du signalement</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Colonne gauche */}
                 <div className="space-y-4">
                   <div>
-                    <Label className="text-sm font-medium text-gray-600">Type et Priorité</Label>
-                    <div className="flex items-center space-x-2 mt-1">
-                      <Badge variant={report?.report_type === 'listing' ? 'default' : 'secondary'}>
-                        {report?.report_type === 'listing' ? 'Annonce' : 'Profil'}
-                      </Badge>
-                      <Badge className={`${
-                        report?.priority === 'high' ? 'bg-red-100 text-red-600 border-red-200' :
-                        report?.priority === 'medium' ? 'bg-yellow-100 text-yellow-600 border-yellow-200' :
-                        'bg-green-100 text-green-600 border-green-200'
-                      }`}>
-                        Priorité {report?.priority}
-                      </Badge>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <Label className="text-sm font-medium text-gray-600">Signalé par</Label>
-                    <div className="mt-1">
-                      <p className="font-medium">{report?.reporter_name || 'Anonyme'}</p>
-                      <Badge variant="outline" className="text-xs">
-                        {report?.reporter_type === 'guest' ? 'Utilisateur invité' : 'Utilisateur inscrit'}
-                      </Badge>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="space-y-4">
-                  <div>
-                    <Label className="text-sm font-medium text-gray-600">Cible du signalement</Label>
-                    <div className="mt-1">
-                      <p className="font-medium">
+                    <Label className="text-sm font-semibold text-blue-800">Cible signalée</Label>
+                    <div className="mt-1 p-3 bg-white rounded-md border border-blue-200">
+                      <p className="font-semibold text-gray-900">
                         {report?.listing_title || report?.reported_user_name || 'Cible inconnue'}
                       </p>
                       {report?.listing_price && (
-                        <p className="text-sm text-gray-500">{report?.listing_price.toLocaleString()} CFA</p>
+                        <p className="text-sm text-green-600 mt-1">
+                          Prix: {report?.listing_price.toLocaleString()} CFA
+                        </p>
                       )}
                     </div>
                   </div>
                   
                   <div>
-                    <Label className="text-sm font-medium text-gray-600">Date de signalement</Label>
-                    <p className="text-sm text-gray-700 mt-1">
-                      {new Date(report?.created_at).toLocaleDateString('fr-FR', {
-                        day: 'numeric',
-                        month: 'long',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </p>
-                  </div>
-                </div>
-              </div>
-              
-              <Separator className="my-4" />
-              
-              <div className="space-y-3">
-                <div>
-                  <Label className="text-sm font-medium text-gray-600">Motif du signalement</Label>
-                  <div className="mt-1 p-3 bg-red-50 border border-red-200 rounded-md">
-                    <p className="text-sm text-red-800 font-medium">{report?.reason}</p>
+                    <Label className="text-sm font-semibold text-blue-800">Motif du signalement</Label>
+                    <div className="mt-1 p-3 bg-red-50 border border-red-200 rounded-md">
+                      <p className="text-red-800 font-medium text-sm">{report?.reason}</p>
+                    </div>
                   </div>
                 </div>
 
-                {report?.description && (
+                {/* Colonne droite */}
+                <div className="space-y-4">
                   <div>
-                    <Label className="text-sm font-medium text-gray-600">Description détaillée</Label>
-                    <div className="mt-1 p-3 bg-gray-50 border border-gray-200 rounded-md">
-                      <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                        {report?.description}
+                    <Label className="text-sm font-semibold text-blue-800">Signalé par</Label>
+                    <div className="mt-1 p-3 bg-white rounded-md border border-blue-200">
+                      <div className="flex items-center justify-between">
+                        <p className="font-medium">{report?.reporter_name || 'Anonyme'}</p>
+                        <Badge variant="outline" className="text-xs">
+                          {report?.reporter_type === 'guest' ? 'Invité' : 'Inscrit'}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label className="text-sm font-semibold text-blue-800">Informations temporelles</Label>
+                    <div className="mt-1 p-3 bg-white rounded-md border border-blue-200 space-y-1">
+                      <p className="text-sm">
+                        <strong>Signalé le:</strong> {new Date(report?.created_at).toLocaleDateString('fr-FR')}
+                      </p>
+                      <p className="text-sm">
+                        <strong>Temps écoulé:</strong> {Math.round((report?.response_time_hours || 0))}h
                       </p>
                     </div>
                   </div>
-                )}
+                </div>
               </div>
+
+              {report?.description && (
+                <div className="mt-4">
+                  <Label className="text-sm font-semibold text-blue-800">Description détaillée</Label>
+                  <div className="mt-1 p-3 bg-white rounded-md border border-blue-200">
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                      {report?.description}
+                    </p>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
-          {/* Sélection de l'action */}
+          {/* Étape 2 : Sélection de l'action */}
           <div className="space-y-4">
-            <div className="flex items-center space-x-2">
-              <AlertCircle className="h-5 w-5 text-blue-600" />
-              <Label className="text-base font-medium">Action à entreprendre</Label>
+            <div className="flex items-center space-x-2 mb-4">
+              <Settings className="h-5 w-5 text-gray-700" />
+              <h3 className="text-lg font-semibold">Choisir une action</h3>
             </div>
             
-            <div className="grid grid-cols-1 gap-3">
+            {/* Grid d'actions - responsive */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {availableActions.map((action) => {
                 const Icon = action.icon;
                 const isSelected = selectedAction === action.id;
@@ -380,43 +500,48 @@ const ReportActionModal: React.FC<ReportActionModalProps> = ({
                 return (
                   <Card 
                     key={action.id}
-                    className={`cursor-pointer transition-all border-2 ${
+                    className={`cursor-pointer transition-all duration-200 border-2 ${
                       isSelected 
-                        ? 'border-blue-500 bg-blue-50' 
-                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                        ? `border-blue-500 ${getSeverityColor(action.severity)}`
+                        : `border-gray-200 hover:border-gray-300 hover:${getSeverityColor(action.severity)}`
                     }`}
                     onClick={() => setSelectedAction(action.id)}
                   >
                     <CardContent className="p-4">
                       <div className="flex items-start space-x-3">
-                        <div className={`p-2 rounded-lg ${
-                          action.color === 'red' ? 'bg-red-100' :
-                          action.color === 'orange' ? 'bg-orange-100' :
-                          action.color === 'yellow' ? 'bg-yellow-100' :
-                          action.color === 'green' ? 'bg-green-100' :
-                          'bg-gray-100'
-                        }`}>
-                          <Icon className={`h-5 w-5 ${
-                            action.color === 'red' ? 'text-red-600' :
-                            action.color === 'orange' ? 'text-orange-600' :
-                            action.color === 'yellow' ? 'text-yellow-600' :
-                            action.color === 'green' ? 'text-green-600' :
-                            'text-gray-600'
-                          }`} />
+                        {/* Icône de l'action */}
+                        <div className={`p-2 rounded-lg ${getActionColor(action.color)}`}>
+                          <Icon className="h-5 w-5" />
                         </div>
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-2">
-                            <h4 className="font-medium text-gray-900">{action.label}</h4>
-                            {action.supportsDuration && (
-                              <Badge variant="outline" className="text-xs">
-                                <Clock className="h-3 w-3 mr-1" />
-                                Temporaire
+                        
+                        {/* Contenu de l'action */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between mb-2">
+                            <h4 className="font-semibold text-gray-900 leading-tight">
+                              {action.label}
+                            </h4>
+                            <div className="flex items-center space-x-2 ml-2">
+                              {action.requiresDuration && (
+                                <Badge variant="outline" className="text-xs">
+                                  <Clock className="h-3 w-3 mr-1" />
+                                  Durée
+                                </Badge>
+                              )}
+                              <Badge 
+                                className={`text-xs ${getSeverityColor(action.severity)} ${getSeverityTextColor(action.severity)}`}
+                                variant="outline"
+                              >
+                                {action.severity === 'critical' ? 'Critique' : 
+                                 action.severity === 'high' ? 'Élevé' :
+                                 action.severity === 'medium' ? 'Modéré' : 'Faible'}
                               </Badge>
-                            )}
+                            </div>
                           </div>
-                          <p className="text-sm text-gray-600 mt-1">{action.description}</p>
+                          <p className="text-sm text-gray-600 leading-relaxed">{action.description}</p>
                         </div>
-                        <div className={`w-4 h-4 rounded-full border-2 ${
+                        
+                        {/* Indicateur de sélection */}
+                        <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 ${
                           isSelected ? 'bg-blue-600 border-blue-600' : 'border-gray-300'
                         }`}>
                           {isSelected && (
@@ -431,149 +556,246 @@ const ReportActionModal: React.FC<ReportActionModalProps> = ({
             </div>
           </div>
 
-          {/* Configuration de l'action sélectionnée */}
+          {/* Étape 3 : Configuration de l'action sélectionnée */}
           {selectedAction && (
-            <Card className="border-blue-200 bg-blue-50">
-              <CardContent className="p-6">
-                <div className="flex items-center space-x-2 mb-4">
-                  {selectedActionConfig && <selectedActionConfig.icon className="h-5 w-5 text-blue-600" />}
-                  <h4 className="font-medium text-blue-900">Configuration de l'action</h4>
-                </div>
-
-                <div className="space-y-4">
-                  {/* Durée pour les sanctions temporaires */}
-                  {needsDuration && (
-                    <div className="space-y-3">
-                      <div className="flex items-center space-x-2">
-                        <Calendar className="h-4 w-4 text-blue-600" />
-                        <Label htmlFor="duration" className="font-medium">Durée de la sanction</Label>
+            <Card className={`border-2 ${getSeverityColor(selectedActionConfig?.severity || 'low')}`}>
+              <CardHeader className="pb-4">
+                <CardTitle className="text-lg flex items-center space-x-2">
+                  {selectedActionConfig && <selectedActionConfig.icon className="h-5 w-5" />}
+                  <span>Configuration de l'action</span>
+                  <Badge className={`${getSeverityColor(selectedActionConfig?.severity || 'low')} ${getSeverityTextColor(selectedActionConfig?.severity || 'low')}`}>
+                    {selectedActionConfig?.label}
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              
+              <CardContent className="space-y-6">
+                
+                {/* Configuration de la durée */}
+                {needsDuration && (
+                  <div className="space-y-4">
+                    <div className="flex items-center space-x-2">
+                      <Calendar className="h-5 w-5 text-blue-600" />
+                      <Label className="text-base font-semibold">Durée de la sanction</Label>
+                    </div>
+                    
+                    {/* Grid pour les options de durée - responsive */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {getDurationOptions().map((option) => (
+                        <Card 
+                          key={option.value}
+                          className={`cursor-pointer transition-all border ${
+                            duration === option.value 
+                              ? 'border-blue-500 bg-blue-50' 
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                          onClick={() => setDuration(option.value)}
+                        >
+                          <CardContent className="p-3 text-center">
+                            <div className="font-medium text-sm">{option.label}</div>
+                            <div className="text-xs text-gray-600 mt-1">{option.description}</div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                    
+                    {/* Durée personnalisée */}
+                    {duration === 'custom' && (
+                      <div className="mt-4">
+                        <Label htmlFor="custom-duration" className="text-sm font-medium">
+                          Nombre de jours (1-{selectedActionConfig?.allowPermanent ? "9999" : "90"})
+                        </Label>
+                        <Input
+                          id="custom-duration"
+                          type="number"
+                          min="1"
+                          max={selectedActionConfig?.allowPermanent ? "9999" : "90"}
+                          value={customDuration}
+                          onChange={(e) => setCustomDuration(e.target.value)}
+                          placeholder="Ex: 15"
+                          className="mt-2 max-w-xs"
+                        />
                       </div>
-                      
-                      <Select value={duration} onValueChange={setDuration}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Choisir la durée" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {getDurationOptions().map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              <div>
-                                <div className="font-medium">{option.label}</div>
-                                <div className="text-xs text-gray-500">{option.description}</div>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      
-                      {duration === 'custom' && (
-                        <div>
-                          <Label htmlFor="custom-duration">Nombre de jours personnalisé</Label>
-                          <Input
-                            id="custom-duration"
-                            type="number"
-                            min="1"
-                            max={selectedActionConfig?.allowPermanent ? "9999" : "90"}
-                            value={customDuration}
-                            onChange={(e) => setCustomDuration(e.target.value)}
-                            placeholder="Entrez le nombre de jours"
-                            className="mt-1"
-                          />
-                        </div>
-                      )}
+                    )}
 
-                      {isPermanentAction && (
-                        <div className="p-3 border border-red-200 bg-red-50 rounded flex items-start space-x-2">
-                          <Ban className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
-                          <div className="text-sm text-red-700">
-                            <p className="font-medium">Bannissement permanent sélectionné</p>
-                            <p>Cette action interdira définitivement l'accès à la plateforme.</p>
+                    {/* Avertissement pour bannissement permanent */}
+                    {isPermanentAction && (
+                      <div className="p-4 border-2 border-red-300 bg-red-50 rounded-lg">
+                        <div className="flex items-start space-x-3">
+                          <Ban className="h-6 w-6 text-red-600 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <h4 className="font-bold text-red-900 text-base">
+                              ⚠️ Bannissement permanent sélectionné
+                            </h4>
+                            <div className="text-sm text-red-800 mt-2 space-y-1">
+                              <p>• Cette action interdira <strong>définitivement</strong> l'accès à la plateforme</p>
+                              <p>• L'utilisateur ne pourra plus se connecter ni créer de nouveau compte</p>
+                              <p>• Cette décision ne peut être révoquée que manuellement par un super-administrateur</p>
+                              <p>• Assurez-vous que cette sanction est justifiée et proportionnelle</p>
+                            </div>
                           </div>
                         </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Raison de l'action */}
-                  <div className="space-y-3">
-                    <Label htmlFor="reason" className="font-medium flex items-center space-x-2">
-                      <AlertTriangle className="h-4 w-4" />
-                      <span>Raison de l'action *</span>
-                    </Label>
-                    
-                    <Select value={reason} onValueChange={setReason}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Sélectionner une raison" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {getPredefinedReasons(selectedAction).map((reasonOption) => (
-                          <SelectItem key={reasonOption} value={reasonOption}>
-                            {reasonOption}
-                          </SelectItem>
-                        ))}
-                        <SelectItem value="custom">✏️ Raison personnalisée...</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    
-                    {reason === 'custom' && (
-                      <Input
-                        data-custom-reason
-                        placeholder="Entrez une raison personnalisée"
-                        className="mt-2"
-                      />
+                      </div>
                     )}
                   </div>
+                )}
 
-                  {/* Notes administratives */}
-                  <div className="space-y-3">
-                    <Label htmlFor="notes" className="font-medium">Notes administratives internes (optionnel)</Label>
-                    <Textarea
-                      id="notes"
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      placeholder="Ajoutez des notes internes sur cette décision pour l'équipe d'administration..."
-                      rows={3}
-                    />
+                {/* Sélection du motif */}
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <AlertTriangle className="h-5 w-5 text-orange-600" />
+                    <Label className="text-base font-semibold">Motif de l'action *</Label>
                   </div>
-
-                  {/* Avertissement pour les actions destructives */}
-                  {isDestructiveAction && (
-                    <div className="p-4 border border-red-200 bg-red-50 rounded-lg flex items-start space-x-3">
-                      <AlertTriangle className="h-6 w-6 text-red-600 mt-0.5 flex-shrink-0" />
-                      <div className="text-sm text-red-700">
-                        <p className="font-medium text-base mb-2">⚠️ Action irréversible</p>
-                        <ul className="list-disc list-inside space-y-1">
-                          <li>Cette action ne peut pas être annulée automatiquement</li>
-                          <li>Un processus d'appel manuel sera nécessaire pour la révision</li>
-                          <li>L'utilisateur sera immédiatement affecté par cette décision</li>
-                          <li>Assurez-vous que cette décision est justifiée et proportionnelle</li>
-                        </ul>
-                      </div>
+                  
+                  <Select value={reason} onValueChange={setReason}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sélectionner un motif prédéfini" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-64">
+                      {getPredefinedReasons(selectedAction).map((reasonOption) => (
+                        <SelectItem key={reasonOption} value={reasonOption}>
+                          {reasonOption}
+                        </SelectItem>
+                      ))}
+                      <Separator className="my-2" />
+                      <SelectItem value="custom">
+                        <div className="flex items-center space-x-2">
+                          <MessageSquare className="h-4 w-4" />
+                          <span>Motif personnalisé...</span>
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  
+                  {/* Motif personnalisé */}
+                  {reason === 'custom' && (
+                    <div className="space-y-2">
+                      <Label htmlFor="custom-reason">Motif personnalisé *</Label>
+                      <Textarea
+                        id="custom-reason"
+                        value={customReason}
+                        onChange={(e) => setCustomReason(e.target.value)}
+                        placeholder="Décrivez le motif de cette action..."
+                        rows={3}
+                        className="resize-none"
+                      />
                     </div>
                   )}
                 </div>
+
+                {/* Notes administratives */}
+                <div className="space-y-3">
+                  <Label htmlFor="notes" className="text-base font-semibold flex items-center space-x-2">
+                    <Info className="h-4 w-4 text-blue-600" />
+                    <span>Notes internes (optionnel)</span>
+                  </Label>
+                  <Textarea
+                    id="notes"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Ajoutez des notes internes pour l'équipe d'administration..."
+                    rows={3}
+                    className="resize-none"
+                  />
+                  <p className="text-xs text-gray-600">
+                    Ces notes ne seront visibles que par l'équipe d'administration
+                  </p>
+                </div>
+
+                {/* Options de notification */}
+                <div className="space-y-3">
+                  <Label className="text-base font-semibold">Options de notification</Label>
+                  <div className="flex items-center space-x-3">
+                    <Checkbox
+                      id="notify-user"
+                      checked={notifyUser}
+                      onCheckedChange={(checked) => setNotifyUser(!!checked)}
+                    />
+                    <Label htmlFor="notify-user" className="text-sm cursor-pointer">
+                      Notifier l'utilisateur par email de cette action
+                    </Label>
+                  </div>
+                  <p className="text-xs text-gray-600 ml-6">
+                    L'utilisateur recevra un email expliquant la sanction appliquée
+                  </p>
+                </div>
+
+                {/* Avertissement pour actions destructives */}
+                {isDestructiveAction && (
+                  <div className="p-4 border-2 border-orange-300 bg-orange-50 rounded-lg">
+                    <div className="flex items-start space-x-3">
+                      <AlertTriangle className="h-6 w-6 text-orange-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <h4 className="font-bold text-orange-900 text-base mb-2">
+                          ⚠️ Action à impact majeur
+                        </h4>
+                        <div className="text-sm text-orange-800 space-y-1">
+                          <p>• Cette action aura un <strong>impact significatif</strong> sur l'utilisateur</p>
+                          <p>• Vérifiez que la sanction est <strong>proportionnelle</strong> à la violation</p>
+                          <p>• Un processus d'appel sera disponible pour l'utilisateur</p>
+                          <p>• Cette action sera enregistrée dans l'historique permanent</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Aperçu de l'action */}
+                {selectedAction && reason && (
+                  <div className="mt-6 p-4 bg-gray-50 border-2 border-gray-200 rounded-lg">
+                    <div className="flex items-center space-x-2 mb-3">
+                      <Eye className="h-5 w-5 text-gray-600" />
+                      <h4 className="font-semibold text-gray-900">Aperçu de l'action</h4>
+                    </div>
+                    
+                    <div className="space-y-2 text-sm">
+                      <p><strong>Action :</strong> {selectedActionConfig?.label}</p>
+                      <p><strong>Motif :</strong> {reason === 'custom' ? customReason : reason}</p>
+                      {needsDuration && (
+                        <p><strong>Durée :</strong> {
+                          duration === 'custom' 
+                            ? `${customDuration} jour(s)` 
+                            : duration === '365' 
+                              ? 'Permanent' 
+                              : getDurationOptions().find(opt => opt.value === duration)?.label
+                        }</p>
+                      )}
+                      {notes && <p><strong>Notes :</strong> {notes}</p>}
+                      <p><strong>Notification :</strong> {notifyUser ? 'Oui' : 'Non'}</p>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
         </div>
 
-        <AlertDialogFooter className="flex-col sm:flex-row gap-3 pt-6">
-          <AlertDialogCancel onClick={handleClose} disabled={isProcessing}>
+        {/* Footer avec actions */}
+        <AlertDialogFooter className="flex-col space-y-3 sm:flex-row sm:space-y-0 sm:space-x-3 pt-6">
+          <AlertDialogCancel onClick={handleClose} disabled={isProcessing} className="w-full sm:w-auto">
             Annuler
           </AlertDialogCancel>
+          
           <Button 
             onClick={handleSubmit}
             disabled={!selectedAction || !reason || isProcessing}
-            className={`${isDestructiveAction ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'} min-w-[140px]`}
+            className={`w-full sm:w-auto min-w-[200px] ${
+              isCriticalAction || isDestructiveAction 
+                ? 'bg-red-600 hover:bg-red-700' 
+                : 'bg-blue-600 hover:bg-blue-700'
+            }`}
           >
             {isProcessing ? (
               <div className="flex items-center space-x-2">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                <span>Traitement...</span>
+                <span>Traitement en cours...</span>
               </div>
             ) : (
               <div className="flex items-center space-x-2">
                 {selectedActionConfig && <selectedActionConfig.icon className="h-4 w-4" />}
-                <span>Appliquer l'action</span>
+                <span>
+                  {isCriticalAction ? 'Confirmer et appliquer' : 'Appliquer l\'action'}
+                </span>
               </div>
             )}
           </Button>

@@ -9,25 +9,21 @@ export const useFavorites = () => {
   const [loading, setLoading] = useState(false);
   const { user } = useAuthContext();
   const { toast } = useToast();
-  
-  // ✅ Utilisation d'une ref pour éviter les requêtes concurrentes
   const loadingRef = useRef(false);
 
   useEffect(() => {
     if (user) {
       fetchFavorites();
     } else {
-      // ✅ Reset des favoris quand l'utilisateur se déconnecte
       setFavorites([]);
     }
   }, [user]);
 
   const fetchFavorites = async () => {
-    if (!user || loadingRef.current) return; // ✅ Évite les appels concurrents
-
+    if (!user || loadingRef.current) return;
     loadingRef.current = true;
     setLoading(true);
-    
+
     try {
       const { data, error } = await supabase
         .from('favorites')
@@ -41,7 +37,6 @@ export const useFavorites = () => {
       setFavorites(data || []);
     } catch (error) {
       console.error('Erreur lors du chargement des favoris:', error);
-      // ✅ Optionnel: afficher un toast d'erreur pour informer l'utilisateur
       toast({
         title: "Erreur",
         description: "Impossible de charger vos favoris",
@@ -49,7 +44,92 @@ export const useFavorites = () => {
       });
     } finally {
       setLoading(false);
-      loadingRef.current = false; // ✅ Libère le verrou
+      loadingRef.current = false;
+    }
+  };
+
+  const addToFavorites = async (listingId: string): Promise<void> => {
+    if (!user) {
+      toast({
+        title: "Connexion requise",
+        description: "Vous devez être connecté pour ajouter aux favoris",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Vérifier si déjà en favoris
+    const existingFavorite = favorites.find(fav => fav.listing_id === listingId);
+    if (existingFavorite) {
+      toast({
+        title: "Déjà en favoris",
+        description: "Cette annonce est déjà dans vos favoris"
+      });
+      return;
+    }
+
+    try {
+      const { data: newFavorite, error } = await supabase
+        .from('favorites')
+        .insert({
+          user_id: user.id,
+          listing_id: listingId
+        })
+        .select(`
+          *,
+          listing:listings(*)
+        `)
+        .single();
+
+      if (error) throw error;
+
+      setFavorites(prev => [...prev, newFavorite]);
+      toast({
+        title: "Ajouté aux favoris",
+        description: "L'annonce a été ajoutée à vos favoris"
+      });
+    } catch (error) {
+      console.error('Erreur lors de l\'ajout aux favoris:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible d'ajouter aux favoris",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const removeFromFavorites = async (listingId: string): Promise<void> => {
+    if (!user) return;
+
+    const existingFavorite = favorites.find(fav => fav.listing_id === listingId);
+    if (!existingFavorite) {
+      toast({
+        title: "Non trouvé",
+        description: "Cette annonce n'est pas dans vos favoris"
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('favorites')
+        .delete()
+        .eq('id', existingFavorite.id);
+
+      if (error) throw error;
+
+      setFavorites(prev => prev.filter(fav => fav.id !== existingFavorite.id));
+      toast({
+        title: "Retiré des favoris",
+        description: "L'annonce a été retirée de vos favoris"
+      });
+    } catch (error) {
+      console.error('Erreur lors de la suppression des favoris:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de retirer des favoris",
+        variant: "destructive"
+      });
     }
   };
 
@@ -57,67 +137,20 @@ export const useFavorites = () => {
     if (!user) {
       toast({
         title: "Connexion requise",
-        description: "Vous devez être connecté pour ajouter aux favoris",
+        description: "Vous devez être connecté pour gérer les favoris",
         variant: "destructive"
       });
       return false;
     }
 
-    try {
-      const existingFavorite = favorites.find(fav => fav.listing_id === listingId);
-
-      if (existingFavorite) {
-        // Supprimer des favoris
-        const { error } = await supabase
-          .from('favorites')
-          .delete()
-          .eq('id', existingFavorite.id);
-
-        if (error) throw error;
-
-        // ✅ Mise à jour optimiste de l'état local
-        setFavorites(prev => prev.filter(fav => fav.id !== existingFavorite.id));
-        
-        toast({
-          title: "Retiré des favoris",
-          description: "L'annonce a été retirée de vos favoris"
-        });
-        
-        return false;
-      } else {
-        // Ajouter aux favoris - nous avons besoin des données complètes
-        const { data: newFavorite, error } = await supabase
-          .from('favorites')
-          .insert({
-            user_id: user.id,
-            listing_id: listingId
-          })
-          .select(`
-            *,
-            listing:listings(*)
-          `)
-          .single();
-
-        if (error) throw error;
-
-        // ✅ Mise à jour optimiste avec les données complètes
-        setFavorites(prev => [...prev, newFavorite]);
-        
-        toast({
-          title: "Ajouté aux favoris",
-          description: "L'annonce a été ajoutée à vos favoris"
-        });
-        
-        return true;
-      }
-    } catch (error) {
-      console.error('Erreur lors de la gestion des favoris:', error);
-      toast({
-        title: "Erreur",
-        description: "Erreur lors de la gestion des favoris",
-        variant: "destructive"
-      });
+    const existingFavorite = favorites.find(fav => fav.listing_id === listingId);
+    
+    if (existingFavorite) {
+      await removeFromFavorites(listingId);
       return false;
+    } else {
+      await addToFavorites(listingId);
+      return true;
     }
   };
 
@@ -129,6 +162,8 @@ export const useFavorites = () => {
     favorites,
     loading,
     toggleFavorite,
+    addToFavorites,
+    removeFromFavorites,
     isFavorite,
     refetch: fetchFavorites
   };

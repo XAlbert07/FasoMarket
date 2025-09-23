@@ -6,7 +6,8 @@ import { useAuthContext } from "@/contexts/AuthContext";
 import { useListing } from "@/hooks/useListings";
 import { useSellerProfile } from "@/hooks/useSellerProfile";
 import { useSellerActiveListings } from "@/hooks/useSellerListings";
-import { useSellerReviewsStats } from "@/hooks/useSellerReviews";
+import { useSellerReviews } from "@/hooks/useSellerReviews";
+
 import { useGuestMessages } from '@/hooks/useGuestMessages';
 import { useFavorites } from '@/hooks/useFavorites';
 
@@ -28,6 +29,9 @@ import { ChatModal } from "@/components/ChatModal";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { Link } from "react-router-dom";
+import { formatPrice, formatRelativeTime, isListingNew, formatViewsCount } from "@/lib/utils"
+
+
 
 
 import {
@@ -242,7 +246,7 @@ const BuyerListingDetailWithEnhancedFeatures = ({ listing }: BuyerListingDetailW
   const {
     stats: reviewsStats,
     loading: reviewsStatsLoading
-  } = useSellerReviewsStats(listing.user_id);
+  } = useSellerReviews(listing.user_id);
 
   // Vérifier si l'annonce est dans les favoris
   const isFavorite = favorites.some(fav => fav.listing_id === listing.id);
@@ -687,7 +691,7 @@ const BuyerListingDetailWithEnhancedFeatures = ({ listing }: BuyerListingDetailW
                   
                   <div className="flex items-center justify-between">
                     <div className="text-2xl md:text-3xl font-bold text-primary">
-                      {listing.price?.toLocaleString('fr-FR')} {listing.currency || 'XOF'}
+                      {formatPrice(listing.price, listing.currency)}
                     </div>
                     {listing.featured && (
                       <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300">
@@ -722,7 +726,7 @@ const BuyerListingDetailWithEnhancedFeatures = ({ listing }: BuyerListingDetailW
                     
                     <Badge variant="outline" className="flex items-center gap-1">
                       <Clock className="h-3 w-3" />
-                      {new Date(listing.created_at).toLocaleDateString('fr-FR')}
+                      {formatRelativeTime(listing.created_at)}
                     </Badge>
                   </div>
                 </div>

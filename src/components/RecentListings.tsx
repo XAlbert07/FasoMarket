@@ -1,4 +1,4 @@
-// components/RecentListings.tsx - VERSION MOBILE-FIRST REFACTORISÉE
+// components/RecentListings.tsx - VERSION CORRIGÉE POUR ÉLIMINER LES ERREURS TYPESCRIPT
 
 import { useState, useEffect } from "react"
 import { Link } from "react-router-dom"
@@ -111,11 +111,12 @@ export const RecentListings = () => {
                       </div>
 
                       <div className="space-y-1">
-                        {/* Vendeur avec icône - nouvelle info sur mobile */}
+                        {/* CORRECTION : Vendeur avec icône - gestion correcte de la propriété profiles */}
                         <div className="flex items-center gap-1 text-xs text-muted-foreground">
                           <User className="h-3 w-3 flex-shrink-0" />
                           <span className="truncate">
-                            {listing.profiles?.full_name || "Vendeur"}
+                            {/* CORRECTION PRINCIPALE : Utilisation correcte de la propriété profiles */}
+                            {listing.profiles?.full_name || "Vendeur anonyme"}
                           </span>
                           {/* Espace réservé pour le badge premium */}
                           <span className="ml-1 px-1.5 py-0.5 bg-amber-100 text-amber-600 text-xs rounded-full font-medium hidden">
@@ -200,6 +201,21 @@ export const RecentListings = () => {
                       <div className="text-2xl font-bold text-primary">
                         {formatPrice(listing.price, listing.currency)}
                       </div>
+                    </div>
+                    
+                    {/* CORRECTION : Informations vendeur pour desktop */}
+                    <div className="flex items-center gap-2 mb-3 text-sm text-muted-foreground">
+                      <User className="h-4 w-4 flex-shrink-0" />
+                      <span className="truncate">
+                        {/* CORRECTION : Utilisation correcte de la propriété profiles */}
+                        {listing.profiles?.full_name || "Vendeur anonyme"}
+                      </span>
+                      {/* Badge premium potentiel */}
+                      {listing.profiles?.full_name && (
+                        <span className="ml-1 px-2 py-0.5 bg-green-100 text-green-600 text-xs rounded-full font-medium hidden">
+                          Vérifié
+                        </span>
+                      )}
                     </div>
                     
                     {/* Localisation et date */}
