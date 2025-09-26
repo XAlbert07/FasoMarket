@@ -36,7 +36,17 @@ const MyListings = () => {
   const { toast } = useToast();
   
   // Utilisation correcte du hook amélioré - CONSERVÉ INTACT
-  const { listings, loading, error, fetchUserListings, dataSource, clearListings } = useListings();
+  // Dans MyListings.tsx, ligne 39 environ
+const { 
+  listings, 
+  loading, 
+  error, 
+  dataSource, 
+  soldListings, 
+  draftListings, 
+  clearListings,
+  fetchUserListings 
+        } = useListings();
   const { deleteListing } = useCreateListing();
   const [activeTab, setActiveTab] = useState("all");
   const [operationLoading, setOperationLoading] = useState<string | null>(null);

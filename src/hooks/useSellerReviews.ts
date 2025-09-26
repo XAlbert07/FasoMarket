@@ -172,25 +172,31 @@ export const useSellerReviews = (sellerId: string, initialFilters?: ReviewsFilte
       console.log('✅ Données reçues:', reviewsData?.length, 'avis');
       console.log('📋 Premier avis exemple:', reviewsData?.[0]);
 
-      // Transformation des données CORRIGÉE
-      const transformedReviews: SellerReview[] = (reviewsData || []).map(item => ({
-        id: item.id,
-        rating: item.rating,
-        comment: item.comment || '',
-        reviewer_id: item.reviewer_id,
-        reviewer_name: item.reviewer?.full_name || 'Acheteur anonyme',
-        reviewer_avatar: item.reviewer?.avatar_url,
-        listing_id: item.listing_id,
-        listing_title: item.listing?.title || 'Article supprimé',
-        created_at: item.created_at,
-        is_verified_purchase: item.is_verified_purchase || false,
-        helpful_votes: item.helpful_votes || 0,
-        response: item.seller_responses?.[0] ? {
-          id: item.seller_responses[0].id,
-          message: item.seller_responses[0].message,
-          created_at: item.seller_responses[0].created_at
-        } : undefined
-      }));
+      // TRANSFORMATION DES DONNÉES CORRIGÉE - CORRECTION PRINCIPALE
+      const transformedReviews: SellerReview[] = (reviewsData || []).map(item => {
+        // Gestion des données relationnelles avec vérification des types
+        const reviewerData = Array.isArray(item.reviewer) ? item.reviewer[0] : item.reviewer;
+        const listingData = Array.isArray(item.listing) ? item.listing[0] : item.listing;
+        
+        return {
+          id: item.id,
+          rating: item.rating,
+          comment: item.comment || '',
+          reviewer_id: item.reviewer_id,
+          reviewer_name: reviewerData?.full_name || 'Acheteur anonyme',
+          reviewer_avatar: reviewerData?.avatar_url,
+          listing_id: item.listing_id,
+          listing_title: listingData?.title || 'Article supprimé',
+          created_at: item.created_at,
+          is_verified_purchase: item.is_verified_purchase || false,
+          helpful_votes: item.helpful_votes || 0,
+          response: item.seller_responses && item.seller_responses.length > 0 ? {
+            id: item.seller_responses[0].id,
+            message: item.seller_responses[0].message,
+            created_at: item.seller_responses[0].created_at
+          } : undefined
+        };
+      });
 
       setReviews(transformedReviews);
 

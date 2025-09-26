@@ -409,6 +409,42 @@ export interface SearchTrackerProps {
 // NOUVEAUX TYPES POUR LES ACTIONS ADMINISTRATIVES
 // ========================================
 
+
+// ========================================
+// NOUVEAUX TYPES POUR SUSPENSIONS GRANULAIRES
+// ========================================
+
+export const SUSPENSION_ACTION_TYPES = {
+  WARNING: 'warning',
+  TEMPORARY_SUSPENSION: 'temporary_suspension', 
+  PERMANENT_DELETION: 'permanent_deletion'
+} as const;
+
+export type SuspensionActionType = typeof SUSPENSION_ACTION_TYPES[keyof typeof SUSPENSION_ACTION_TYPES];
+
+export interface SuspensionReasonTemplate {
+  id: string;
+  label: string;
+  description: string;
+  action_type: SuspensionActionType;
+  default_duration?: number;
+  requires_custom_note: boolean;
+  severity: 'low' | 'medium' | 'high';
+}
+
+export interface SuspensionAction {
+  action_type: SuspensionActionType;
+  reason_template_id: string;
+  custom_reason?: string;
+  admin_notes?: string;
+  duration_days?: number;
+  effective_date?: string;
+}
+
+
+
+
+
 export interface UserSanction {
   id: string;
   user_id: string;
@@ -919,6 +955,8 @@ export interface Favorite {
   // Propriété relationnelle optionnelle
   listing?: Listing | null;
 }
+
+
 
 
 

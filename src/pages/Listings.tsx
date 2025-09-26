@@ -78,6 +78,11 @@ const Listings = () => {
     setRevealedPhones(prev => [...prev, id]);
   };
 
+  // Fonction utilitaire pour obtenir le nom du vendeur
+  const getSellerName = (listing: any) => {
+    return listing.profiles?.full_name || "Vendeur anonyme";
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -293,11 +298,11 @@ const Listings = () => {
                       </div>
 
                       <div className="space-y-1">
-                        {/* Vendeur avec nom plus visible */}
+                        {/* Vendeur avec nom plus visible - CORRECTION APPLIQUÉE */}
                         <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
                           <User className="h-3 w-3 flex-shrink-0" />
                           <span className="truncate font-medium">
-                            {listing.profiles?.full_name || listing.contact_name || "Vendeur anonyme"}
+                            {getSellerName(listing)}
                           </span>
                         </div>
                         
@@ -381,11 +386,11 @@ const Listings = () => {
                       <Badge variant="secondary">{listing.category}</Badge>
                     </div>
 
-                    {/* Informations vendeur */}
+                    {/* Informations vendeur - CORRECTION APPLIQUÉE */}
                     <div className="flex items-center gap-1 text-sm text-muted-foreground mb-2">
                       <User className="h-3 w-3 flex-shrink-0" />
                       <span className="truncate font-medium">
-                        {listing.profiles?.full_name || listing.contact_name || "Vendeur anonyme"}
+                        {getSellerName(listing)}
                       </span>
                     </div>
                     

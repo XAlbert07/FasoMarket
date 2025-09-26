@@ -18,7 +18,7 @@ import {
   Timer, Ban, Play, Pause, Trash2, Calendar, Activity, ChevronDown,
   Menu, X, MoreVertical
 } from "lucide-react";
-
+import ReportActionModal from './ReportActionModal';
 // Interface préservée - aucun changement aux données
 interface ListingsTabProps {
   listings: any[];
@@ -68,6 +68,9 @@ const ListingsTab: React.FC<ListingsTabProps> = ({
   const [actionNotes, setActionNotes] = useState('');
   const [actionDuration, setActionDuration] = useState('7');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  // États pour le modal d'action sur signalement
+const [showReportActionModal, setShowReportActionModal] = useState(false);
+const [selectedListingForReport, setSelectedListingForReport] = useState<any>(null);
 
   // Nouveaux états pour l'interface mobile
   const [showFilters, setShowFilters] = useState(false);
@@ -226,25 +229,60 @@ const ListingsTab: React.FC<ListingsTabProps> = ({
     setShowActionModal(true);
   };
 
-  const handleAdvancedAction = async () => {
-    if (!selectedListing || !actionType || !actionReason) return;
+ const handleAdvancedAction = async () => {
+  if (!selectedListing || !actionType || !actionReason) return;
 
-    const actionData = {
-      type: actionType,
-      reason: actionReason,
-      notes: actionNotes || undefined,
-      duration: ['suspend', 'suspend_listing'].includes(actionType) ? parseInt(actionDuration) : undefined
-    };
+  // Mapping des actions vers les types reconnus par le hook
+  let mappedActionType = actionType;
+  if (actionType === 'suspend') {
+    mappedActionType = 'suspend_listing'; // Utilise le type admin
+  } else if (actionType === 'delete') {
+    mappedActionType = 'remove_listing'; // Utilise le type admin
+  }
 
-    try {
-      const success = await handleListingAction(selectedListing.id, actionData);
-      if (success) {
-        setShowActionModal(false);
-      }
-    } catch (error) {
-      console.error('Erreur lors de l\'action avancée:', error);
-    }
+  const actionData = {
+    type: mappedActionType,
+    reason: actionReason,
+    notes: actionNotes || undefined,
+    duration: ['suspend_listing', 'suspend', 'extend_expiry'].includes(mappedActionType) ? 
+      parseInt(actionDuration) : undefined
   };
+
+  try {
+    const success = await handleListingAction(selectedListing.id, actionData);
+    if (success) {
+      setShowActionModal(false);
+    }
+  } catch (error) {
+    console.error('Erreur lors de l\'action avancée:', error);
+  }
+};
+
+
+
+// Nouvelle fonction pour gérer les actions depuis le ReportActionModal
+const handleReportBasedAction = async (reportId: string, actionData: any): Promise<boolean> => {
+  if (!selectedListingForReport) return false;
+
+  try {
+    const success = await handleListingAction(selectedListingForReport.id, {
+      type: actionData.type,
+      reason: actionData.reason,
+      notes: actionData.notes,
+      duration: actionData.duration
+    });
+
+    if (success) {
+      setShowReportActionModal(false);
+      setSelectedListingForReport(null);
+    }
+
+    return success;
+  } catch (error) {
+    console.error('Erreur lors de l\'action basée sur signalement:', error);
+    return false;
+  }
+};
 
   const resetFilters = () => {
     setFilterStatus("all");
@@ -1009,6 +1047,19 @@ const ListingsTab: React.FC<ListingsTabProps> = ({
                               >
                                 <Settings className="h-4 w-4" />
                               </Button>
+                              {/* Nouveau bouton pour actions administratives avancées */}
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => {
+                                setSelectedListingForReport(listing);
+                                setShowReportActionModal(true);
+                                  }}
+                               className="h-8 w-8 p-0 flex-shrink-0"
+                                title="Actions administratives"
+                                 >
+                            <Settings className="h-4 w-4 text-blue-600" />
+                             </Button>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -1213,6 +1264,28 @@ const ListingsTab: React.FC<ListingsTabProps> = ({
               disabled={!actionReason}
               className="w-full sm:w-auto"
             >
+              {/* Modal d'action basé sur signalement */}
+<ReportActionModal
+  report={{
+    id: `listing-action-${selectedListingForReport?.id}`,
+    report_type: 'listing',
+    listing_title: selectedListingForReport?.title,
+    listing_price: selectedListingForReport?.price,
+    reason: 'Action administrative directe',
+    created_at: new Date().toISOString(),
+    status: 'pending',
+    priority: 'medium',
+    reported_user_name: selectedListingForReport?.merchant_name,
+    reporter_name: 'Administrateur',
+    reporter_type: 'registered'
+  }}
+  isOpen={showReportActionModal}
+  onClose={() => {
+    setShowReportActionModal(false);
+    setSelectedListingForReport(null);
+  }}
+  onAction={handleReportBasedAction}
+/>
               Appliquer l'action
             </AlertDialogAction>
           </AlertDialogFooter>

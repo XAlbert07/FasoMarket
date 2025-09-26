@@ -1,3 +1,6 @@
+// pages/admin/components/SanctionsManagementPage.tsx
+// VERSION REPENSÉE - Interface épurée et fonctionnelle
+
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -5,480 +8,573 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 
-// Importation du hook centralisé
 import { useAdminDashboard } from '@/hooks/useAdminDashboard';
 
-// Importation des icônes
 import {
-  Shield, User, Package, Clock, Ban, Trash2,
-  Search, RefreshCw, PlusCircle
+  Shield, User, Package, Clock, Ban, Trash2, AlertTriangle,
+  Search, RefreshCw, CheckCircle2, Timer, RotateCcw
 } from "lucide-react";
 
 const SanctionsManagementPage = () => {
-  // Utilisation du hook centralisé
   const {
     sanctions,
     stats,
     loading,
     errors,
-    refreshSanctions,
+    revokeSanction,
+    extendSanction,
+    convertToPermanent,
+    refreshSection,
     formatDate,
     formatDaysRemaining,
-    getSanctionPriority
+    getSanctionPriority,
   } = useAdminDashboard();
 
-  // États et filtres
-  const [activeTab, setActiveTab] = useState('toutes');
+  // États simplifiés
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('active');
-  const [sortBy, setSortBy] = useState('date_creation');
-  const [sortOrder, setSortOrder] = useState('desc');
-  const [selectedSanction, setSelectedSanction] = useState(null);
+  const [filterType, setFilterType] = useState('all');
+  const [selectedSanction, setSelectedSanction] = useState<any>(null);
   const [showActionDialog, setShowActionDialog] = useState(false);
   const [actionType, setActionType] = useState('revoquer');
   const [actionReason, setActionReason] = useState('');
   const [extensionDays, setExtensionDays] = useState('7');
+  const [isProcessingAction, setIsProcessingAction] = useState(false);
 
+  // Traductions simplifiées
+  const translateStatus = (status: string): string => {
+    const translations = { 'active': 'Active', 'expired': 'Expirée', 'revoked': 'Révoquée' };
+    return translations[status as keyof typeof translations] || status;
+  };
+
+  const translateSanctionType = (type: string): string => {
+    const translations = {
+      'warning': 'Avertissement',
+      'suspension': 'Suspension',
+      'ban': 'Bannissement',
+      'permanent_ban': 'Bannissement permanent'
+    };
+    return translations[type as keyof typeof translations] || type;
+  };
+
+  // Filtrage simplifié
   const filteredSanctions = useMemo(() => {
-    let filtered = sanctions;
+    let filtered = sanctions || [];
 
-    // Filtration par onglet
-    switch (activeTab) {
-      case 'utilisateurs':
-        filtered = filtered.filter(s => s.type === 'user');
-        break;
-      case 'annonces':
-        filtered = filtered.filter(s => s.type === 'listing');
-        break;
-      case 'expirent_bientot':
-        filtered = filtered.filter(s => s.days_remaining !== null && s.days_remaining <= 3 && s.status === 'active');
-        break;
-      case 'permanentes':
-        filtered = filtered.filter(s => s.is_permanent);
-        break;
-      default:
-        // Par défaut, l'onglet 'toutes' n'ajoute pas de filtre
-        break;
-    }
-
-    // Filtration par statut
-    if (filterStatus !== 'toutes') {
+    // Filtres de base
+    if (filterStatus !== 'all') {
       filtered = filtered.filter(s => s.status === filterStatus);
+    }
+    if (filterType !== 'all') {
+      filtered = filtered.filter(s => s.type === filterType);
     }
 
     // Recherche
     if (searchTerm.trim()) {
-      const term = searchTerm.toLowerCase().trim();
+      const term = searchTerm.toLowerCase();
       filtered = filtered.filter(s =>
         s.target_name?.toLowerCase().includes(term) ||
-        s.target_email?.toLowerCase().includes(term) ||
         s.reason?.toLowerCase().includes(term) ||
-        s.admin_name?.toLowerCase().includes(term) ||
-        s.sanction_type?.toLowerCase().includes(term)
+        s.admin_name?.toLowerCase().includes(term)
       );
     }
 
-    // Tri
-    filtered.sort((a, b) => {
-      let aVal, bVal;
-      switch (sortBy) {
-        case 'date_expiration':
-          aVal = a.expires_at ? new Date(a.expires_at).getTime() : 0;
-          bVal = b.expires_at ? new Date(b.expires_at).getTime() : 0;
-          break;
-        case 'type_sanction':
-          aVal = a.sanction_type;
-          bVal = b.sanction_type;
-          break;
-        case 'nom_cible':
-          aVal = a.target_name?.toLowerCase();
-          bVal = b.target_name?.toLowerCase();
-          break;
-        case 'date_creation':
-        default:
-          aVal = new Date(a.created_at).getTime();
-          bVal = new Date(b.created_at).getTime();
-          break;
-      }
-      if (typeof aVal === 'string' && typeof bVal === 'string') {
-        return sortOrder === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
-      }
-      return sortOrder === 'asc' ? aVal - bVal : bVal - aVal;
+    // Tri par priorité puis date
+    return filtered.sort((a, b) => {
+      const priorityA = getSanctionPriority(a);
+      const priorityB = getSanctionPriority(b);
+      const priorityOrder = { high: 3, medium: 2, low: 1 };
+      const priorityDiff = (priorityOrder[priorityB as keyof typeof priorityOrder] || 1) - 
+                          (priorityOrder[priorityA as keyof typeof priorityOrder] || 1);
+      
+      if (priorityDiff !== 0) return priorityDiff;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
+  }, [sanctions, searchTerm, filterStatus, filterType, getSanctionPriority]);
 
-    return filtered;
-  }, [sanctions, activeTab, searchTerm, filterStatus, sortBy, sortOrder]);
-
-  const getBadgeStyle = (sanction) => {
-    if (sanction.status === 'revoked') return 'bg-blue-100 text-blue-700 border-blue-200';
-    if (sanction.is_permanent) return 'bg-red-100 text-red-700 border-red-200';
-    if (sanction.status === 'expired') return 'bg-gray-100 text-gray-700 border-gray-200';
-    if (sanction.days_remaining !== null && sanction.days_remaining <= 3) return 'bg-orange-100 text-orange-700 border-orange-200';
-    return 'bg-green-100 text-green-700 border-green-200';
-  };
-
-  const getSanctionTypeBadge = (type) => {
-    switch (type) {
-      case 'ban': return 'bg-red-100 text-red-800 border-red-200';
-      case 'suspend': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'warning': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'restriction': return 'bg-purple-100 text-purple-800 border-purple-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
-
-  const translateSanctionType = (type) => {
-    switch (type) {
-      case 'ban': return 'Bannissement';
-      case 'suspend': return 'Suspension';
-      case 'warning': return 'Avertissement';
-      case 'restriction': return 'Restriction';
-      default: return type;
-    }
-  };
-
+  // Actions principales
   const handleActionSubmit = async () => {
     if (!selectedSanction || !actionReason.trim()) return;
     
-    // À implémenter: Ces fonctions devront être ajoutées au hook useAdminDashboard
-    console.log(`Action ${actionType} sur la sanction ${selectedSanction.id}`);
+    setIsProcessingAction(true);
     
-    // Pour l'instant, on affiche un message et on ferme le dialogue
-    setShowActionDialog(false);
-    setSelectedSanction(null);
-    setActionReason('');
-    setExtensionDays('7');
-    
-    // Après l'implémentation dans le hook, vous pourrez appeler:
-    // let success = false;
-    // switch (actionType) {
-    //   case 'revoquer':
-    //     success = await revokeSanction(selectedSanction.id, selectedSanction.type, actionReason);
-    //     break;
-    //   case 'etendre':
-    //     success = await extendSanction(selectedSanction.id, selectedSanction.type, parseInt(extensionDays));
-    //     break;
-    //   case 'convertir_permanente':
-    //     success = await convertToPermanent(selectedSanction.id, selectedSanction.type, actionReason);
-    //     break;
-    // }
+    try {
+      let success = false;
+      
+      switch (actionType) {
+        case 'revoquer':
+          success = await revokeSanction(selectedSanction.id, selectedSanction.type, actionReason);
+          break;
+        case 'etendre':
+          const days = parseInt(extensionDays);
+          if (!isNaN(days) && days > 0) {
+            success = await extendSanction(selectedSanction.id, selectedSanction.type, days);
+          }
+          break;
+        case 'convertir_permanente':
+          success = await convertToPermanent(selectedSanction.id, selectedSanction.type, actionReason);
+          break;
+      }
+
+      if (success) {
+        setShowActionDialog(false);
+        setSelectedSanction(null);
+        setActionReason('');
+        setExtensionDays('7');
+        refreshSection('userSanctions', true);
+      }
+      
+    } catch (error) {
+      console.error('Erreur lors de l\'action:', error);
+    } finally {
+      setIsProcessingAction(false);
+    }
   };
 
-  const openActionDialog = (sanction, action) => {
+  const openActionDialog = (sanction: any, action: string) => {
     setSelectedSanction(sanction);
     setActionType(action);
     setActionReason('');
     setShowActionDialog(true);
   };
 
-  // Utiliser le loading et error du hook centralisé
-  const loadingSanctions = loading.sanctions || loading.global;
-  const errorSanctions = errors.sanctions;
+  const resetFilters = () => {
+    setSearchTerm('');
+    setFilterStatus('active');
+    setFilterType('all');
+  };
+
+  // Actions disponibles
+  const getAvailableActions = (sanction: any) => ({
+    canRevoke: sanction.status === 'active',
+    canExtend: sanction.status === 'active' && !sanction.is_permanent,
+    canMakePermanent: sanction.status === 'active' && !sanction.is_permanent
+  });
+
+  const isLoading = loading?.sanctions || loading?.global || false;
+  const hasError = errors?.sanctions;
+  const safeStats = stats || { totalActive: 0, userSanctions: 0, listingSanctions: 0, expiringSoon: 0 };
+
+  if (hasError) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
+        <Card className="max-w-md w-full">
+          <CardContent className="p-6 text-center">
+            <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">Erreur de chargement</h2>
+            <p className="text-sm text-gray-600 mb-4">{hasError}</p>
+            <Button onClick={() => refreshSection('userSanctions', true)} variant="outline" className="w-full">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Réessayer
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6 sm:p-8 lg:p-10">
-      <div className="max-w-8xl mx-auto space-y-8">
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-6xl mx-auto space-y-6">
 
-        {/* Header Section */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-center space-x-4">
-            <div className="p-3 bg-blue-100 rounded-lg">
-              <Shield className="h-7 w-7 text-blue-600" />
+        {/* Header simplifié */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <Shield className="h-6 w-6 text-blue-600" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Gestion des sanctions</h1>
-              <p className="mt-1 text-gray-600">Surveillance et administration des mesures disciplinaires.</p>
+              <h1 className="text-2xl font-bold text-gray-900">Sanctions actives</h1>
+              <p className="text-sm text-gray-600">Gestion des mesures disciplinaires</p>
             </div>
           </div>
-          <div className="flex items-center space-x-3">
-            <Button variant="outline" onClick={() => refreshSanctions(true)} disabled={loadingSanctions}>
-              <RefreshCw className={`h-4 w-4 mr-2 ${loadingSanctions ? 'animate-spin' : ''}`} />
-              {loadingSanctions ? 'Actualisation...' : 'Actualiser'}
+          
+          <div className="flex items-center space-x-2">
+            <Button 
+              variant="outline" 
+              onClick={() => refreshSection('userSanctions', true)}
+              disabled={isLoading}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+              Actualiser
             </Button>
-            <Button>
-              <PlusCircle className="h-4 w-4 mr-2" />
-              Nouvelle sanction
+            <Button variant="outline" onClick={resetFilters}>
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Reset
             </Button>
           </div>
         </div>
 
-        {/* Stats Cards Section */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
-          <Card className="border-l-4 border-blue-500">
-            <CardContent className="p-4 flex flex-col items-start">
-              <span className="text-xs text-gray-500 font-medium">TOTAL ACTIVES</span>
-              <p className="mt-1 text-2xl font-bold text-blue-600">{stats.totalActive}</p>
-            </CardContent>
-          </Card>
-          <Card className="border-l-4 border-purple-500">
-            <CardContent className="p-4 flex flex-col items-start">
-              <span className="text-xs text-gray-500 font-medium">UTILISATEURS</span>
-              <p className="mt-1 text-2xl font-bold text-purple-600">{stats.userSanctions}</p>
-            </CardContent>
-          </Card>
-          <Card className="border-l-4 border-green-500">
-            <CardContent className="p-4 flex flex-col items-start">
-              <span className="text-xs text-gray-500 font-medium">ANNONCES</span>
-              <p className="mt-1 text-2xl font-bold text-green-600">{stats.listingSanctions}</p>
-            </CardContent>
-          </Card>
-          <Card className="border-l-4 border-yellow-500">
-            <CardContent className="p-4 flex flex-col items-start">
-              <span className="text-xs text-gray-500 font-medium">TEMPORAIRES</span>
-              <p className="mt-1 text-2xl font-bold text-yellow-600">{stats.temporaryCount}</p>
-            </CardContent>
-          </Card>
-          <Card className="border-l-4 border-red-500">
-            <CardContent className="p-4 flex flex-col items-start">
-              <span className="text-xs text-gray-500 font-medium">PERMANENTES</span>
-              <p className="mt-1 text-2xl font-bold text-red-600">{stats.permanentCount}</p>
-            </CardContent>
-          </Card>
-          <Card className="border-l-4 border-orange-500">
-            <CardContent className="p-4 flex flex-col items-start">
-              <span className="text-xs text-gray-500 font-medium">EXPIRENT BIENTÔT</span>
-              <p className="mt-1 text-2xl font-bold text-orange-600">{stats.expiringSoon}</p>
-            </CardContent>
-          </Card>
-          <Card className="border-l-4 border-gray-500">
-            <CardContent className="p-4 flex flex-col items-start">
-              <span className="text-xs text-gray-500 font-medium">EXPIREE AUJOURD'HUI</span>
-              <p className="mt-1 text-2xl font-bold text-gray-600">{stats.expiredToday || 0}</p>
-            </CardContent>
-          </Card>
-          <Card className="border-l-4 border-emerald-500">
-            <CardContent className="p-4 flex flex-col items-start">
-              <span className="text-xs text-gray-500 font-medium">CREEES AUJOURD'HUI</span>
-              <p className="mt-1 text-2xl font-bold text-emerald-600">{stats.createdToday || 0}</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Main Content Area */}
-        <Card>
-          <CardHeader className="p-6 pb-4">
-            <div className="flex flex-col lg:flex-row gap-4 lg:gap-8 items-center justify-between">
-              {/* Tabs */}
-              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="w-full justify-start overflow-x-auto whitespace-nowrap">
-                  <TabsTrigger value="toutes">Toutes ({stats.totalActive})</TabsTrigger>
-                  <TabsTrigger value="utilisateurs">Utilisateurs ({stats.userSanctions})</TabsTrigger>
-                  <TabsTrigger value="annonces">Annonces ({stats.listingSanctions})</TabsTrigger>
-                  <TabsTrigger value="expirent_bientot">Expire bientôt ({stats.expiringSoon})</TabsTrigger>
-                  <TabsTrigger value="permanentes">Permanentes ({stats.permanentCount})</TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </div>
-            {/* Search and filters */}
-            <div className="flex flex-col sm:flex-row gap-3 mt-4">
-              <div className="relative flex-grow">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Rechercher par nom, email, raison..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
+        {/* Statistiques essentielles */}
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-gray-600 uppercase">ACTIVES</p>
+                  <p className="text-2xl font-bold text-blue-600">{safeStats.totalActive}</p>
+                </div>
+                <Shield className="h-5 w-5 text-blue-500" />
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-gray-600 uppercase">UTILISATEURS</p>
+                  <p className="text-2xl font-bold text-purple-600">{safeStats.userSanctions}</p>
+                </div>
+                <User className="h-5 w-5 text-purple-500" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-gray-600 uppercase">ANNONCES</p>
+                  <p className="text-2xl font-bold text-green-600">{safeStats.listingSanctions}</p>
+                </div>
+                <Package className="h-5 w-5 text-green-500" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-gray-600 uppercase">URGENTES</p>
+                  <p className="text-2xl font-bold text-orange-600">{safeStats.expiringSoon}</p>
+                </div>
+                <AlertTriangle className="h-5 w-5 text-orange-500" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Interface de filtrage simplifiée */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Filtrer les sanctions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    placeholder="Rechercher par nom, raison ou admin..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+              
               <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="w-full sm:w-40">
+                <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="Statut" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="active">Actives</SelectItem>
                   <SelectItem value="expired">Expirées</SelectItem>
                   <SelectItem value="revoked">Révoquées</SelectItem>
+                  <SelectItem value="all">Toutes</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="w-full sm:w-44">
-                  <SelectValue placeholder="Trier par" />
+
+              <Select value={filterType} onValueChange={setFilterType}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="date_creation">Date de création</SelectItem>
-                  <SelectItem value="date_expiration">Date d'expiration</SelectItem>
-                  <SelectItem value="type_sanction">Type de sanction</SelectItem>
-                  <SelectItem value="nom_cible">Nom de la cible</SelectItem>
+                  <SelectItem value="user">Utilisateurs</SelectItem>
+                  <SelectItem value="listing">Annonces</SelectItem>
+                  <SelectItem value="all">Tous</SelectItem>
                 </SelectContent>
               </Select>
-              <Button variant="outline" size="sm" onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')} className="w-full sm:w-12">
-                {sortOrder === 'asc' ? '↑' : '↓'}
-              </Button>
             </div>
-          </CardHeader>
 
-          {/* Table Content */}
-          <CardContent className="p-0">
-            <ScrollArea className="h-[600px]">
-              {loadingSanctions ? (
-                <div className="flex justify-center items-center h-[500px]">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-                </div>
-              ) : errorSanctions ? (
-                <div className="flex flex-col items-center justify-center h-[500px] text-center px-4">
-                  <Shield className="h-20 w-20 text-gray-300" />
-                  <h3 className="mt-4 text-lg font-semibold text-gray-900">Erreur de chargement</h3>
-                  <p className="mt-2 text-sm text-gray-500 max-w-sm">
-                    Une erreur est survenue lors du chargement des sanctions : {errorSanctions}. Veuillez réessayer plus tard.
-                  </p>
-                </div>
-              ) : filteredSanctions.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-[500px] text-center px-4">
-                  <Shield className="h-20 w-20 text-gray-300" />
-                  <h3 className="mt-4 text-lg font-semibold text-gray-900">Aucune sanction trouvée</h3>
-                  <p className="mt-2 text-sm text-gray-500 max-w-sm">
-                    {searchTerm || filterStatus !== 'active'
-                      ? "Aucun résultat ne correspond à votre recherche et vos filtres."
-                      : "Aucune sanction active dans le système pour le moment."
-                    }
-                  </p>
-                  {(searchTerm || filterStatus !== 'active') && (
-                    <Button variant="link" className="mt-4" onClick={() => { setSearchTerm(''); setFilterStatus('active'); setSortBy('date_creation'); setSortOrder('desc'); }}>
-                      Réinitialiser les filtres
-                    </Button>
-                  )}
-                </div>
-              ) : (
-                <Table className="w-full">
-                  <TableHeader className="sticky top-0 bg-white shadow-sm z-10">
-                    <TableRow className="bg-gray-50">
-                      <TableHead className="w-20">Type</TableHead>
-                      <TableHead className="min-w-[150px]">Cible</TableHead>
-                      <TableHead className="w-32">Sanction</TableHead>
-                      <TableHead className="min-w-[150px]">Raison</TableHead>
-                      <TableHead className="w-32">Admin</TableHead>
-                      <TableHead className="w-40">Créée le</TableHead>
-                      <TableHead className="w-40">Expire le</TableHead>
-                      <TableHead className="w-28">Statut</TableHead>
-                      <TableHead className="w-40 text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredSanctions.map((sanction) => (
-                      <TableRow key={sanction.id} className="hover:bg-gray-50">
-                        {/* Type */}
-                        <TableCell>
-                          <div className="p-2 inline-flex rounded-md bg-gray-100 text-gray-500">
-                            {sanction.type === 'user' ? <User className="h-4 w-4" /> : <Package className="h-4 w-4" />}
-                          </div>
-                        </TableCell>
-                        {/* Cible */}
-                        <TableCell>
-                          <div className="font-medium text-sm text-gray-900">{sanction.target_name}</div>
-                          <div className="text-xs text-gray-500">{sanction.target_email}</div>
-                        </TableCell>
-                        {/* Sanction */}
-                        <TableCell>
-                          <Badge variant="outline" className={`font-medium ${getSanctionTypeBadge(sanction.sanction_type)}`}>
-                            {translateSanctionType(sanction.sanction_type)}
-                          </Badge>
-                        </TableCell>
-                        {/* Raison */}
-                        <TableCell className="text-sm text-gray-700">
-                          {sanction.reason}
-                        </TableCell>
-                        {/* Admin */}
-                        <TableCell className="text-sm text-gray-700">{sanction.admin_name}</TableCell>
-                        {/* Création */}
-                        <TableCell className="text-sm text-gray-500">{formatDate(sanction.created_at)}</TableCell>
-                        {/* Expiration */}
-                        <TableCell>
-                          <div className="text-sm">
-                            {sanction.is_permanent ? (
-                              <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200">
-                                Permanente
-                              </Badge>
-                            ) : (
-                              <>
-                                <p className="text-gray-700">{sanction.expires_at ? formatDate(sanction.expires_at) : 'N/A'}</p>
-                                <p className={`text-xs ${sanction.days_remaining !== null && sanction.days_remaining <= 3 ? 'text-orange-600 font-semibold' : 'text-gray-500'}`}>
-                                  {formatDaysRemaining(sanction.days_remaining)}
-                                </p>
-                              </>
-                            )}
-                          </div>
-                        </TableCell>
-                        {/* Statut */}
-                        <TableCell>
-                          <Badge className={`font-medium ${getBadgeStyle(sanction)}`}>
-                            {sanction.status === 'expired' ? 'Expirée' : sanction.status === 'revoked' ? 'Révoquée' : 'Active'}
-                          </Badge>
-                        </TableCell>
-                        {/* Actions */}
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end space-x-2">
-                            {sanction.status === 'active' && !sanction.is_permanent && (
-                              <>
-                                <Button variant="ghost" size="icon" onClick={() => openActionDialog(sanction, 'etendre')} title="Prolonger">
-                                  <Clock className="h-4 w-4 text-gray-500 hover:text-blue-600" />
-                                </Button>
-                                <Button variant="ghost" size="icon" onClick={() => openActionDialog(sanction, 'convertir_permanente')} title="Rendre permanente">
-                                  <Ban className="h-4 w-4 text-gray-500 hover:text-red-600" />
-                                </Button>
-                              </>
-                            )}
-                            {sanction.status === 'active' && (
-                              <Button variant="ghost" size="icon" onClick={() => openActionDialog(sanction, 'revoquer')} title="Révoquer">
-                                <Trash2 className="h-4 w-4 text-red-500 hover:text-red-700" />
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </ScrollArea>
+            <div className="mt-3 text-sm text-gray-600">
+              {filteredSanctions.length} sanction(s) trouvée(s)
+            </div>
           </CardContent>
         </Card>
 
-        {/* Action Dialog */}
+        {/* Liste des sanctions */}
+        <Card>
+          <CardContent className="p-0">
+            {isLoading ? (
+              <div className="flex justify-center items-center h-[400px]">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                  <p className="text-sm text-gray-600">Chargement des sanctions...</p>
+                </div>
+              </div>
+            ) : filteredSanctions.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-[400px] text-center px-4">
+                <Shield className="h-16 w-16 text-gray-300 mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Aucune sanction trouvée</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  {searchTerm || filterStatus !== 'active' || filterType !== 'all'
+                    ? "Aucune sanction ne correspond aux critères actuels."
+                    : "Aucune sanction active dans le système."}
+                </p>
+                {(searchTerm || filterStatus !== 'active' || filterType !== 'all') && (
+                  <Button onClick={resetFilters} variant="outline">
+                    Réinitialiser les filtres
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <ScrollArea className="h-[600px]">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Cible</TableHead>
+                      <TableHead>Sanction</TableHead>
+                      <TableHead>Raison</TableHead>
+                      <TableHead>Admin</TableHead>
+                      <TableHead>Créée le</TableHead>
+                      <TableHead>Expire le</TableHead>
+                      <TableHead>Statut</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredSanctions.map((sanction) => {
+                      const actions = getAvailableActions(sanction);
+                      const priority = getSanctionPriority(sanction);
+                      
+                      return (
+                        <TableRow 
+                          key={sanction.id} 
+                          className={`${
+                            priority === 'high' ? 'bg-red-50 border-l-4 border-red-400' : 
+                            priority === 'medium' ? 'bg-orange-50 border-l-2 border-orange-300' : ''
+                          }`}
+                        >
+                          <TableCell>
+                            <div className="flex items-center">
+                              {sanction.type === 'user' ? 
+                                <User className="h-4 w-4 text-purple-500" /> : 
+                                <Package className="h-4 w-4 text-green-500" />
+                              }
+                            </div>
+                          </TableCell>
+                          
+                          <TableCell>
+                            <div>
+                              <div className="font-medium text-sm">{sanction.target_name}</div>
+                              {sanction.target_email && (
+                                <div className="text-xs text-gray-500">{sanction.target_email}</div>
+                              )}
+                            </div>
+                          </TableCell>
+                          
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs">
+                              {translateSanctionType(sanction.sanction_type)}
+                            </Badge>
+                          </TableCell>
+                          
+                          <TableCell>
+                            <p className="text-sm truncate max-w-[150px]" title={sanction.reason}>
+                              {sanction.reason}
+                            </p>
+                          </TableCell>
+                          
+                          <TableCell className="text-sm">
+                            {sanction.admin_name}
+                          </TableCell>
+                          
+                          <TableCell className="text-sm text-gray-500">
+                            {formatDate(sanction.created_at)}
+                          </TableCell>
+                          
+                          <TableCell>
+                            {sanction.is_permanent ? (
+                              <Badge className="bg-red-50 text-red-600 text-xs">Permanente</Badge>
+                            ) : sanction.expires_at ? (
+                              <div className="text-sm">
+                                <p>{formatDate(sanction.expires_at)}</p>
+                                <p className={`text-xs ${
+                                  sanction.days_remaining !== null && sanction.days_remaining <= 3 
+                                    ? 'text-orange-600 font-semibold' 
+                                    : 'text-gray-500'
+                                }`}>
+                                  {formatDaysRemaining(sanction.days_remaining)}
+                                </p>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-gray-400">Non définie</span>
+                            )}
+                          </TableCell>
+                          
+                          <TableCell>
+                            <Badge className={
+                              sanction.status === 'active' ? 'bg-green-100 text-green-700' :
+                              sanction.status === 'expired' ? 'bg-gray-100 text-gray-700' :
+                              'bg-blue-100 text-blue-700'
+                            }>
+                              {translateStatus(sanction.status)}
+                            </Badge>
+                            {priority === 'high' && (
+                              <div className="text-xs text-red-600 mt-1">
+                                <AlertTriangle className="h-3 w-3 inline mr-1" />
+                                Urgent
+                              </div>
+                            )}
+                          </TableCell>
+                          
+                          <TableCell>
+                            <div className="flex items-center space-x-1">
+                              {actions.canExtend && (
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  onClick={() => openActionDialog(sanction, 'etendre')} 
+                                  className="h-8 w-8 p-0"
+                                  title="Prolonger"
+                                >
+                                  <Clock className="h-4 w-4 text-blue-500" />
+                                </Button>
+                              )}
+                              
+                              {actions.canMakePermanent && (
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  onClick={() => openActionDialog(sanction, 'convertir_permanente')} 
+                                  className="h-8 w-8 p-0"
+                                  title="Rendre permanente"
+                                >
+                                  <Ban className="h-4 w-4 text-purple-500" />
+                                </Button>
+                              )}
+                              
+                              {actions.canRevoke && (
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  onClick={() => openActionDialog(sanction, 'revoquer')} 
+                                  className="h-8 w-8 p-0"
+                                  title="Révoquer"
+                                >
+                                  <Trash2 className="h-4 w-4 text-red-500" />
+                                </Button>
+                              )}
+                              
+                              {sanction.status === 'revoked' && (
+                                <div className="text-xs text-blue-600">
+                                  <CheckCircle2 className="h-3 w-3" />
+                                </div>
+                              )}
+                              
+                              {sanction.status === 'expired' && (
+                                <div className="text-xs text-gray-500">
+                                  <Timer className="h-3 w-3" />
+                                </div>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </ScrollArea>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Dialog d'action simplifié */}
         <AlertDialog open={showActionDialog} onOpenChange={setShowActionDialog}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>
-                {actionType === 'revoquer' ? 'Révoquer la sanction' : actionType === 'etendre' ? 'Prolonger la sanction' : 'Rendre la sanction permanente'}
+              <AlertDialogTitle className="flex items-center space-x-2">
+                {actionType === 'revoquer' ? (
+                  <Trash2 className="h-5 w-5 text-red-600" />
+                ) : actionType === 'etendre' ? (
+                  <Clock className="h-5 w-5 text-blue-600" />
+                ) : (
+                  <Ban className="h-5 w-5 text-purple-600" />
+                )}
+                <span>
+                  {actionType === 'revoquer' ? 'Révoquer la sanction' : 
+                   actionType === 'etendre' ? 'Prolonger la sanction' : 
+                   'Rendre la sanction permanente'}
+                </span>
               </AlertDialogTitle>
               <AlertDialogDescription>
-                <div className="mt-4 space-y-4">
-                  <p>
-                    <span className="font-semibold">{selectedSanction?.target_name}</span> sera affecté(e).
-                  </p>
+                <div className="space-y-4">
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    <p className="text-sm">
+                      <span className="font-semibold">Cible:</span> {selectedSanction?.target_name}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      <span className="font-semibold">Sanction:</span> {translateSanctionType(selectedSanction?.sanction_type)}
+                    </p>
+                  </div>
+                  
                   {actionType === 'etendre' && (
                     <div>
                       <Label htmlFor="extension-days">Nombre de jours à ajouter</Label>
                       <Input
                         id="extension-days"
                         type="number"
+                        min="1"
+                        max="365"
                         value={extensionDays}
                         onChange={(e) => setExtensionDays(e.target.value)}
-                        placeholder="7"
+                        className="mt-2"
                       />
                     </div>
                   )}
+                  
                   <div>
-                    <Label htmlFor="action-reason">Raison de l'action</Label>
+                    <Label htmlFor="action-reason">Raison *</Label>
                     <Textarea
                       id="action-reason"
-                      placeholder="Expliquez pourquoi vous effectuez cette action."
+                      placeholder="Expliquez la raison de cette action..."
                       value={actionReason}
                       onChange={(e) => setActionReason(e.target.value)}
+                      rows={3}
+                      className="mt-2"
                     />
                   </div>
                 </div>
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Annuler</AlertDialogCancel>
-              <AlertDialogAction onClick={handleActionSubmit} disabled={!actionReason.trim()}>
-                Confirmer
+              <AlertDialogCancel disabled={isProcessingAction}>Annuler</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={handleActionSubmit} 
+                disabled={!actionReason.trim() || isProcessingAction}
+                className={
+                  actionType === 'revoquer' ? 'bg-red-600 hover:bg-red-700' :
+                  actionType === 'convertir_permanente' ? 'bg-purple-600 hover:bg-purple-700' :
+                  'bg-blue-600 hover:bg-blue-700'
+                }
+              >
+                {isProcessingAction ? (
+                  <div className="flex items-center space-x-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>Traitement...</span>
+                  </div>
+                ) : (
+                  'Confirmer'
+                )}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

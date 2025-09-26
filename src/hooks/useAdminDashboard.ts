@@ -1,5 +1,5 @@
 // hooks/useAdminDashboard.ts
-// Hook centralisé consolidant tous les hooks administratifs sans perte de logique
+// Hook centralisé consolidant tous les hooks administratifs - VERSION AMÉLIORÉE AVEC SYNCHRONISATION
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
@@ -147,7 +147,7 @@ export interface AdminListing {
   expires_at: string | null
   suspended_until?: string | null
   suspension_reason?: string | null
-  moderation_notes?: string | null
+  
   quality_score?: number
   merchant_name: string
   merchant_email: string
@@ -165,6 +165,14 @@ export interface AdminListing {
   risk_level: 'low' | 'medium' | 'high'
   is_temporarily_suspended: boolean
   suspension_expires_in_days?: number
+  suspension_type?: 'user' | 'admin' | 'system' | null
+  suspended_by?: string | null
+  moderation_notes?: string | null
+  
+  // NOUVELLES PROPRIÉTÉS POUR LA DÉTECTION D'INCOHÉRENCES
+  owner_suspended: boolean
+  has_inconsistency: boolean
+  inconsistency_type: 'user_suspended_listing_active' | null
 }
 
 export interface AdminReport {
@@ -190,6 +198,19 @@ export interface AdminReport {
   reporter_type: 'registered' | 'guest'
   priority: 'low' | 'medium' | 'high'
   response_time_hours?: number
+  listing?: {
+    user_id: string
+    title?: string
+    price?: number
+  } | null
+  reported_user?: {
+    full_name?: string
+    email?: string
+  } | null
+  reporter?: {
+    full_name?: string
+    email?: string
+  } | null
 }
 
 export interface ActiveSanction {
@@ -225,7 +246,7 @@ export interface UserAction {
 }
 
 export interface ListingAction {
-  type: 'approve' | 'suspend' | 'unsuspend' | 'feature' | 'unfeature' | 'delete' | 'extend_expiry'
+  type: 'approve' | 'suspend' | 'suspend_listing' | 'unsuspend' | 'feature' | 'unfeature' | 'delete' | 'remove_listing' | 'extend_expiry'
   reason: string
   notes?: string
   duration?: number
@@ -236,6 +257,22 @@ export interface ReportAction {
   reason: string
   notes?: string
   duration?: number
+  notifyUser?: boolean
+}
+
+export interface WeeklyData {
+  name: string;
+  date: string;
+  users: number;
+  listings: number;
+  reports: number;
+}
+
+export interface CategoryData {
+  name: string;
+  value: number;
+  color: string;
+  percentage: number;
 }
 
 // ========================================
@@ -283,11 +320,11 @@ export const useAdminDashboard = () => {
     }))
   }, [])
 
-  // Récupération des profils utilisateurs (base pour useAdminUsers et useAdminStats)
+  // Récupération des profils utilisateurs
   const fetchProfiles = useCallback(async (force = false) => {
     const section = stateRef.current.profiles
     const shouldSkip = !force && section.data.length > 0 && section.lastFetch && 
-      (Date.now() - new Date(section.lastFetch).getTime() < 2 * 60 * 1000) // Cache 2min
+      (Date.now() - new Date(section.lastFetch).getTime() < 2 * 60 * 1000)
 
     if (shouldSkip && !section.loading) return section.data
 
@@ -314,7 +351,7 @@ export const useAdminDashboard = () => {
     }
   }, [updateSection])
 
-  // Récupération des annonces (base pour useAdminListings et useAdminStats)
+  // Récupération des annonces
   const fetchListings = useCallback(async (force = false) => {
     const section = stateRef.current.listings
     const shouldSkip = !force && section.data.length > 0 && section.lastFetch && 
@@ -328,14 +365,22 @@ export const useAdminDashboard = () => {
     try {
       const { data, error } = await supabase
         .from('listings')
-        .select('*')
+        .select(`
+          *,
+          suspended_by:profiles!listings_suspended_by_fkey(
+            full_name,
+            email
+          )
+        `)
         .order('created_at', { ascending: false })
 
       if (error) throw error
 
-      updateSection('listings', { data: data || [], loading: false })
-      console.log(`✅ [CENTRAL] ${data?.length || 0} annonces récupérées`)
-      return data || []
+      const safeListingsData = Array.isArray(data) ? data : [];
+      updateSection('listings', { data: safeListingsData, loading: false })
+      console.log(`✅ [CENTRAL] ${safeListingsData.length} annonces récupérées`)
+      return safeListingsData
+      
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue'
@@ -349,7 +394,7 @@ export const useAdminDashboard = () => {
   const fetchCategories = useCallback(async (force = false) => {
     const section = stateRef.current.categories
     const shouldSkip = !force && section.data.length > 0 && section.lastFetch && 
-      (Date.now() - new Date(section.lastFetch).getTime() < 5 * 60 * 1000) // Cache 5min pour les catégories
+      (Date.now() - new Date(section.lastFetch).getTime() < 5 * 60 * 1000)
 
     if (shouldSkip && !section.loading) return section.data
 
@@ -360,13 +405,15 @@ export const useAdminDashboard = () => {
       const { data, error } = await supabase
         .from('categories')
         .select('*')
+        .order('name', { ascending: true })
 
       if (error) throw error
 
-      updateSection('categories', { data: data || [], loading: false })
-      console.log(`✅ [CENTRAL] ${data?.length || 0} catégories récupérées`)
-      return data || []
-
+      const safeData = Array.isArray(data) ? data : [];
+      updateSection('categories', { data: safeData, loading: false })
+      console.log(`✅ [CENTRAL] ${safeData.length} éléments récupérés`)
+      return safeData
+     
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue'
       updateSection('categories', { loading: false, error: errorMessage })
@@ -375,11 +422,11 @@ export const useAdminDashboard = () => {
     }
   }, [updateSection])
 
-  // Récupération des signalements (base pour useAdminReports)
+  // Récupération des signalements
   const fetchReports = useCallback(async (force = false) => {
     const section = stateRef.current.reports
-    const shouldSkip = !force && section.data.length > 0 && section.lastFetch && 
-      (Date.now() - new Date(section.lastFetch).getTime() < 1 * 60 * 1000) // Cache 1min pour les signalements
+    const shouldSkip = !force && section.data.length >= 0 && section.lastFetch && 
+      (Date.now() - new Date(section.lastFetch).getTime() < 1 * 60 * 1000)
 
     if (shouldSkip && !section.loading) return section.data
 
@@ -391,15 +438,9 @@ export const useAdminDashboard = () => {
         .from('reports')
         .select(`
           *,
-          listing:listings(
-            id, title, price, status, user_id
-          ),
-          reported_user:profiles!reports_user_id_fkey(
-            id, full_name, email
-          ),
-          reporter:profiles!reports_reporter_id_fkey(
-            id, full_name, email
-          )
+          listing:listings(title, price),
+          reported_user:profiles!reports_user_id_fkey(full_name, email),
+          reporter:profiles!reports_reporter_id_fkey(full_name, email)
         `)
         .order('created_at', { ascending: false })
 
@@ -448,7 +489,7 @@ export const useAdminDashboard = () => {
     }
   }, [updateSection])
 
-  // Récupération des données complémentaires (favoris, messages, etc.)
+  // Récupération des données complémentaires
   const fetchSupplementaryData = useCallback(async (force = false) => {
     console.log('🔍 [CENTRAL] Récupération des données complémentaires...')
 
@@ -468,7 +509,7 @@ export const useAdminDashboard = () => {
       }
     }
 
-    // Messages (échantillon)
+    // Messages
     const messagesSection = stateRef.current.messages
     const shouldSkipMessages = !force && messagesSection.data.length >= 0 && messagesSection.lastFetch && 
       (Date.now() - new Date(messagesSection.lastFetch).getTime() < 3 * 60 * 1000)
@@ -506,10 +547,203 @@ export const useAdminDashboard = () => {
   }, [updateSection])
 
   // ========================================
-  // COUCHE 2: LOGIQUES MÉTIER PRÉSERVÉES (Calculs et enrichissements)
+  // NOUVELLES FONCTIONS DE SYNCHRONISATION
   // ========================================
 
-  // Reproduction exacte de la logique useAdminStats
+  // Fonction utilitaire pour compter les annonces actives d'un utilisateur
+  const getUserActiveListingsCount = useCallback(async (userId: string): Promise<number> => {
+    try {
+      const { count, error } = await supabase
+        .from('listings')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('status', 'active');
+
+      if (error) {
+        console.error('Erreur lors du comptage des annonces:', error);
+        return 0;
+      }
+
+      return count || 0;
+    } catch (error) {
+      console.error('Erreur lors du comptage des annonces:', error);
+      return 0;
+    }
+  }, [])
+
+  // Synchronisation automatique des annonces lors des actions utilisateur
+  const syncUserListingsWithSuspension = useCallback(async (userId: string, userAction: 'suspend' | 'ban' | 'verify') => {
+    console.log(`🔄 [SYNC] Synchronisation des annonces pour l'utilisateur ${userId} - Action: ${userAction}`);
+    
+    try {
+      let listingUpdateData: any = {
+        updated_at: new Date().toISOString()
+      };
+
+      switch (userAction) {
+        case 'suspend':
+          // Quand un utilisateur est suspendu, on suspend toutes ses annonces actives
+          listingUpdateData = {
+            ...listingUpdateData,
+            status: 'suspended',
+            suspension_type: 'user', // Indique que c'est dû à la suspension utilisateur
+            suspension_reason: 'Annonce suspendue suite à la suspension du propriétaire',
+            suspended_by: user?.id || null,
+            suspended_until: null, // Sera levée quand l'utilisateur sera réactivé
+            moderation_notes: `Suspension automatique suite à la suspension de l'utilisateur le ${new Date().toLocaleString('fr-FR')}`
+          };
+          break;
+
+        case 'ban':
+          // Quand un utilisateur est banni, on suspend définitivement ses annonces
+          listingUpdateData = {
+            ...listingUpdateData,
+            status: 'suspended',
+            suspension_type: 'user',
+            suspension_reason: 'Annonce suspendue suite au bannissement du propriétaire',
+            suspended_by: user?.id || null,
+            suspended_until: null, // Suspension permanente
+            moderation_notes: `Suspension automatique suite au bannissement de l'utilisateur le ${new Date().toLocaleString('fr-FR')}`
+          };
+          break;
+
+        case 'verify':
+          // Quand un utilisateur est réactivé, on réactive ses annonces qui étaient suspendues pour cette raison
+          listingUpdateData = {
+            ...listingUpdateData,
+            status: 'active',
+            suspension_type: null,
+            suspension_reason: null,
+            suspended_by: null,
+            suspended_until: null,
+            moderation_notes: `Réactivation automatique suite à la réactivation de l'utilisateur le ${new Date().toLocaleString('fr-FR')}`
+          };
+          break;
+      }
+
+      // Construire la requête selon l'action
+      let query = supabase
+        .from('listings')
+        .update(listingUpdateData)
+        .eq('user_id', userId);
+
+      if (userAction === 'verify') {
+        // Pour la réactivation, on ne met à jour que les annonces suspendues à cause de l'utilisateur
+        query = query.eq('suspension_type', 'user');
+      } else {
+        // Pour suspension/ban, on met à jour toutes les annonces actives
+        query = query.eq('status', 'active');
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('❌ [SYNC] Erreur lors de la synchronisation des annonces:', error);
+        return false;
+      }
+
+      const affectedCount = data ? (data as any[]).length : 0;
+      console.log(`✅ [SYNC] ${affectedCount} annonce(s) synchronisée(s) pour l'utilisateur ${userId}`);
+      
+      return true;
+
+    } catch (error) {
+      console.error('❌ [SYNC] Erreur lors de la synchronisation:', error);
+      return false;
+    }
+  }, [user])
+
+  // Fonction pour vérifier et corriger les incohérences existantes
+  const fixExistingInconsistencies = useCallback(async () => {
+    console.log('🔧 [MAINTENANCE] Correction des incohérences existantes...');
+    
+    try {
+      // Récupérer tous les utilisateurs suspendus/bannis
+      const { data: suspendedUsers, error: usersError } = await supabase
+        .from('profiles')
+        .select('id, suspended_until, is_banned')
+        .or('suspended_until.not.is.null,is_banned.eq.true');
+
+      if (usersError) throw usersError;
+
+      if (!suspendedUsers || suspendedUsers.length === 0) {
+        console.log('✅ [MAINTENANCE] Aucun utilisateur suspendu trouvé');
+        return { fixed: 0, total: 0 };
+      }
+
+      let totalFixed = 0;
+
+      for (const user of suspendedUsers) {
+        // Vérifier si l'utilisateur est encore effectivement suspendu
+        const now = new Date();
+        const isCurrentlySuspended = user.is_banned || 
+          (user.suspended_until && new Date(user.suspended_until) > now);
+
+        if (isCurrentlySuspended) {
+          // Récupérer les annonces actives de cet utilisateur (qui ne devraient pas l'être)
+          const { data: activeListings, error: listingsError } = await supabase
+            .from('listings')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('status', 'active');
+
+          if (listingsError) {
+            console.error(`Erreur lors de la récupération des annonces pour ${user.id}:`, listingsError);
+            continue;
+          }
+
+          if (activeListings && activeListings.length > 0) {
+            // Suspendre ces annonces
+            const { error: updateError } = await supabase
+              .from('listings')
+              .update({
+                status: 'suspended',
+                suspension_type: 'user',
+                suspension_reason: 'Correction automatique - utilisateur suspendu',
+                suspended_by: user?.id || null,
+                moderation_notes: `Correction automatique des incohérences le ${new Date().toLocaleString('fr-FR')}`,
+                updated_at: new Date().toISOString()
+              })
+              .eq('user_id', user.id)
+              .eq('status', 'active');
+
+            if (updateError) {
+              console.error(`Erreur lors de la correction pour ${user.id}:`, updateError);
+            } else {
+              totalFixed += activeListings.length;
+              console.log(`✅ [MAINTENANCE] ${activeListings.length} annonce(s) corrigée(s) pour l'utilisateur ${user.id}`);
+            }
+          }
+        }
+      }
+
+      console.log(`✅ [MAINTENANCE] Correction terminée: ${totalFixed} annonce(s) corrigée(s)`);
+      
+      toast({
+        title: "Maintenance terminée",
+        description: `${totalFixed} annonce(s) d'utilisateurs suspendus ont été corrigées`,
+      });
+
+      return { fixed: totalFixed, total: suspendedUsers.length };
+
+    } catch (error) {
+      console.error('❌ [MAINTENANCE] Erreur lors de la correction:', error);
+      
+      toast({
+        title: "Erreur de maintenance",
+        description: "Impossible de corriger toutes les incohérences",
+        variant: "destructive"
+      });
+      
+      return { fixed: 0, total: 0 };
+    }
+  }, [user, toast]);
+
+  // ========================================
+  // COUCHE 2: LOGIQUES MÉTIER PRÉSERVÉES
+  // ========================================
+
+  // Calcul des statistiques dashboard
   const computedDashboardStats = useMemo((): DashboardStats | null => {
     const profiles = centralState.profiles.data
     const listings = centralState.listings.data
@@ -520,7 +754,6 @@ export const useAdminDashboard = () => {
 
     console.log('📊 [CENTRAL] Calcul des statistiques dashboard...')
 
-    // Reproduction exacte des calculs de useAdminStats
     const totalUsers = profiles.length
     const totalListings = listings.length
     const pendingListings = listings.filter((l: any) => l.status === 'active').length
@@ -549,7 +782,7 @@ export const useAdminDashboard = () => {
       reports: reportsThisWeek
     }
 
-    // Calcul des régions (logique identique)
+    // Calcul des régions
     const regionCounts = profiles.reduce((acc: any, profile: any) => {
       const location = profile.location || 'Non spécifié'
       const cleanLocation = location.split(',')[0].trim()
@@ -582,14 +815,14 @@ export const useAdminDashboard = () => {
         }
       })
 
-    // Métriques de qualité (logique identique)
+    // Métriques de qualité
     const resolvedReports = reports.filter((r: any) => r.status === 'resolved').length
     const reportResolutionRate = reports.length > 0 ? (resolvedReports / reports.length) * 100 : 100
 
     const verifiedUsers = profiles.filter((p: any) => p.is_verified === true).length
     const userVerificationRate = totalUsers > 0 ? (verifiedUsers / totalUsers) * 100 : 0
 
-    const averageResponseTime = 2.5 // Simplifié pour l'exemple
+    const averageResponseTime = 2.5
     const approvedListingsRate = totalListings > 0 ? (pendingListings / totalListings) * 100 : 0
 
     const qualityMetrics = {
@@ -613,7 +846,107 @@ export const useAdminDashboard = () => {
     }
   }, [centralState.profiles.data, centralState.listings.data, centralState.reports.data, centralState.reviews.data, centralState.messages.data])
 
-  // Calcul des utilisateurs enrichis (logique useAdminUsers préservée)
+  // Calcul des données hebdomadaires
+  const computedWeeklyData = useMemo(() => {
+    const profiles = centralState.profiles.data
+    const listings = centralState.listings.data
+    const reports = centralState.reports.data
+
+    if (profiles.length === 0 && listings.length === 0) return []
+
+    console.log('📈 [CENTRAL] Calcul des données hebdomadaires...')
+
+    const weeklyData = []
+    const today = new Date()
+    
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date(today)
+      date.setDate(date.getDate() - i)
+      
+      const dayStart = new Date(date)
+      dayStart.setHours(0, 0, 0, 0)
+      
+      const dayEnd = new Date(date)
+      dayEnd.setHours(23, 59, 59, 999)
+
+      const usersCount = profiles.filter((profile: any) => {
+        const createdAt = new Date(profile.created_at)
+        return createdAt >= dayStart && createdAt <= dayEnd
+      }).length
+
+      const listingsCount = listings.filter((listing: any) => {
+        const createdAt = new Date(listing.created_at)
+        return createdAt >= dayStart && createdAt <= dayEnd
+      }).length
+
+      const reportsCount = reports.filter((report: any) => {
+        const createdAt = new Date(report.created_at)
+        return createdAt >= dayStart && createdAt <= dayEnd
+      }).length
+
+      weeklyData.push({
+        name: date.toLocaleDateString('fr-FR', { weekday: 'short' }),
+        date: date.toISOString().split('T')[0],
+        users: usersCount,
+        listings: listingsCount,
+        reports: reportsCount
+      })
+    }
+
+    return weeklyData
+  }, [centralState.profiles.data, centralState.listings.data, centralState.reports.data])
+
+  // Calcul des données de catégories
+  const computedCategoryData = useMemo(() => {
+    const listings = centralState.listings.data
+    const categories = centralState.categories.data
+
+    if (listings.length === 0 || categories.length === 0) return []
+
+    console.log('🏷️ [CENTRAL] Calcul des données de catégories...')
+
+    const categoriesMap = new Map(categories.map((cat: any) => [cat.id, cat]))
+    const categoryStats = new Map<string, { count: number; category: any }>()
+
+    listings.forEach((listing: any) => {
+      const category = categoriesMap.get(listing.category_id)
+      const categoryName = category?.name || 'Non catégorisé'
+      const categoryId = listing.category_id || 'uncategorized'
+
+      const existing = categoryStats.get(categoryId)
+      if (existing) {
+        existing.count++
+      } else {
+        categoryStats.set(categoryId, {
+          count: 1,
+          category: category || { name: 'Non catégorisé', id: 'uncategorized' }
+        })
+      }
+    })
+
+    const colors = [
+      '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', 
+      '#06B6D4', '#84CC16', '#F97316', '#EC4899', '#6B7280'
+    ]
+
+    const categoryData = Array.from(categoryStats.entries())
+      .map(([categoryId, data], index) => ({
+        name: data.category.name,
+        value: data.count,
+        color: colors[index % colors.length],
+        percentage: 0
+      }))
+      .sort((a, b) => b.value - a.value)
+
+    const total = categoryData.reduce((sum, item) => sum + item.value, 0)
+    categoryData.forEach(item => {
+      item.percentage = total > 0 ? Math.round((item.value / total) * 100) : 0
+    })
+
+    return categoryData
+  }, [centralState.listings.data, centralState.categories.data])
+
+  // Calcul des utilisateurs enrichis
   const computedUsers = useMemo((): AdminUser[] => {
     const profiles = centralState.profiles.data
     const listings = centralState.listings.data
@@ -624,7 +957,6 @@ export const useAdminDashboard = () => {
     console.log('👥 [CENTRAL] Calcul des utilisateurs enrichis...')
 
     return profiles.map((user: any) => {
-      // Reproduction exacte de la logique d'enrichissement de useAdminUsers
       const userListings = listings.filter((l: any) => l.user_id === user.id)
       const listingsCount = userListings.length
       const activeListingsCount = userListings.filter((l: any) => l.status === 'active').length
@@ -640,13 +972,31 @@ export const useAdminDashboard = () => {
       const now = new Date()
       const accountAgeDays = Math.floor((now.getTime() - accountCreated.getTime()) / (1000 * 60 * 60 * 24))
 
-      // Calcul du score de confiance (identique)
-      let trustScore = 50
-      trustScore += Math.min(accountAgeDays * 0.1, 20)
-      trustScore += Math.min(activeListingsCount * 2, 15)
-      trustScore -= reportsReceived * 10
-      if (user.phone && user.full_name) trustScore += 10
-      trustScore = Math.max(0, Math.min(100, trustScore))
+      // Calcul du score de confiance basé sur des métriques réelles
+      let trustScore = 40; // Base réduite
+
+      // Facteurs positifs
+      trustScore += Math.min(accountAgeDays * 0.2, 25); // Ancienneté du compte
+      trustScore += Math.min(activeListingsCount * 3, 20); // Annonces actives
+      trustScore += Math.min((userListings.reduce((sum, l) => sum + (l.views_count || 0), 0) / Math.max(userListings.length, 1)) * 0.1, 10); // Moyenne des vues
+
+      // Facteurs de vérification
+      if (user.phone && user.full_name && user.location) trustScore += 15; // Profil complet
+      else if (user.phone && user.full_name) trustScore += 10; // Profil partiel
+
+      // Facteurs négatifs (plus sévères)
+      trustScore -= reportsReceived * 15; // Signalements reçus
+      trustScore -= Math.min((now.getTime() - new Date(user.last_activity || user.created_at).getTime()) / (1000 * 60 * 60 * 24 * 7), 10); // Inactivité
+
+      // Bonus pour utilisateurs actifs récents
+      const recentMessages = centralState.messages.data.filter(m => 
+        (m.sender_id === user.id || m.recipient_id === user.id) && 
+        new Date(m.created_at) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      ).length;
+      trustScore += Math.min(recentMessages * 0.5, 5);
+
+      // Normalisation finale
+      trustScore = Math.max(0, Math.min(100, Math.round(trustScore)));
 
       let riskLevel: 'low' | 'medium' | 'high' = 'low'
       if (reportsReceived > 2 || trustScore < 30) {
@@ -685,7 +1035,7 @@ export const useAdminDashboard = () => {
     })
   }, [centralState.profiles.data, centralState.listings.data, centralState.reports.data])
 
-  // Calcul des annonces enrichies (logique useAdminListings préservée)
+  // Calcul des annonces enrichies AVEC DÉTECTION D'INCOHÉRENCES
   const computedListings = useMemo((): AdminListing[] => {
     const listings = centralState.listings.data
     const profiles = centralState.profiles.data
@@ -696,23 +1046,19 @@ export const useAdminDashboard = () => {
 
     if (listings.length === 0) return []
 
-    console.log('📋 [CENTRAL] Calcul des annonces enrichies...')
+    console.log('📋 [CENTRAL] Calcul des annonces enrichies avec détection d\'incohérences...')
 
-    // Création des maps (logique identique)
     const profilesMap = new Map(profiles.map((profile: any) => [profile.id, profile]))
     const categoriesMap = new Map(categories.map((category: any) => [category.id, category]))
 
     return listings.map((listing: any) => {
-      // Récupération des données liées via les maps
       const profile = profilesMap.get(listing.user_id)
       const category = categoriesMap.get(listing.category_id)
 
-      // Calcul des métriques d'engagement (logique identique useAdminListings)
       const favoritesCount = favorites.filter((f: any) => f.listing_id === listing.id).length
       const messagesCount = messages.filter((m: any) => m.listing_id === listing.id).length
       const reportsCount = reports.filter((r: any) => r.listing_id === listing.id).length
 
-      // Calculs temporels
       const createdAt = new Date(listing.created_at)
       const now = new Date()
       const daysSinceCreation = Math.floor((now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24))
@@ -722,14 +1068,12 @@ export const useAdminDashboard = () => {
         ? Math.floor((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
         : 999
 
-      // Gestion des suspensions temporaires
       const suspendedUntil = listing.suspended_until ? new Date(listing.suspended_until) : null
       const isTemporarilySuspended = suspendedUntil && suspendedUntil > now
       const suspensionExpiresInDays = isTemporarilySuspended 
         ? Math.ceil((suspendedUntil!.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
         : 0
 
-      // Calcul du score de qualité (logique identique)
       let qualityScore = listing.quality_score || 50
       
       if (!listing.quality_score) {
@@ -750,8 +1094,21 @@ export const useAdminDashboard = () => {
         ? ((favoritesCount + messagesCount) / listing.views_count) * 100 
         : 0
 
+      // DÉTECTION D'INCOHÉRENCE
+      const isUserSuspended = profile && (
+        profile.is_banned || 
+        (profile.suspended_until && new Date(profile.suspended_until) > now)
+      )
+      
+      const isListingActive = listing.status === 'active'
+      const hasInconsistency = isUserSuspended && isListingActive
+      
+      if (hasInconsistency) {
+        console.warn(`⚠️ [INCONSISTENCY] Annonce active ${listing.id} appartient à utilisateur suspendu ${profile.id}`)
+      }
+
       let riskLevel: 'low' | 'medium' | 'high' = 'low'
-      if (reportsCount >= 3 || qualityScore < 30) {
+      if (reportsCount >= 3 || qualityScore < 30 || hasInconsistency) {
         riskLevel = 'high'
       } else if (reportsCount >= 1 || qualityScore < 60 || listing.price < 5000) {
         riskLevel = 'medium'
@@ -762,7 +1119,8 @@ export const useAdminDashboard = () => {
         (listing.images?.length || 0) === 0 || 
         reportsCount > 0 ||
         (listing.price < 10000 && listing.title.toLowerCase().includes('iphone')) ||
-        qualityScore < 40
+        qualityScore < 40 ||
+        hasInconsistency
 
       return {
         ...listing,
@@ -771,7 +1129,6 @@ export const useAdminDashboard = () => {
         merchant_phone: profile?.phone,
         category_name: category?.name || (listing.category_id ? 'Catégorie non trouvée' : 'Aucune catégorie'),
         
-        // Propriétés calculées
         quality_score: qualityScore,
         favorites_count: favoritesCount,
         messages_count: messagesCount,
@@ -788,13 +1145,20 @@ export const useAdminDashboard = () => {
         
         suspended_until: listing.suspended_until || null,
         suspension_reason: listing.suspension_reason || null,
-        moderation_notes: listing.moderation_notes || null
+        suspension_type: listing.suspension_type || null,
+        suspended_by: listing.suspended_by || null,
+        moderation_notes: listing.moderation_notes || null,
+        
+        // NOUVELLES PROPRIÉTÉS POUR LA DÉTECTION D'INCOHÉRENCES
+        owner_suspended: isUserSuspended,
+        has_inconsistency: hasInconsistency,
+        inconsistency_type: hasInconsistency ? 'user_suspended_listing_active' : null
       } as AdminListing
     })
   }, [centralState.listings.data, centralState.profiles.data, centralState.categories.data, 
       centralState.favorites.data, centralState.messages.data, centralState.reports.data])
 
-  // Calcul des signalements enrichis (logique useAdminReports préservée)
+  // Calcul des signalements enrichis
   const computedReports = useMemo((): AdminReport[] => {
     const reports = centralState.reports.data
 
@@ -803,7 +1167,6 @@ export const useAdminDashboard = () => {
     console.log('🚨 [CENTRAL] Calcul des signalements enrichis...')
 
     const enrichedReports: AdminReport[] = reports.map((report: any) => {
-      // Calcul de la priorité (logique identique)
       let priority: 'low' | 'medium' | 'high' = 'medium'
       const reasonLower = (report.reason || '').toLowerCase()
       
@@ -819,12 +1182,10 @@ export const useAdminDashboard = () => {
         priority = 'low'
       }
 
-      // Calcul du temps de réponse
       const createdAt = new Date(report.created_at)
       const now = new Date()
       const responseTimeHours = Math.round((now.getTime() - createdAt.getTime()) / (1000 * 60 * 60))
 
-      // Extraction des données liées
       const listing = Array.isArray(report.listing) ? report.listing[0] : report.listing
       const reportedUser = Array.isArray(report.reported_user) ? report.reported_user[0] : report.reported_user
       const reporter = Array.isArray(report.reporter) ? report.reporter[0] : report.reporter
@@ -844,7 +1205,6 @@ export const useAdminDashboard = () => {
       } as AdminReport
     })
 
-    // Tri par priorité puis par date (logique identique)
     enrichedReports.sort((a, b) => {
       const priorityOrder = { high: 3, medium: 2, low: 1 }
       const priorityDiff = priorityOrder[b.priority] - priorityOrder[a.priority]
@@ -857,7 +1217,7 @@ export const useAdminDashboard = () => {
     return enrichedReports
   }, [centralState.reports.data])
 
-  // Calcul des sanctions actives (logique useAdminSanctions préservée)
+  // Calcul des sanctions actives
   const computedSanctions = useMemo((): ActiveSanction[] => {
     const userSanctions = centralState.userSanctions.data
     const suspendedListings = centralState.listings.data.filter((l: any) => l.status === 'suspended')
@@ -868,10 +1228,8 @@ export const useAdminDashboard = () => {
     const normalizedSanctions: ActiveSanction[] = []
     const now = new Date()
 
-    // Création du map des profils pour lookup rapide
     const profilesMap = new Map(profiles.map((profile: any) => [profile.id, profile]))
 
-    // Normalisation des sanctions utilisateurs (logique identique)
     userSanctions?.forEach((sanction: any) => {
       const userProfile = profilesMap.get(sanction.user_id)
       const adminProfile = profilesMap.get(sanction.admin_id)
@@ -906,7 +1264,6 @@ export const useAdminDashboard = () => {
       })
     })
 
-    // Normalisation des annonces suspendues (logique identique)
     suspendedListings.forEach((listing: any) => {
       const userProfile = profilesMap.get(listing.user_id)
       const adminProfile = profilesMap.get(listing.suspended_by)
@@ -938,11 +1295,83 @@ export const useAdminDashboard = () => {
     return normalizedSanctions
   }, [centralState.userSanctions.data, centralState.listings.data, centralState.profiles.data])
 
+  // Surveillance automatique des incohérences
+  useEffect(() => {
+    const checkConsistency = async () => {
+      try {
+        // Requête pour détecter les incohérences
+        const { data: inconsistencies, error } = await supabase
+          .from('listings')
+          .select(`
+            id, 
+            title, 
+            user_id, 
+            status,
+            profiles!inner(id, suspended_until, is_banned)
+          `)
+          .eq('status', 'active')
+          .or('profiles.suspended_until.not.is.null,profiles.is_banned.eq.true');
+
+        if (error) {
+          console.error('Erreur lors de la vérification de cohérence:', error);
+          return;
+        }
+
+        if (inconsistencies && inconsistencies.length > 0) {
+          console.warn(`⚠️ [COHERENCE] ${inconsistencies.length} incohérence(s) détectée(s)`);
+          
+          toast({
+            title: "Incohérences détectées",
+            description: `${inconsistencies.length} annonce(s) d'utilisateurs suspendus sont encore actives`,
+            variant: "destructive"
+          });
+        }
+      } catch (error) {
+        console.error('Erreur lors de la vérification de cohérence:', error);
+      }
+    };
+
+    // Vérifier la cohérence au chargement et périodiquement
+    const interval = setInterval(checkConsistency, 5 * 60 * 1000); // Toutes les 5 minutes
+
+    // Vérification initiale
+    checkConsistency();
+
+    return () => clearInterval(interval);
+  }, [toast])
+
+  // Méthode publique pour la correction manuelle
+  const handleManualConsistencyFix = useCallback(async () => {
+    const result = await fixExistingInconsistencies();
+    
+    toast({
+      title: "Vérification terminée",
+      description: result.fixed > 0 
+        ? `${result.fixed} incohérence(s) corrigée(s) sur ${result.total} utilisateur(s) vérifiés`
+        : `Aucune incohérence détectée sur ${result.total} utilisateur(s) vérifiés`,
+    });
+    
+    return result;
+  }, [fixExistingInconsistencies, toast]);
+
+  // SYNCHRONISATION AUTOMATIQUE avec les changements d'état
+  useEffect(() => {
+    // Mettre à jour les statuts des utilisateurs basés sur les sanctions actives
+    const activeSanctions = computedSanctions.filter(s => s.status === 'active' && s.type === 'user')
+    
+    activeSanctions.forEach(sanction => {
+      const user = centralState.profiles.data.find(u => u.id === sanction.target_id)
+      if (user && user.status !== 'suspended' && user.status !== 'banned') {
+        console.log('🔄 [SYNC] Utilisateur avec sanction active détecté:', user.id)
+      }
+    })
+  }, [computedSanctions, centralState.profiles.data])
+
   // ========================================
-  // COUCHE 3: FONCTIONS D'ACTIONS (Logiques préservées)
+  // COUCHE 3: FONCTIONS D'ACTIONS AMÉLIORÉES
   // ========================================
 
-  // Actions utilisateurs (logique useAdminUsers préservée)
+  // ACTION UTILISATEUR AVEC SYNCHRONISATION
   const handleUserAction = useCallback(async (userId: string, action: UserAction) => {
     if (!user) {
       toast({
@@ -960,6 +1389,7 @@ export const useAdminDashboard = () => {
         updated_at: new Date().toISOString()
       }
 
+      // ÉTAPE 1: Préparer les données utilisateur selon l'action
       switch (action.type) {
         case 'verify':
           updateData = {
@@ -1003,17 +1433,28 @@ export const useAdminDashboard = () => {
           break
       }
 
-      // Mise à jour du profil (sauf pour les avertissements)
+      // ÉTAPE 2: Mettre à jour l'utilisateur
       if (action.type !== 'warn') {
-        const { error } = await supabase
+        const { error: userError } = await supabase
           .from('profiles')
           .update(updateData)
           .eq('id', userId)
 
-        if (error) throw error
+        if (userError) throw userError
       }
 
-      // Enregistrement dans les sanctions
+      // ÉTAPE 3: SYNCHRONISATION AUTOMATIQUE DES ANNONCES
+      if (['suspend', 'ban', 'verify'].includes(action.type)) {
+        console.log(`🔄 [SYNC] Début de la synchronisation des annonces pour l'action ${action.type}`);
+        
+        const syncSuccess = await syncUserListingsWithSuspension(userId, action.type as 'suspend' | 'ban' | 'verify');
+        
+        if (!syncSuccess) {
+          console.warn('⚠️ [SYNC] La synchronisation des annonces a échoué mais l\'action utilisateur a réussi');
+        }
+      }
+
+      // ÉTAPE 4: Enregistrer la sanction si nécessaire
       if (['suspend', 'ban', 'warn'].includes(action.type)) {
         try {
           let sanctionType = action.type === 'suspend' ? 'suspension' : 
@@ -1034,13 +1475,26 @@ export const useAdminDashboard = () => {
         }
       }
 
+      // ÉTAPE 5: Message de confirmation amélioré
+      const actionMessages = {
+        suspend: action.duration 
+          ? `Utilisateur et ses ${await getUserActiveListingsCount(userId)} annonces suspendus pour ${action.duration} jour(s)`
+          : 'Utilisateur et ses annonces suspendus définitivement',
+        ban: `Utilisateur banni et ses annonces définitivement suspendues`,
+        verify: `Utilisateur et ses annonces réactivés avec succès`,
+        promote: 'Utilisateur promu administrateur',
+        demote: 'Privilèges administrateur retirés',
+        warn: 'Avertissement envoyé à l\'utilisateur'
+      };
+
       toast({
-        title: "Action appliquée",
-        description: `L'action ${action.type} a été appliquée avec succès.`
+        title: "Action appliquée avec succès",
+        description: actionMessages[action.type as keyof typeof actionMessages] || "Action appliquée avec succès"
       })
 
-      // Rafraîchir les données concernées
+      // ÉTAPE 6: Rafraîchir les données
       fetchProfiles(true)
+      fetchListings(true) // Important: rafraîchir aussi les annonces
       if (['suspend', 'ban', 'warn'].includes(action.type)) {
         fetchUserSanctions(true)
       }
@@ -1058,9 +1512,9 @@ export const useAdminDashboard = () => {
       
       return false
     }
-  }, [user, toast, fetchProfiles, fetchUserSanctions])
+  }, [user, toast, fetchProfiles, fetchListings, fetchUserSanctions, syncUserListingsWithSuspension, getUserActiveListingsCount])
 
-  // Actions sur les annonces (logique useAdminListings préservée)
+  // Actions sur les annonces
   const handleListingAction = useCallback(async (listingId: string, action: ListingAction): Promise<boolean> => {
     if (!user) {
       toast({
@@ -1083,11 +1537,30 @@ export const useAdminDashboard = () => {
           updateData.status = 'active'
           updateData.suspended_until = null
           updateData.suspension_reason = null
+          updateData.suspension_type = null
+          updateData.suspended_by = null
+          break
+
+        case 'suspend_listing':
+          updateData.status = 'suspended'
+          updateData.suspension_reason = action.reason
+          updateData.suspension_type = 'admin'
+          updateData.suspended_by = user.id
+          updateData.moderation_notes = action.notes
+          
+          if (action.duration && action.duration > 0) {
+            const suspendedUntil = new Date(Date.now() + action.duration * 24 * 60 * 60 * 1000)
+            updateData.suspended_until = suspendedUntil.toISOString()
+          } else {
+            updateData.suspended_until = null
+          }
           break
 
         case 'suspend':
           updateData.status = 'suspended'
           updateData.suspension_reason = action.reason
+          updateData.suspension_type = 'admin'
+          updateData.suspended_by = user.id
           updateData.moderation_notes = action.notes
           
           if (action.duration && action.duration > 0) {
@@ -1102,7 +1575,18 @@ export const useAdminDashboard = () => {
           updateData.status = 'active'
           updateData.suspended_until = null
           updateData.suspension_reason = null
-          updateData.moderation_notes = action.notes
+          updateData.suspension_type = null
+          updateData.suspended_by = null
+          updateData.moderation_notes = action.notes || `Suspension levée par ${user.email || 'administrateur'}`
+          break
+
+        case 'remove_listing':
+          updateData.status = 'suspended'
+          updateData.suspension_reason = action.reason
+          updateData.suspension_type = 'admin'
+          updateData.suspended_by = user.id
+          updateData.moderation_notes = `SUPPRIMÉ DÉFINITIVEMENT: ${action.notes || ''}`
+          updateData.suspended_until = null
           break
 
         case 'feature':
@@ -1121,12 +1605,6 @@ export const useAdminDashboard = () => {
             updateData.expires_at = newExpiry.toISOString()
           }
           break
-
-        case 'delete':
-          updateData.status = 'suspended'
-          updateData.suspension_reason = action.reason
-          updateData.moderation_notes = `SUPPRIMÉ: ${action.notes || ''}`
-          break
       }
 
       const { error } = await supabase
@@ -1136,7 +1614,6 @@ export const useAdminDashboard = () => {
 
       if (error) throw error
 
-      // Audit
       try {
         await supabase
           .from('admin_actions')
@@ -1147,7 +1624,11 @@ export const useAdminDashboard = () => {
             target_id: listingId,
             reason: action.reason,
             notes: action.notes,
-            metadata: { duration: action.duration }
+            metadata: { 
+              duration: action.duration,
+              suspension_type: updateData.suspension_type,
+              is_permanent: !updateData.suspended_until
+            }
           })
       } catch (auditError) {
         console.warn('Impossible d\'enregistrer l\'action d\'audit:', auditError)
@@ -1155,24 +1636,25 @@ export const useAdminDashboard = () => {
 
       const actionMessages = {
         approve: 'Annonce approuvée avec succès',
+        suspend_listing: action.duration 
+          ? `Annonce suspendue par l'administration pour ${action.duration} jour(s)`
+          : 'Annonce suspendue définitivement par l\'administration',
         suspend: action.duration 
           ? `Annonce suspendue pour ${action.duration} jour(s)`
           : 'Annonce suspendue définitivement',
-        unsuspend: 'Suspension levée avec succès',
+        unsuspend: 'Suspension administrative levée avec succès',
         feature: 'Annonce mise en avant',
         unfeature: 'Mise en avant supprimée',
         extend_expiry: `Expiration prolongée de ${action.duration} jour(s)`,
-        delete: 'Annonce supprimée'
+        remove_listing: 'Annonce supprimée définitivement par l\'administration'
       }
 
       toast({
-        title: "Action appliquée",
-        description: actionMessages[action.type] || "Action appliquée avec succès"
+        title: "Action administrative appliquée",
+        description: actionMessages[action.type as keyof typeof actionMessages] || "Action appliquée avec succès"
       })
 
-      // Rafraîchir les annonces
-      fetchListings(true)
-
+      await fetchListings(true)
       return true
 
     } catch (error) {
@@ -1188,7 +1670,7 @@ export const useAdminDashboard = () => {
     }
   }, [user, toast, computedListings, fetchListings])
 
-  // Actions sur les signalements (logique useAdminReports préservée)
+  // Actions sur les signalements
   const handleReportAction = useCallback(async (reportId: string, action: ReportAction): Promise<boolean> => {
     if (!user) {
       toast({
@@ -1207,9 +1689,11 @@ export const useAdminDashboard = () => {
         throw new Error('Signalement non trouvé')
       }
 
-      // Mise à jour du statut du signalement
       let newStatus: 'pending' | 'in_review' | 'resolved' | 'dismissed' = 'resolved'
+      let shouldExecuteUserAction = false
+      let shouldExecuteListingAction = false
       
+      // Déterminer le nouveau statut du signalement
       switch (action.type) {
         case 'approve':
           newStatus = 'resolved'
@@ -1220,10 +1704,22 @@ export const useAdminDashboard = () => {
         case 'escalate':
           newStatus = 'in_review'
           break
+        case 'ban_user':
+        case 'suspend_user':
+        case 'warn_user':
+          newStatus = 'resolved'
+          shouldExecuteUserAction = true
+          break
+        case 'remove_listing':
+        case 'suspend_listing':
+          newStatus = 'resolved'
+          shouldExecuteListingAction = true
+          break
         default:
           newStatus = 'resolved'
       }
 
+      // Mettre à jour le statut du signalement
       const { error: updateError } = await supabase
         .from('reports')
         .update({
@@ -1234,17 +1730,112 @@ export const useAdminDashboard = () => {
 
       if (updateError) throw updateError
 
-      // Actions spécifiques préservées (ban_user, suspend_user, etc.)
-      // Simplifiées ici mais logique identique à useAdminReports
+      // Exécuter l'action sur l'utilisateur si nécessaire
+      if (shouldExecuteUserAction) {
+        const targetUserId = report.user_id || 
+        (report.listing && typeof report.listing === 'object' ? report.listing.user_id : null)
+        if (targetUserId) {
+          let userActionType: 'warn' | 'suspend' | 'ban' = 'warn'
+          
+          switch (action.type) {
+            case 'warn_user':
+              userActionType = 'warn'
+              break
+            case 'suspend_user':
+              userActionType = 'suspend'
+              break
+            case 'ban_user':
+              userActionType = 'ban'
+              break
+          }
+
+          const userActionSuccess = await handleUserAction(targetUserId, {
+            type: userActionType,
+            reason: action.reason,
+            notes: action.notes,
+            duration: action.duration
+          })
+
+          if (!userActionSuccess) {
+            console.warn('Action utilisateur échouée, mais signalement marqué comme résolu')
+          }
+        }
+      }
+
+      // Exécuter l'action sur l'annonce si nécessaire
+      if (shouldExecuteListingAction && report.listing_id) {
+        let listingActionType: 'suspend_listing' | 'remove_listing' = 'suspend_listing'
+        
+        switch (action.type) {
+          case 'suspend_listing':
+            listingActionType = 'suspend_listing'
+            break
+          case 'remove_listing':
+            listingActionType = 'remove_listing'
+            break
+        }
+
+        const listingActionSuccess = await handleListingAction(report.listing_id, {
+          type: listingActionType,
+          reason: action.reason,
+          notes: action.notes,
+          duration: action.duration
+        })
+
+        if (!listingActionSuccess) {
+          console.warn('Action annonce échouée, mais signalement marqué comme résolu')
+        }
+      }
+
+      // Enregistrer l'action dans l'audit trail
+      try {
+        await supabase
+          .from('admin_actions')
+          .insert({
+            admin_id: user.id,
+            action_type: action.type,
+            target_type: 'report',
+            target_id: reportId,
+            reason: action.reason,
+            notes: action.notes,
+            metadata: { 
+              original_status: report.status,
+              new_status: newStatus,
+              duration: action.duration,
+              target_user_id: report.user_id,
+              target_listing_id: report.listing_id
+            }
+          })
+      } catch (auditError) {
+        console.warn('Impossible d\'enregistrer l\'action d\'audit:', auditError)
+      }
+
+      const actionMessages = {
+        approve: 'Signalement approuvé avec succès',
+        dismiss: 'Signalement rejeté avec succès', 
+        escalate: 'Signalement escaladé avec succès',
+        ban_user: 'Utilisateur banni suite au signalement',
+        suspend_user: 'Utilisateur suspendu suite au signalement',
+        warn_user: 'Utilisateur averti suite au signalement',
+        remove_listing: 'Annonce supprimée suite au signalement',
+        suspend_listing: 'Annonce suspendue suite au signalement'
+      }
 
       toast({
         title: "Action appliquée",
-        description: 'Action appliquée avec succès'
+        description: actionMessages[action.type as keyof typeof actionMessages] || 'Action appliquée avec succès'
       })
 
-      // Rafraîchir les signalements
-      fetchReports(true)
-
+      // Rafraîchir les données
+      await fetchReports(true)
+      if (shouldExecuteUserAction) {
+        await fetchProfiles(true)
+        await fetchUserSanctions(true)
+      }
+      if (shouldExecuteListingAction) {
+        await fetchListings(true)
+      }
+      
       return true
 
     } catch (error) {
@@ -1258,13 +1849,12 @@ export const useAdminDashboard = () => {
       
       return false
     }
-  }, [user, toast, computedReports, fetchReports])
+  }, [user, toast, computedReports, fetchReports, handleUserAction, handleListingAction, fetchProfiles, fetchUserSanctions, fetchListings])
 
   // ========================================
-  // COUCHE 4: FONCTIONS DE RAFRAÎCHISSEMENT OPTIMISÉES
+  // COUCHE 4: FONCTIONS DE RAFRAÎCHISSEMENT
   // ========================================
 
-  // Rafraîchissement intelligent par section
   const refreshSection = useCallback(async (section: keyof CentralState | 'all', force = false) => {
     console.log(`🔄 [CENTRAL] Rafraîchissement de ${section}`)
 
@@ -1290,13 +1880,11 @@ export const useAdminDashboard = () => {
     setLastGlobalRefresh(new Date().toISOString())
   }, [fetchProfiles, fetchListings, fetchCategories, fetchReports, fetchUserSanctions, fetchSupplementaryData])
 
-  // Rafraîchissement global optimisé
   const refreshAllData = useCallback(async () => {
     console.log('🔄 [CENTRAL] Rafraîchissement global en cours...')
     setGlobalLoading(true)
 
     try {
-      // Exécution en parallèle des requêtes principales
       await Promise.all([
         fetchProfiles(true),
         fetchListings(true),
@@ -1305,7 +1893,6 @@ export const useAdminDashboard = () => {
         fetchUserSanctions(true)
       ])
 
-      // Données complémentaires en second
       await fetchSupplementaryData(true)
 
       console.log('✅ [CENTRAL] Rafraîchissement global terminé')
@@ -1330,7 +1917,7 @@ export const useAdminDashboard = () => {
   }, [fetchProfiles, fetchListings, fetchCategories, fetchReports, fetchUserSanctions, fetchSupplementaryData, toast])
 
   // ========================================
-  // COUCHE 5: FONCTIONS UTILITAIRES (Préservées de tous les hooks)
+  // COUCHE 5: FONCTIONS UTILITAIRES
   // ========================================
 
   const formatCurrency = useCallback((amount: number): string => {
@@ -1357,17 +1944,16 @@ export const useAdminDashboard = () => {
   }, [])
 
   // ========================================
-  // INITIALISATION ET RAFRAÎCHISSEMENT AUTOMATIQUE
+  // INITIALISATION
   // ========================================
 
   useEffect(() => {
     console.log('🚀 [CENTRAL] Initialisation du hook centralisé')
     refreshAllData()
 
-    // Rafraîchissement automatique toutes les 3 minutes
     const interval = setInterval(() => {
       console.log('⏰ [CENTRAL] Rafraîchissement automatique')
-      refreshSection('all', false) // Utilise le cache intelligent
+      refreshSection('all', false)
     }, 3 * 60 * 1000)
 
     return () => {
@@ -1377,7 +1963,7 @@ export const useAdminDashboard = () => {
   }, [refreshAllData, refreshSection])
 
   // ========================================
-  // INTERFACE PUBLIQUE - Compatible avec tous tes hooks existants
+  // INTERFACE PUBLIQUE UNIFIÉE AVEC NOUVELLES FONCTIONS
   // ========================================
 
   return {
@@ -1386,26 +1972,26 @@ export const useAdminDashboard = () => {
     lastGlobalRefresh,
     isHealthy: !globalLoading && Object.values(centralState).every(section => !section.error),
 
-    // ===== DONNÉES CALCULÉES (Interface identique à useAdminStats) =====
+    // ===== DONNÉES CALCULÉES =====
     dashboardStats: computedDashboardStats,
-    weeklyData: [], // À implémenter si nécessaire
-    categoryData: [], // À implémenter si nécessaire
+    weeklyData: computedWeeklyData,
+    categoryData: computedCategoryData,
     
-    // ===== UTILISATEURS (Interface identique à useAdminUsers) =====
+    // ===== UTILISATEURS =====
     users: computedUsers,
     activeUsersCount: computedUsers.filter(u => u.status === 'active').length,
     suspendedUsersCount: computedUsers.filter(u => u.status === 'suspended').length,
     pendingVerificationCount: computedUsers.filter(u => u.status === 'pending_verification').length,
     
-    // ===== ANNONCES (Interface identique à useAdminListings) =====
+    // ===== ANNONCES =====
     listings: computedListings,
     needsReviewCount: computedListings.filter(l => l.needs_review).length,
     
-    // ===== SIGNALEMENTS (Interface identique à useAdminReports) =====
+    // ===== SIGNALEMENTS =====
     reports: computedReports,
     pendingCount: computedReports.filter(r => r.status === 'pending').length,
     
-    // ===== SANCTIONS (Interface identique à useAdminSanctions) =====
+    // ===== SANCTIONS =====
     sanctions: computedSanctions,
     stats: {
       totalActive: computedSanctions.filter(s => s.status === 'active').length,
@@ -1414,8 +2000,10 @@ export const useAdminDashboard = () => {
       temporaryCount: computedSanctions.filter(s => !s.is_permanent && s.status === 'active').length,
       permanentCount: computedSanctions.filter(s => s.is_permanent && s.status === 'active').length,
       expiringSoon: computedSanctions.filter(s => s.days_remaining !== null && s.days_remaining <= 1).length,
-      expiredToday: 0,
-      createdToday: 0
+      expiredToday: computedSanctions.filter(s => s.status === 'expired' && s.expires_at && 
+        new Date(s.expires_at).toDateString() === new Date().toDateString()).length,
+      createdToday: computedSanctions.filter(s => 
+        new Date(s.created_at).toDateString() === new Date().toDateString()).length
     },
     activeSanctionsCount: computedSanctions.filter(s => s.status === 'active').length,
     expiringSoonCount: computedSanctions.filter(s => s.days_remaining !== null && s.days_remaining <= 1).length,
@@ -1425,6 +2013,19 @@ export const useAdminDashboard = () => {
     handleListingAction,
     handleReportAction,
     
+    // ===== NOUVELLES FONCTIONS DE SYNCHRONISATION =====
+    fixExistingInconsistencies: handleManualConsistencyFix,
+    syncUserListings: syncUserListingsWithSuspension,
+    getUserActiveListingsCount,
+    
+    // ===== STATISTIQUES D'INCOHÉRENCES =====
+    inconsistencyStats: {
+      total: computedListings.filter(l => l.has_inconsistency).length,
+      userSuspendedListingsActive: computedListings.filter(l => 
+        l.inconsistency_type === 'user_suspended_listing_active'
+      ).length,
+    },
+    
     // ===== RAFRAÎCHISSEMENT =====
     refreshAllData,
     refreshSection,
@@ -1433,6 +2034,246 @@ export const useAdminDashboard = () => {
     refreshListings: () => refreshSection('listings'),
     refreshReports: () => refreshSection('reports'),
     refreshSanctions: () => refreshSection('userSanctions'),
+
+    // ===== FONCTIONS DE SANCTIONS =====
+    revokeSanction: async (sanctionId: string, sanctionType: 'user' | 'listing', reason: string): Promise<boolean> => {
+      if (!user) {
+        toast({
+          title: "Erreur d'authentification",
+          description: "Vous devez être connecté pour révoquer une sanction.",
+          variant: "destructive"
+        })
+        return false
+      }
+
+      console.log(`🔧 [SANCTIONS] Révocation sanction ${sanctionId}`)
+      
+      try {
+        if (sanctionType === 'user') {
+          const { error } = await supabase
+            .from('user_sanctions')
+            .update({
+              status: 'revoked',
+              revoked_at: new Date().toISOString(),
+              revoked_by: user.id,
+              revoked_reason: reason,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', sanctionId)
+
+          if (error) throw error
+        } else {
+          const { error } = await supabase
+            .from('listings')
+            .update({
+              status: 'active',
+              suspended_until: null,
+              suspension_reason: null,
+              suspension_type: null,
+              suspended_by: null,
+              moderation_notes: `Suspension levée: ${reason}`,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', sanctionId)
+
+          if (error) throw error
+        }
+
+        toast({
+          title: "Sanction révoquée",
+          description: "La sanction a été révoquée avec succès."
+        })
+
+        if (sanctionType === 'user') {
+          fetchUserSanctions(true)
+        } else {
+          fetchListings(true)
+        }
+
+        return true
+
+      } catch (error) {
+        console.error('Erreur révocation sanction:', error)
+        
+        toast({
+          title: "Erreur de révocation",
+          description: "Impossible de révoquer cette sanction.",
+          variant: "destructive"
+        })
+        
+        return false
+      }
+    },
+
+    extendSanction: async (sanctionId: string, sanctionType: 'user' | 'listing', additionalDays: number): Promise<boolean> => {
+      if (!user) {
+        toast({
+          title: "Erreur d'authentification",
+          description: "Vous devez être connecté pour prolonger une sanction.",
+          variant: "destructive"
+        })
+        return false
+      }
+
+      console.log(`🔧 [SANCTIONS] Extension sanction ${sanctionId} de ${additionalDays} jours`)
+      
+      try {
+        const newExpiration = new Date()
+        newExpiration.setDate(newExpiration.getDate() + additionalDays)
+
+        if (sanctionType === 'user') {
+          const { error } = await supabase
+            .from('user_sanctions')
+            .update({
+              effective_until: newExpiration.toISOString(),
+              duration_days: additionalDays,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', sanctionId)
+
+          if (error) throw error
+        } else {
+          const { error } = await supabase
+            .from('listings')
+            .update({
+              suspended_until: newExpiration.toISOString(),
+              moderation_notes: `Suspension prolongée de ${additionalDays} jours`,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', sanctionId)
+
+          if (error) throw error
+        }
+
+        toast({
+          title: "Sanction prolongée",
+          description: `La sanction a été prolongée de ${additionalDays} jour(s).`
+        })
+
+        if (sanctionType === 'user') {
+          fetchUserSanctions(true)
+        } else {
+          fetchListings(true)
+        }
+
+        return true
+
+      } catch (error) {
+        console.error('Erreur prolongation sanction:', error)
+        
+        toast({
+          title: "Erreur de prolongation",
+          description: "Impossible de prolonger cette sanction.",
+          variant: "destructive"
+        })
+        
+        return false
+      }
+    },
+
+    convertToPermanent: async (sanctionId: string, sanctionType: 'user' | 'listing', reason: string): Promise<boolean> => {
+      if (!user) {
+        toast({
+          title: "Erreur d'authentification",
+          description: "Vous devez être connecté pour rendre une sanction permanente.",
+          variant: "destructive"
+        })
+        return false
+      }
+
+      console.log(`🔧 [SANCTIONS] Conversion permanente sanction ${sanctionId}`)
+      
+      try {
+        if (sanctionType === 'user') {
+          const { error } = await supabase
+            .from('user_sanctions')
+            .update({
+              effective_until: null,
+              sanction_type: 'permanent_ban',
+              description: reason,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', sanctionId)
+
+          if (error) throw error
+        } else {
+          const { error } = await supabase
+            .from('listings')
+            .update({
+              suspended_until: null,
+              suspension_reason: reason,
+              moderation_notes: `Suspension rendue permanente: ${reason}`,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', sanctionId)
+
+          if (error) throw error
+        }
+
+        toast({
+          title: "Sanction rendue permanente",
+          description: "La sanction est maintenant permanente."
+        })
+
+        if (sanctionType === 'user') {
+          fetchUserSanctions(true)
+        } else {
+          fetchListings(true)
+        }
+
+        return true
+
+      } catch (error) {
+        console.error('Erreur conversion permanente:', error)
+        
+        toast({
+          title: "Erreur de conversion",
+          description: "Impossible de rendre cette sanction permanente.",
+          variant: "destructive"
+        })
+        
+        return false
+      }
+    },
+
+    getSanctionTrends: () => {
+      return {
+        weeklyTrend: {
+          sanctions: computedSanctions.filter(s => {
+            const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+            return new Date(s.created_at) > weekAgo
+          }).length,
+          revocations: computedSanctions.filter(s => {
+            if (!s.revoked_at) return false
+            const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+            return new Date(s.revoked_at) > weekAgo
+          }).length
+        }
+      }
+    },
+
+    translateStatus: (status: string): string => {
+      const translations = {
+        'active': 'Active',
+        'expired': 'Expirée',
+        'revoked': 'Révoquée',
+        'pending': 'En attente',
+        'toutes': 'Toutes'
+      }
+      return translations[status as keyof typeof translations] || status
+    },
+
+    translateSanctionType: (type: string): string => {
+      const translations = {
+        'warning': 'Avertissement',
+        'suspension': 'Suspension',
+        'temporary_ban': 'Bannissement temporaire',
+        'permanent_ban': 'Bannissement permanent',
+        'ban': 'Bannissement',
+        'restriction': 'Restriction'
+      }
+      return translations[type as keyof typeof translations] || type
+    },
 
     // ===== UTILITAIRES =====
     formatCurrency,
@@ -1467,7 +2308,7 @@ export const useAdminDashboard = () => {
        computedDashboardStats.activeReports > 5 ? 'warning' : 'good') : 'loading',
     lastUpdated: lastGlobalRefresh ? new Date(lastGlobalRefresh).toLocaleString('fr-BF') : null,
 
-    // Pour useAdminUsers - Fonctions utilitaires préservées
+    // Fonctions utilitaires préservées
     getTrustScoreColor: (score: number) => {
       if (score >= 80) return 'text-green-600 bg-green-50'
       if (score >= 60) return 'text-yellow-600 bg-yellow-50'
@@ -1484,7 +2325,6 @@ export const useAdminDashboard = () => {
       return colors[status as keyof typeof colors] || colors.active
     },
 
-    // Pour useAdminListings - Fonctions utilitaires préservées
     getQualityScoreColor: (score: number) => {
       if (score >= 80) return 'text-green-600 bg-green-50 border-green-200'
       if (score >= 60) return 'text-yellow-600 bg-yellow-50 border-yellow-200'
@@ -1500,7 +2340,6 @@ export const useAdminDashboard = () => {
       return colors[risk]
     },
 
-    // Pour useAdminReports - Fonctions utilitaires préservées
     getPriorityColor: (priority: string) => {
       const colors = {
         high: 'text-red-600 bg-red-50 border-red-200',
@@ -1516,7 +2355,6 @@ export const useAdminDashboard = () => {
       return `${Math.round(hours / (24 * 7))}sem`
     },
 
-    // Pour useAdminSanctions - Fonctions utilitaires préservées
     formatDaysRemaining: (days: number | null) => {
       if (days === null) return 'Permanente'
       if (days <= 0) return 'Expirée'
@@ -1531,9 +2369,7 @@ export const useAdminDashboard = () => {
       return 'low'
     },
 
-    // ===== STATISTIQUES CALCULÉES TRANSVERSALES =====
-    
-    // Statistiques combinées qui n'existaient pas dans les hooks individuels
+    // ===== STATISTIQUES TRANSVERSALES =====
     crossStats: {
       totalElements: computedUsers.length + computedListings.length + computedReports.length + computedSanctions.length,
       
@@ -1561,9 +2397,7 @@ export const useAdminDashboard = () => {
         Math.round(computedListings.reduce((sum, l) => sum + l.engagement_rate, 0) / computedListings.length) : 0
     },
 
-    // ===== FONCTIONS DE RECHERCHE ET FILTRAGE =====
-    
-    // Recherche unifiée à travers toutes les données
+    // ===== RECHERCHE GLOBALE =====
     globalSearch: (searchTerm: string) => {
       if (!searchTerm.trim()) return {
         users: computedUsers,
@@ -1601,8 +2435,7 @@ export const useAdminDashboard = () => {
       }
     },
 
-    // ===== MÉTRIQUES DE PERFORMANCE ET CACHE =====
-    
+    // ===== INFORMATIONS DE CACHE =====
     cacheInfo: {
       profiles: {
         lastFetch: centralState.profiles.lastFetch,
@@ -1624,8 +2457,7 @@ export const useAdminDashboard = () => {
       }
     },
 
-    // ===== FONCTIONS DE DIAGNOSTIC =====
-    
+    // ===== DIAGNOSTICS =====
     getDiagnostics: () => ({
       dataFreshness: {
         profiles: centralState.profiles.lastFetch ? 
@@ -1651,4 +2483,4 @@ export const useAdminDashboard = () => {
       }
     })
   }
-}
+};

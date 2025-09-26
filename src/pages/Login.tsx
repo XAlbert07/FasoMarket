@@ -309,7 +309,7 @@ const Login = () => {
                     <div>
                       <div className="bg-primary/5 p-3 rounded-md mb-6">
                         <p className="text-sm text-primary font-medium">
-                          Votre compte marchand vous permet d'acheter et de vendre sur FasoMarket
+                          Votre compte marchand vous permet de publier gratuitement sur FasoMarket
                         </p>
                       </div>
                       

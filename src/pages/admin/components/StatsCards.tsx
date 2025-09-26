@@ -1,22 +1,51 @@
 // pages/admin/components/StatsCards.tsx
-// Composant pour afficher les cartes de statistiques principales du dashboard
-// Version réaliste basée sur la vraie structure de base de données, mobile-first
+// Composant synchronisé avec le hook centralisé useAdminDashboard
+// Mobile-first et compatible avec toutes les données enrichies
 
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Package, AlertTriangle, TrendingUp, TrendingDown, Activity, Eye, Clock, CheckCircle } from "lucide-react";
-import { DashboardStats } from '@/hooks/useAdminStats';
+import { Badge } from "@/components/ui/badge";
+import { 
+  Users, Package, AlertTriangle, TrendingUp, TrendingDown, 
+  Activity, Eye, Clock, CheckCircle, Shield, BarChart3,
+  Zap, AlertCircle
+} from "lucide-react";
+import { DashboardStats } from '@/hooks/useAdminDashboard';
 
+// Interface synchronisée avec AdminDashboard
 interface StatsCardsProps {
   dashboardStats: DashboardStats | null;
+  sanctionsStats: {
+    totalActive: number;
+    userSanctions: number;
+    listingSanctions: number;
+    temporaryCount: number;
+    permanentCount: number;
+    expiringSoon: number;
+    expiredToday: number;
+    createdToday: number;
+  };
   formatCurrency: (amount: number) => string;
 }
 
 const StatsCards: React.FC<StatsCardsProps> = ({
-  dashboardStats
+  dashboardStats,
+  sanctionsStats,
+  formatCurrency
 }) => {
-  // Configuration des cartes principales - adaptées aux vraies données
-  const statsConfig = [
+
+  // Hook pour détecter la taille d'écran (mobile-first)
+  const [isMobile, setIsMobile] = React.useState(false);
+  
+  React.useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Configuration des cartes principales - synchronisée avec le hook centralisé
+  const mainStatsConfig = [
     {
       title: "Utilisateurs Totaux",
       value: dashboardStats?.totalUsers?.toLocaleString() || "0",
@@ -25,8 +54,10 @@ const StatsCards: React.FC<StatsCardsProps> = ({
       icon: Users,
       iconColor: "text-blue-600",
       bgColor: "bg-blue-50",
+      borderColor: "border-blue-200",
       changePositive: true,
-      description: "Marchands inscrits sur la plateforme"
+      description: "Marchands actifs sur la plateforme",
+      priority: dashboardStats?.weeklyGrowth?.users && dashboardStats.weeklyGrowth.users > 10 ? "high" : "normal"
     },
     {
       title: "Annonces Actives", 
@@ -36,97 +67,179 @@ const StatsCards: React.FC<StatsCardsProps> = ({
       icon: Package,
       iconColor: "text-green-600", 
       bgColor: "bg-green-50",
+      borderColor: "border-green-200",
       changePositive: true,
-      description: "Annonces visibles par les clients"
+      description: "Annonces visibles par les clients",
+      priority: (dashboardStats?.pendingListings || 0) < (dashboardStats?.totalListings || 0) * 0.7 ? "warning" : "normal"
     },
     {
       title: "Signalements",
-      value: dashboardStats?.activeReports || 0,
+      value: dashboardStats?.activeReports?.toString() || "0",
       change: dashboardStats?.weeklyGrowth?.reports || 0,
       changeText: "en attente de traitement",
       icon: AlertTriangle,
       iconColor: "text-orange-600",
       bgColor: "bg-orange-50",
+      borderColor: "border-orange-200",
       changePositive: false,
-      description: "Signalements nécessitant une intervention"
+      description: "Signalements nécessitant intervention",
+      priority: (dashboardStats?.activeReports || 0) > 5 ? "critical" : (dashboardStats?.activeReports || 0) > 0 ? "warning" : "normal"
     },
     {
-      title: "Taux d'Engagement",
-      value: dashboardStats?.conversionRate?.toFixed(1) + "%" || "0%",
-      change: 0, // Pas de comparaison temporelle pour ce KPI
-      changeText: "annonces par utilisateur actif",
-      icon: TrendingUp,
-      iconColor: "text-purple-600",
-      bgColor: "bg-purple-50", 
-      changePositive: true,
-      description: "Pourcentage d'utilisateurs qui publient"
+      title: "Sanctions Actives",
+      value: sanctionsStats.totalActive.toString(),
+      change: sanctionsStats.expiringSoon,
+      changeText: "expirent bientôt",
+      icon: Shield,
+      iconColor: "text-red-600",
+      bgColor: "bg-red-50",
+      borderColor: "border-red-200",
+      changePositive: false,
+      description: "Sanctions en cours d'application",
+      priority: sanctionsStats.expiringSoon > 0 ? "warning" : "normal"
     }
   ];
 
+  // Métriques de performance (synchronisées avec le hook)
+  const performanceMetrics = [
+    {
+      label: "Taux d'Engagement",
+      value: `${dashboardStats?.conversionRate?.toFixed(1) || 0}%`,
+      target: 15,
+      description: "Utilisateurs qui publient des annonces",
+      icon: TrendingUp,
+      color: (dashboardStats?.conversionRate || 0) >= 15 ? "text-green-600" : "text-orange-600"
+    },
+    {
+      label: "Note Moyenne",
+      value: `${dashboardStats?.averageRating?.toFixed(1) || "N/A"}/5`,
+      target: 4,
+      description: "Satisfaction générale des utilisateurs",
+      icon: CheckCircle,
+      color: (dashboardStats?.averageRating || 0) >= 4 ? "text-green-600" : "text-yellow-600"
+    },
+    {
+      label: "Résolution Signalements",
+      value: `${dashboardStats?.qualityMetrics?.reportResolutionRate?.toFixed(0) || 0}%`,
+      target: 90,
+      description: "Efficacité de la modération",
+      icon: Activity,
+      color: (dashboardStats?.qualityMetrics?.reportResolutionRate || 0) >= 90 ? "text-green-600" : "text-orange-600"
+    },
+    {
+      label: "Temps de Réponse",
+      value: `${dashboardStats?.qualityMetrics?.averageResponseTime?.toFixed(1) || "N/A"}h`,
+      target: 24,
+      description: "Délai moyen de traitement",
+      icon: Clock,
+      color: (dashboardStats?.qualityMetrics?.averageResponseTime || 0) <= 24 ? "text-green-600" : "text-red-600"
+    }
+  ];
+
+  // Fonction pour déterminer le style de priorité
+  const getPriorityStyles = (priority: string) => {
+    switch (priority) {
+      case 'critical':
+        return {
+          border: 'border-red-300',
+          glow: 'shadow-red-100',
+          indicator: 'bg-red-500',
+          pulse: true
+        };
+      case 'warning':
+        return {
+          border: 'border-orange-300',
+          glow: 'shadow-orange-100',
+          indicator: 'bg-orange-500',
+          pulse: false
+        };
+      case 'high':
+        return {
+          border: 'border-blue-300',
+          glow: 'shadow-blue-100',
+          indicator: 'bg-blue-500',
+          pulse: false
+        };
+      default:
+        return {
+          border: 'border-gray-200',
+          glow: 'shadow-sm',
+          indicator: 'bg-gray-300',
+          pulse: false
+        };
+    }
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Grille principale des statistiques - Mobile first */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {statsConfig.map((stat, index) => {
+        {mainStatsConfig.map((stat, index) => {
           const Icon = stat.icon;
           const isPositiveChange = stat.changePositive ? stat.change > 0 : stat.change < 0;
           const TrendIcon = isPositiveChange ? TrendingUp : TrendingDown;
           const trendColor = isPositiveChange ? "text-green-600" : "text-red-600";
+          const priorityStyles = getPriorityStyles(stat.priority);
 
           return (
             <Card 
               key={index}
-              className="relative overflow-hidden hover:shadow-md transition-shadow duration-200 border-0 shadow-sm"
+              className={`relative overflow-hidden transition-all duration-300 hover:shadow-lg ${priorityStyles.border} ${priorityStyles.glow}`}
             >
-              {/* Indicateur d'urgence pour les signalements */}
-              {stat.title === "Signalements" && dashboardStats && dashboardStats.activeReports > 5 && (
-                <div className="absolute top-0 left-0 right-0 h-1 bg-red-500"></div>
+              {/* Indicateur de priorité critique */}
+              {stat.priority === 'critical' && (
+                <div className="absolute top-0 left-0 right-0 h-1 bg-red-500 animate-pulse"></div>
               )}
               
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-4 pt-4">
-                <div className="space-y-1">
-                  <CardTitle className="text-sm font-medium text-gray-600 leading-tight">
+              <CardHeader className={`flex flex-row items-center justify-between space-y-0 pb-2 ${isMobile ? 'px-3 pt-3' : 'px-4 pt-4'}`}>
+                <div className="space-y-1 flex-1 min-w-0">
+                  <CardTitle className={`font-medium text-gray-600 leading-tight ${isMobile ? 'text-xs' : 'text-sm'}`}>
                     {stat.title}
                   </CardTitle>
-                  <p className="text-xs text-gray-400 hidden sm:block">
-                    {stat.description}
-                  </p>
+                  {!isMobile && (
+                    <p className="text-xs text-gray-400 truncate">
+                      {stat.description}
+                    </p>
+                  )}
                 </div>
-                <div className={`p-2 rounded-lg ${stat.bgColor} shrink-0`}>
-                  <Icon className={`h-4 w-4 ${stat.iconColor}`} />
+                <div className={`rounded-lg ${stat.bgColor} shrink-0 relative ${isMobile ? 'p-1.5' : 'p-2'}`}>
+                  <Icon className={`${stat.iconColor} ${isMobile ? 'h-3 w-3' : 'h-4 w-4'}`} />
+                  {stat.priority === 'critical' && (
+                    <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-ping"></div>
+                  )}
                 </div>
               </CardHeader>
               
-              <CardContent className="px-4 pb-4">
+              <CardContent className={isMobile ? 'px-3 pb-3' : 'px-4 pb-4'}>
                 <div className="space-y-2">
-                  <div className="text-2xl font-bold text-gray-900">
+                  <div className={`font-bold text-gray-900 ${isMobile ? 'text-lg' : 'text-2xl'}`}>
                     {stat.value}
                   </div>
                   
-                  {/* Affichage des changements ou informations contextuelles */}
+                  {/* Informations contextuelles et changements */}
                   <div className="flex items-center justify-between">
                     {stat.change !== 0 ? (
-                      <div className={`flex items-center text-xs ${trendColor}`}>
-                        <TrendIcon className="h-3 w-3 mr-1" />
+                      <div className={`flex items-center ${isMobile ? 'text-xs' : 'text-sm'} ${trendColor}`}>
+                        <TrendIcon className={`mr-1 ${isMobile ? 'h-2 w-2' : 'h-3 w-3'}`} />
                         <span>{stat.changePositive ? '+' : ''}{stat.change}</span>
                       </div>
                     ) : (
-                      <div className="flex items-center text-xs text-gray-500">
-                        <Activity className="h-3 w-3 mr-1" />
+                      <div className={`flex items-center ${isMobile ? 'text-xs' : 'text-sm'} text-gray-500`}>
+                        <Activity className={`mr-1 ${isMobile ? 'h-2 w-2' : 'h-3 w-3'}`} />
                         <span>Temps réel</span>
                       </div>
                     )}
                     
-                    <p className="text-xs text-gray-500 text-right">
+                    <p className={`text-gray-500 text-right ${isMobile ? 'text-xs' : 'text-sm'}`}>
                       {stat.changeText}
                     </p>
                   </div>
 
-                  {/* Barres de progression contextuelles basées sur de vraies données */}
+                  {/* Barres de progression basées sur les vraies données du hook */}
                   {stat.title === "Utilisateurs Totaux" && dashboardStats && dashboardStats.dailyActiveUsers > 0 && (
-                    <div className="mt-3 pt-2 border-t border-gray-100">
-                      <div className="flex justify-between text-xs text-gray-500 mb-1">
-                        <span>Utilisateurs actifs</span>
+                    <div className="mt-2 pt-2 border-t border-gray-100">
+                      <div className={`flex justify-between text-gray-500 mb-1 ${isMobile ? 'text-xs' : 'text-sm'}`}>
+                        <span>Actifs quotidiens</span>
                         <span>{dashboardStats.dailyActiveUsers}</span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-1.5">
@@ -140,46 +253,17 @@ const StatsCards: React.FC<StatsCardsProps> = ({
                     </div>
                   )}
 
-                  {/* Métriques de qualité pour les annonces - basées sur le status réel */}
-                  {stat.title === "Annonces Actives" && dashboardStats && (
-                    <div className="mt-3 pt-2 border-t border-gray-100">
-                      <div className="flex justify-between text-xs text-gray-500 mb-1">
-                        <span>Du total ({dashboardStats.totalListings})</span>
-                        <span>{((dashboardStats.pendingListings / dashboardStats.totalListings) * 100).toFixed(1)}%</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-1.5">
-                        <div 
-                          className="bg-green-500 h-1.5 rounded-full transition-all duration-500" 
-                          style={{ 
-                            width: `${(dashboardStats.pendingListings / dashboardStats.totalListings) * 100}%` 
-                          }}
-                        ></div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Indicateur de priorité pour les signalements */}
-                  {stat.title === "Signalements" && dashboardStats && dashboardStats.activeReports > 0 && (
-                    <div className="mt-3 pt-2 border-t border-gray-100">
-                      <div className="flex items-center space-x-2">
-                        <Activity className="h-3 w-3 text-orange-500" />
-                        <span className="text-xs text-orange-600 font-medium">
-                          {dashboardStats.activeReports > 10 ? 'Priorité élevée' : 
-                           dashboardStats.activeReports > 5 ? 'Attention requise' : 
-                           'Niveau normal'}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Contexte pour le taux d'engagement */}
-                  {stat.title === "Taux d'Engagement" && dashboardStats && (
-                    <div className="mt-3 pt-2 border-t border-gray-100">
-                      <div className="flex items-center justify-between text-xs text-gray-500">
-                        <span>Objectif: 15%</span>
-                        <span className={dashboardStats.conversionRate >= 15 ? 'text-green-600' : 'text-orange-600'}>
-                          {dashboardStats.conversionRate >= 15 ? 'Atteint' : 'En cours'}
-                        </span>
+                  {stat.title === "Sanctions Actives" && sanctionsStats.totalActive > 0 && (
+                    <div className="mt-2 pt-2 border-t border-gray-100">
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="text-center">
+                          <div className="font-medium text-orange-600">{sanctionsStats.userSanctions}</div>
+                          <div className="text-gray-500">Utilisateurs</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="font-medium text-red-600">{sanctionsStats.listingSanctions}</div>
+                          <div className="text-gray-500">Annonces</div>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -190,99 +274,103 @@ const StatsCards: React.FC<StatsCardsProps> = ({
         })}
       </div>
 
-      {/* Carte étendue pour les métriques de performance détaillées */}
-      <Card className="border-0 shadow-sm">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base font-semibold text-gray-700 flex items-center">
-            <Activity className="h-4 w-4 mr-2" />
-            Indicateurs de Performance
+      {/* Section des métriques de performance - Design adaptatif */}
+      <Card className="border-0 shadow-sm bg-gradient-to-br from-gray-50 to-blue-50">
+        <CardHeader className={`pb-3 ${isMobile ? 'px-3 pt-3' : 'px-4 pt-4'}`}>
+          <CardTitle className={`font-semibold text-gray-700 flex items-center ${isMobile ? 'text-sm' : 'text-base'}`}>
+            <BarChart3 className={`mr-2 ${isMobile ? 'h-3 w-3' : 'h-4 w-4'}`} />
+            Métriques de Performance
           </CardTitle>
-          <p className="text-sm text-gray-500">
-            Métriques clés calculées en temps réel depuis votre base de données
+          <p className={`text-gray-500 ${isMobile ? 'text-xs' : 'text-sm'}`}>
+            Indicateurs calculés en temps réel depuis votre hook centralisé
           </p>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Note moyenne basée sur la table reviews */}
-            <div className="text-center p-3 rounded-lg bg-gray-50">
-              <div className="text-lg font-bold text-green-600 mb-1">
-                {dashboardStats?.averageRating?.toFixed(1) || "N/A"}/5
-              </div>
-              <p className="text-xs text-gray-600">Note moyenne</p>
-              <p className="text-xs text-gray-400 mt-1">
-                Sur {dashboardStats?.qualityMetrics?.userVerificationRate || 0} avis
-              </p>
-            </div>
-            
-            {/* Taux de résolution des signalements */}
-            <div className="text-center p-3 rounded-lg bg-gray-50">
-              <div className="text-lg font-bold text-blue-600 mb-1">
-                {dashboardStats?.qualityMetrics?.reportResolutionRate?.toFixed(1) || 0}%
-              </div>
-              <p className="text-xs text-gray-600">Signalements résolus</p>
-              <p className="text-xs text-gray-400 mt-1">
-                Efficacité modération
-              </p>
-            </div>
-            
-            {/* Temps de réponse moyen - à calculer depuis la table messages */}
-            <div className="text-center p-3 rounded-lg bg-gray-50">
-              <div className="text-lg font-bold text-purple-600 mb-1">
-                {dashboardStats?.qualityMetrics?.averageResponseTime?.toFixed(1) || "N/A"}h
-              </div>
-              <p className="text-xs text-gray-600">Temps de réponse</p>
-              <p className="text-xs text-gray-400 mt-1">
-                Support client
-              </p>
-            </div>
-            
-            {/* Vues totales - basées sur listing_views */}
-            <div className="text-center p-3 rounded-lg bg-gray-50">
-              <div className="text-lg font-bold text-orange-600 mb-1 flex items-center justify-center">
-                <Eye className="h-4 w-4 mr-1" />
-                {(dashboardStats?.totalListings || 0) * 15} {/* Approximation basée sur le nombre d'annonces */}
-              </div>
-              <p className="text-xs text-gray-600">Vues totales</p>
-              <p className="text-xs text-gray-400 mt-1">
-                Cette semaine
-              </p>
-            </div>
+        <CardContent className={isMobile ? 'px-3 pb-3' : 'px-4 pb-4'}>
+          <div className={`grid gap-3 ${isMobile ? 'grid-cols-2' : 'grid-cols-2 lg:grid-cols-4'}`}>
+            {performanceMetrics.map((metric, index) => {
+              const Icon = metric.icon;
+              return (
+                <div key={index} className="text-center p-3 rounded-lg bg-white border border-gray-100 hover:shadow-md transition-shadow">
+                  <div className="flex items-center justify-center mb-2">
+                    <Icon className={`${metric.color} ${isMobile ? 'h-3 w-3' : 'h-4 w-4'}`} />
+                  </div>
+                  <div className={`font-bold mb-1 ${metric.color} ${isMobile ? 'text-sm' : 'text-lg'}`}>
+                    {metric.value}
+                  </div>
+                  <p className={`text-gray-600 font-medium ${isMobile ? 'text-xs' : 'text-sm'}`}>
+                    {metric.label}
+                  </p>
+                  {!isMobile && (
+                    <p className="text-xs text-gray-400 mt-1 truncate" title={metric.description}>
+                      {metric.description}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
-          {/* Indicateurs de santé de la plateforme */}
-          <div className="mt-4 pt-4 border-t border-gray-100">
-            <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
+          {/* Indicateurs de santé globale - Synchronisés avec le hook */}
+          <div className={`mt-4 pt-4 border-t border-gray-200 ${isMobile ? 'space-y-2' : ''}`}>
+            <div className={`flex gap-2 ${isMobile ? 'flex-col' : 'flex-wrap justify-center sm:justify-start'}`}>
               {dashboardStats?.activeReports === 0 && (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                  <CheckCircle className="h-3 w-3 mr-1" />
+                <Badge className="bg-green-100 text-green-800 border-green-200">
+                  <CheckCircle className={`mr-1 ${isMobile ? 'h-2 w-2' : 'h-3 w-3'}`} />
                   Aucun signalement
-                </span>
+                </Badge>
               )}
               
               {dashboardStats && dashboardStats.weeklyGrowth.users > 0 && (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                  <TrendingUp className="h-3 w-3 mr-1" />
+                <Badge className="bg-blue-100 text-blue-800 border-blue-200">
+                  <TrendingUp className={`mr-1 ${isMobile ? 'h-2 w-2' : 'h-3 w-3'}`} />
                   Croissance active
-                </span>
+                </Badge>
               )}
               
               {dashboardStats && dashboardStats.conversionRate > 10 && (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                  <Activity className="h-3 w-3 mr-1" />
+                <Badge className="bg-purple-100 text-purple-800 border-purple-200">
+                  <Activity className={`mr-1 ${isMobile ? 'h-2 w-2' : 'h-3 w-3'}`} />
                   Engagement élevé
-                </span>
+                </Badge>
               )}
               
-              {dashboardStats && dashboardStats.totalListings > 100 && (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                  <Package className="h-3 w-3 mr-1" />
-                  Catalogue riche
-                </span>
+              {sanctionsStats.expiringSoon > 0 && (
+                <Badge className="bg-orange-100 text-orange-800 border-orange-200">
+                  <AlertCircle className={`mr-1 ${isMobile ? 'h-2 w-2' : 'h-3 w-3'}`} />
+                  Sanctions à revoir
+                </Badge>
+              )}
+
+              {sanctionsStats.totalActive === 0 && (
+                <Badge className="bg-green-100 text-green-800 border-green-200">
+                  <Shield className={`mr-1 ${isMobile ? 'h-2 w-2' : 'h-3 w-3'}`} />
+                  Aucune sanction active
+                </Badge>
               )}
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Section d'alerte mobile pour actions critiques */}
+      {isMobile && (dashboardStats?.activeReports || 0) > 5 && (
+        <Card className="border-l-4 border-l-red-500 bg-red-50">
+          <CardContent className="p-3">
+            <div className="flex items-center space-x-2">
+              <AlertTriangle className="h-4 w-4 text-red-600 animate-pulse" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-red-800">Action requise</p>
+                <p className="text-xs text-red-600">
+                  {dashboardStats?.activeReports} signalements en attente de traitement
+                </p>
+              </div>
+              <Badge className="bg-red-600 text-white animate-pulse text-xs">
+                Urgent
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

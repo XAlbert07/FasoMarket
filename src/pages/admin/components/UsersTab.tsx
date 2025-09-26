@@ -1,4 +1,4 @@
-// pages/admin/components/UsersTab.tsx - VERSION MOBILE-FIRST OPTIMISÉE
+// pages/admin/components/UsersTab.tsx - VERSION CORRIGÉE SYNCHRONISÉE
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,15 +14,18 @@ import {
   Eye, CheckCircle, Ban, Mail, Download, Users, UserCheck, AlertTriangle, Award, 
   Search, Filter, X, MoreVertical, RefreshCw, Shield, Clock, MapPin, Phone
 } from "lucide-react";
-
-// Import du composant ChatModal pour la messagerie admin
 import AdminChatModal from './AdminChatModal';
+// En haut du fichier
+import { useAdminDashboard, UserAction } from '@/hooks/useAdminDashboard';
 
-// Interface préservée - logique métier inchangée
+// ==========================================
+// INTERFACES CORRIGÉES
+// ==========================================
+
 interface UsersTabProps {
   users: any[];
   loading: boolean;
-  handleUserAction: (id: string, action: any) => Promise<boolean>;
+  handleUserAction: (userId: string, action: UserAction) => Promise<boolean>; 
   getTrustScoreColor: (score: number) => string;
   getStatusColor: (status: string) => string;
   formatDate: (dateString: string) => string;
@@ -52,7 +55,7 @@ const UsersTab: React.FC<UsersTabProps> = ({
   refreshUsers,
   error
 }) => {
-  // États préservés - logique métier inchangée
+  // États préservés
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [roleFilter, setRoleFilter] = useState("all");
@@ -61,14 +64,17 @@ const UsersTab: React.FC<UsersTabProps> = ({
   const [selectedUserForChat, setSelectedUserForChat] = useState<any>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   
-  // Nouveaux états pour l'interface mobile
+  // États pour l'interface mobile
   const [showFilters, setShowFilters] = useState(false);
   const [mobileViewMode, setMobileViewMode] = useState<'cards' | 'table'>('cards');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const navigate = useNavigate();
 
-  // Toutes les fonctions utilitaires préservées
+  // ==========================================
+  // FONCTIONS UTILITAIRES CORRIGÉES
+  // ==========================================
+
   const formatAccountAge = (days: number): string => {
     if (days === 0) return "Aujourd'hui";
     if (days === 1) return "1 jour";
@@ -84,18 +90,69 @@ const UsersTab: React.FC<UsersTabProps> = ({
     return 'Faible';
   };
 
-  // Logique de filtrage préservée
+  // ==========================================
+  // FONCTION CORRIGÉE POUR DÉTERMINER LE STATUT RÉEL
+  // ==========================================
+  
+  /**
+   * Détermine le vrai statut d'un utilisateur basé sur les données de la base
+   * plutôt que sur des calculs heuristiques
+   */
+  const getUserRealStatus = (user: any): 'active' | 'suspended' | 'banned' | 'pending_verification' => {
+    // Priorité 1: Vérifier les bannissements permanents
+    if (user.is_banned === true) {
+      return 'banned';
+    }
+    
+    // Priorité 2: Vérifier les suspensions temporaires
+    if (user.suspended_until) {
+      const suspensionEnd = new Date(user.suspended_until);
+      const now = new Date();
+      if (suspensionEnd > now) {
+        return 'suspended';
+      }
+      // Si la suspension est expirée, l'utilisateur redevient actif
+    }
+    
+    // Priorité 3: Vérifier le statut de vérification
+    if (!user.phone || !user.full_name) {
+      return 'pending_verification';
+    }
+    
+    // Par défaut: actif
+    return 'active';
+  };
+
+  /**
+   * Vérifie si un utilisateur est actuellement suspendu
+   */
+  const isUserSuspended = (user: any): boolean => {
+    const realStatus = getUserRealStatus(user);
+    return realStatus === 'suspended' || realStatus === 'banned';
+  };
+
+  // ==========================================
+  // LOGIQUE DE FILTRAGE CORRIGÉE
+  // ==========================================
+  
   const filteredUsers = users.filter(user => {
     const matchesSearch = !searchTerm || 
       user.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.location?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "all" || user.status === statusFilter;
+    
+    // Utiliser le statut réel au lieu du statut calculé
+    const realStatus = getUserRealStatus(user);
+    const matchesStatus = statusFilter === "all" || realStatus === statusFilter;
     const matchesRole = roleFilter === "all" || user.role === roleFilter;
+    
     return matchesSearch && matchesStatus && matchesRole;
   });
 
-  // Toutes les fonctions d'action préservées
+  // ==========================================
+  // FONCTIONS D'ACTION CORRIGÉES
+  // ==========================================
+  
   const handleSelectUser = (userId: string) => {
     setSelectedUsers(prev => 
       prev.includes(userId) 
@@ -110,7 +167,19 @@ const UsersTab: React.FC<UsersTabProps> = ({
 
   const handleBulkAction = async (action: string) => {
     for (const userId of selectedUsers) {
-      await handleUserAction(userId, { type: action, reason: `Action en masse: ${action}` });
+      // Corriger le type d'action pour correspondre au hook
+      let correctedAction;
+      switch (action) {
+        case 'verify':
+          correctedAction = { type: 'verify', reason: 'Vérification en masse depuis le dashboard' };
+          break;
+        case 'suspend':
+          correctedAction = { type: 'suspend', reason: 'Suspension en masse depuis le dashboard', duration: 7 };
+          break;
+        default:
+          correctedAction = { type: action, reason: `Action en masse: ${action}` };
+      }
+      await handleUserAction(userId, correctedAction);
     }
     setSelectedUsers([]);
   };
@@ -126,35 +195,54 @@ const UsersTab: React.FC<UsersTabProps> = ({
     setChatModalOpen(true);
   };
 
+  /**
+   * FONCTION CORRIGÉE : Gestion des actions suspension/réactivation
+   * Cette fonction utilise maintenant les bons types d'actions du hook
+   */
   const handleUserStatusAction = async (user: any, actionType: 'suspend' | 'activate') => {
     const userId = user.id;
     const userName = user.full_name || user.email;
     
-    console.log(`Action ${actionType} sur utilisateur:`, userName);
+    console.log(`🔧 Action ${actionType} sur utilisateur:`, userName);
     setActionLoading(userId);
     
     try {
-      const action = actionType === 'suspend' 
-        ? {
-            type: 'suspend',
-            reason: 'Suspension administrative depuis le dashboard',
-            duration: 7
-          }
-        : {
-            type: 'verify',
-            reason: 'Réactivation administrative depuis le dashboard'
-          };
+      let action;
+      
+      if (actionType === 'suspend') {
+        // Action de suspension
+        action = {
+          type: 'suspend',
+          reason: 'Suspension administrative depuis le dashboard administrateur',
+          duration: 7, // 7 jours par défaut
+          notes: `Utilisateur suspendu par l'administrateur via le dashboard le ${new Date().toLocaleString('fr-FR')}`
+        };
+      } else {
+        // Action de réactivation (= verify dans le hook)
+        action = {
+          type: 'verify',
+          reason: 'Réactivation administrative depuis le dashboard',
+          notes: `Suspension levée par l'administrateur via le dashboard le ${new Date().toLocaleString('fr-FR')}`
+        };
+      }
 
+      console.log('🔧 Action envoyée au hook:', action);
+      
       const success = await handleUserAction(userId, action);
       
       if (success) {
-        console.log(`Action ${actionType} réussie pour:`, userName);
+        console.log(`✅ Action ${actionType} réussie pour:`, userName);
+        
+        // Rafraîchir les données pour avoir l'état le plus récent
+        if (refreshUsers) {
+          await refreshUsers();
+        }
       } else {
-        console.error(`Échec de l'action ${actionType} pour:`, userName);
+        console.error(`❌ Échec de l'action ${actionType} pour:`, userName);
       }
       
     } catch (error) {
-      console.error(`Erreur lors de l'action ${actionType}:`, error);
+      console.error(`❌ Erreur lors de l'action ${actionType}:`, error);
     } finally {
       setActionLoading(null);
     }
@@ -183,12 +271,16 @@ const UsersTab: React.FC<UsersTabProps> = ({
     setRoleFilter("all");
   };
 
-  // Statistiques préservées
+  // ==========================================
+  // STATISTIQUES CORRIGÉES
+  // ==========================================
+  
   const stats = {
     total: totalUsers || users.length,
-    active: activeUsersCount,
-    suspended: suspendedUsersCount,
-    pending: pendingVerificationCount,
+    active: users.filter(u => getUserRealStatus(u) === 'active').length,
+    suspended: users.filter(u => getUserRealStatus(u) === 'suspended').length,
+    banned: users.filter(u => getUserRealStatus(u) === 'banned').length,
+    pending: users.filter(u => getUserRealStatus(u) === 'pending_verification').length,
     avgTrustScore: averageTrustScore || (users.length ? Math.round(users.reduce((sum, u) => sum + u.trust_score, 0) / users.length) : 0)
   };
 
@@ -242,7 +334,7 @@ const UsersTab: React.FC<UsersTabProps> = ({
                 Gestion des utilisateurs
               </h1>
               <p className="text-sm text-gray-600 mt-1">
-                Administration et modération des comptes
+                Administration et modération des comptes utilisateurs
               </p>
               {loading && (
                 <div className="flex items-center mt-2">
@@ -296,8 +388,8 @@ const UsersTab: React.FC<UsersTabProps> = ({
         </div>
       </div>
 
-      {/* Statistiques mobile-first - 2 colonnes sur mobile */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* Statistiques corrigées - 2 colonnes sur mobile */}
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         <Card className="p-3">
           <div className="flex items-center justify-between">
             <div className="min-w-0 flex-1">
@@ -322,9 +414,19 @@ const UsersTab: React.FC<UsersTabProps> = ({
           <div className="flex items-center justify-between">
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium text-gray-600 uppercase truncate">Suspendus</p>
-              <p className="text-lg md:text-xl font-bold text-red-600">{stats.suspended}</p>
+              <p className="text-lg md:text-xl font-bold text-orange-600">{stats.suspended}</p>
             </div>
-            <Ban className="h-6 w-6 text-red-500 flex-shrink-0" />
+            <Ban className="h-6 w-6 text-orange-500 flex-shrink-0" />
+          </div>
+        </Card>
+
+        <Card className="p-3">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-gray-600 uppercase truncate">Bannis</p>
+              <p className="text-lg md:text-xl font-bold text-red-600">{stats.banned}</p>
+            </div>
+            <Shield className="h-6 w-6 text-red-500 flex-shrink-0" />
           </div>
         </Card>
 
@@ -424,6 +526,7 @@ const UsersTab: React.FC<UsersTabProps> = ({
                   <SelectItem value="all">Tous ({stats.total})</SelectItem>
                   <SelectItem value="active">Actifs ({stats.active})</SelectItem>
                   <SelectItem value="suspended">Suspendus ({stats.suspended})</SelectItem>
+                  <SelectItem value="banned">Bannis ({stats.banned})</SelectItem>
                   <SelectItem value="pending_verification">En attente ({stats.pending})</SelectItem>
                 </SelectContent>
               </Select>
@@ -522,209 +625,263 @@ const UsersTab: React.FC<UsersTabProps> = ({
           {/* Vue cartes pour mobile */}
           <div className={`md:hidden ${mobileViewMode === 'cards' ? 'block' : 'hidden'}`}>
             <div className="space-y-3">
-              {filteredUsers.map((user) => (
-                <Card key={user.id} className={`p-4 ${getUserRiskLevel(user) === 'Élevé' ? 'border-l-4 border-l-red-400 bg-red-50/30' : ''}`}>
-                  <div className="space-y-3">
-                    {/* En-tête de la carte */}
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center space-x-2">
-                          <input
-                            type="checkbox"
-                            checked={selectedUsers.includes(user.id)}
-                            onChange={() => handleSelectUser(user.id)}
-                            className="rounded flex-shrink-0"
-                          />
-                          <h4 className="font-medium text-sm truncate" title={user.full_name || user.email}>
-                            {user.full_name || user.email.split('@')[0]}
-                          </h4>
-                          {user.verification_status === 'verified' && (
-                            <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
-                          )}
-                          {user.role === 'admin' && (
-                            <Badge variant="secondary" className="text-xs">Admin</Badge>
-                          )}
-                        </div>
-                        <p className="text-xs text-gray-500 mt-1">ID: {user.id.slice(-8)}</p>
-                      </div>
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={() => handleViewProfile(user)}
-                        className="h-8 w-8 p-0 flex-shrink-0"
-                      >
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </div>
-
-                    {/* Informations principales */}
-                    <div className="grid grid-cols-2 gap-4 text-xs">
-                      <div className="space-y-2">
-                        <div>
-                          <span className="text-gray-500 flex items-center">
-                            <Mail className="h-3 w-3 mr-1" />
-                            Email:
-                          </span>
-                          <p className="font-medium truncate" title={user.email}>
-                            {user.email}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-gray-500 flex items-center">
-                            <MapPin className="h-3 w-3 mr-1" />
-                            Lieu:
-                          </span>
-                          <p className="truncate" title={user.location}>
-                            {user.location || 'Non renseigné'}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <div>
-                          <span className="text-gray-500">Téléphone:</span>
-                          <p className="font-medium">
-                            {user.phone || 'N/A'}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-gray-500 flex items-center">
-                            <Clock className="h-3 w-3 mr-1" />
-                            Inscrit:
-                          </span>
-                          <p>{formatAccountAge(user.account_age_days)}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Métriques utilisateur */}
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center space-x-3">
-                        <span>{user.listings_count} annonces</span>
-                        <div className="flex items-center space-x-1">
-                          <div className="w-12 bg-gray-200 rounded-full h-1.5">
-                            <div 
-                              className={`h-1.5 rounded-full ${
-                                user.trust_score >= 80 ? 'bg-green-500' : 
-                                user.trust_score >= 60 ? 'bg-yellow-500' : 'bg-red-500'
-                              }`}
-                              style={{ width: `${user.trust_score}%` }}
+              {filteredUsers.map((user) => {
+                const realStatus = getUserRealStatus(user);
+                const isSuspended = isUserSuspended(user);
+                
+                return (
+                  <Card key={user.id} className={`p-4 ${getUserRiskLevel(user) === 'Élevé' ? 'border-l-4 border-l-red-400 bg-red-50/30' : ''}`}>
+                    <div className="space-y-3">
+                      {/* En-tête de la carte */}
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedUsers.includes(user.id)}
+                              onChange={() => handleSelectUser(user.id)}
+                              className="rounded flex-shrink-0"
                             />
+                            <h4 className="font-medium text-sm truncate" title={user.full_name || user.email}>
+                              {user.full_name || user.email.split('@')[0]}
+                            </h4>
+                            {user.verification_status === 'verified' && (
+                              <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
+                            )}
+                            {user.role === 'admin' && (
+                              <Badge variant="secondary" className="text-xs">Admin</Badge>
+                            )}
                           </div>
-                          <span>{user.trust_score}%</span>
+                          <p className="text-xs text-gray-500 mt-1">ID: {user.id.slice(-8)}</p>
+                          
+                          {/* AFFICHAGE DU STATUT RÉEL */}
+                          <div className="flex items-center space-x-2 mt-1">
+                            <Badge className={`text-xs ${getStatusColor(realStatus)}`}>
+                              {realStatus === 'active' && 'Actif'}
+                              {realStatus === 'suspended' && 'Suspendu'}
+                              {realStatus === 'banned' && 'Banni'}
+                              {realStatus === 'pending_verification' && 'En attente'}
+                            </Badge>
+                            
+                            {/* Affichage de la durée de suspension */}
+                            {realStatus === 'suspended' && user.suspended_until && (
+                              <span className="text-xs text-orange-600">
+                                Jusqu'au {new Date(user.suspended_until).toLocaleDateString('fr-FR')}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                      
-                      <div className="flex items-center space-x-2">
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${
-                          getUserRiskLevel(user) === 'Élevé' ? 'bg-red-100 text-red-600' :
-                          getUserRiskLevel(user) === 'Moyen' ? 'bg-yellow-100 text-yellow-600' : 'bg-green-100 text-green-600'
-                        }`}>
-                          {getUserRiskLevel(user)}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Badges et statuts */}
-                    <div className="flex flex-wrap gap-2">
-                      <Badge className={`text-xs ${getStatusColor(user.status)}`}>
-                        {user.status}
-                      </Badge>
-
-                      {user.reports_received > 0 && (
-                        <Badge variant="destructive" className="text-xs">
-                          {user.reports_received} signalement(s)
-                        </Badge>
-                      )}
-                    </div>
-
-                    {/* Actions rapides mobile */}
-                    <div className="flex justify-between items-center pt-2 border-t">
-                      <div className="text-xs text-gray-500">
-                        Inscrit le {formatDate ? formatDate(user.created_at) : new Date(user.created_at).toLocaleDateString('fr-FR')}
-                      </div>
-                      
-                      <div className="flex space-x-1">
                         <Button 
-                          variant="outline" 
+                          variant="ghost" 
                           size="sm"
                           onClick={() => handleViewProfile(user)}
-                          className="h-7 px-2 text-xs"
-                          title="Voir profil"
+                          className="h-8 w-8 p-0 flex-shrink-0"
                         >
-                          <Eye className="h-3 w-3" />
+                          <MoreVertical className="h-4 w-4" />
                         </Button>
+                      </div>
+
+                      {/* Informations principales */}
+                      <div className="grid grid-cols-2 gap-4 text-xs">
+                        <div className="space-y-2">
+                          <div>
+                            <span className="text-gray-500 flex items-center">
+                              <Mail className="h-3 w-3 mr-1" />
+                              Email:
+                            </span>
+                            <p className="font-medium truncate" title={user.email}>
+                              {user.email}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-gray-500 flex items-center">
+                              <MapPin className="h-3 w-3 mr-1" />
+                              Lieu:
+                            </span>
+                            <p className="truncate" title={user.location}>
+                              {user.location || 'Non renseigné'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <div>
+                            <span className="text-gray-500">Téléphone:</span>
+                            <p className="font-medium">
+                              {user.phone || 'N/A'}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-gray-500 flex items-center">
+                              <Clock className="h-3 w-3 mr-1" />
+                              Inscrit:
+                            </span>
+                            <p>{formatAccountAge(user.account_age_days)}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Métriques utilisateur */}
+                      <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center space-x-3">
+                          <span>{user.listings_count} annonces</span>
+                          <div className="flex items-center space-x-1">
+                            <div className="w-12 bg-gray-200 rounded-full h-1.5">
+                              <div 
+                                className={`h-1.5 rounded-full ${
+                                  user.trust_score >= 80 ? 'bg-green-500' : 
+                                  user.trust_score >= 60 ? 'bg-yellow-500' : 'bg-red-500'
+                                }`}
+                                style={{ width: `${user.trust_score}%` }}
+                              />
+                            </div>
+                            <span>{user.trust_score}%</span>
+                          </div>
+                        </div>
                         
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleOpenAdminChat(user)}
-                          className="h-7 px-2 text-xs"
-                          title="Message"
-                        >
-                          <Mail className="h-3 w-3" />
-                        </Button>
+                        <div className="flex items-center space-x-2">
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            getUserRiskLevel(user) === 'Élevé' ? 'bg-red-100 text-red-600' :
+                            getUserRiskLevel(user) === 'Moyen' ? 'bg-yellow-100 text-yellow-600' : 'bg-green-100 text-green-600'
+                          }`}>
+                            {getUserRiskLevel(user)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Signalements reçus */}
+                      {user.reports_received > 0 && (
+                        <div className="flex items-center space-x-2">
+                          <Badge variant="destructive" className="text-xs">
+                            {user.reports_received} signalement(s)
+                          </Badge>
+                        </div>
+                      )}
+
+                      {/* Actions rapides mobile */}
+                      <div className="flex justify-between items-center pt-2 border-t">
+                        <div className="text-xs text-gray-500">
+                          Inscrit le {formatDate ? formatDate(user.created_at) : new Date(user.created_at).toLocaleDateString('fr-FR')}
+                        </div>
                         
-                        {user.status === 'active' ? (
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                disabled={actionLoading === user.id}
-                                className="h-7 px-2 text-xs"
-                                title="Suspendre"
-                              >
-                                {actionLoading === user.id ? (
-                                  <div className="animate-spin rounded-full h-3 w-3 border-b border-red-600" />
-                                ) : (
-                                  <Ban className="h-3 w-3 text-red-600" />
-                                )}
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent className="w-[95vw] max-w-md m-2">
-                              <AlertDialogHeader>
-                                <AlertDialogTitle className="flex items-center text-base">
-                                  <Ban className="h-4 w-4 text-red-600 mr-2" />
-                                  Suspendre l'utilisateur
-                                </AlertDialogTitle>
-                                <AlertDialogDescription className="text-sm">
-                                  Êtes-vous sûr de vouloir suspendre <strong>{user.full_name || user.email}</strong> ?
-                                  <br /><br />
-                                  Cette action empêchera l'utilisateur de se connecter et masquera ses annonces.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-                                <AlertDialogCancel className="w-full sm:w-auto">Annuler</AlertDialogCancel>
-                                <AlertDialogAction 
-                                  onClick={() => handleUserStatusAction(user, 'suspend')}
-                                  className="bg-red-600 hover:bg-red-700 w-full sm:w-auto"
-                                >
-                                  Confirmer
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        ) : (
+                        <div className="flex space-x-1">
                           <Button 
                             variant="outline" 
                             size="sm"
-                            onClick={() => handleUserStatusAction(user, 'activate')}
-                            disabled={actionLoading === user.id}
+                            onClick={() => handleViewProfile(user)}
                             className="h-7 px-2 text-xs"
-                            title="Réactiver"
+                            title="Voir profil"
                           >
-                            {actionLoading === user.id ? (
-                              <div className="animate-spin rounded-full h-3 w-3 border-b border-green-600" />
-                            ) : (
-                              <CheckCircle className="h-3 w-3 text-green-600" />
-                            )}
+                            <Eye className="h-3 w-3" />
                           </Button>
-                        )}
+                          
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleOpenAdminChat(user)}
+                            className="h-7 px-2 text-xs"
+                            title="Message"
+                          >
+                            <Mail className="h-3 w-3" />
+                          </Button>
+                          
+                          {/* LOGIQUE CORRIGÉE POUR LES BOUTONS DE SUSPENSION/RÉACTIVATION */}
+                          {!isSuspended ? (
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  disabled={actionLoading === user.id}
+                                  className="h-7 px-2 text-xs"
+                                  title="Suspendre cet utilisateur"
+                                >
+                                  {actionLoading === user.id ? (
+                                    <div className="animate-spin rounded-full h-3 w-3 border-b border-red-600" />
+                                  ) : (
+                                    <Ban className="h-3 w-3 text-red-600" />
+                                  )}
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent className="w-[95vw] max-w-md m-2">
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle className="flex items-center text-base">
+                                    <Ban className="h-4 w-4 text-red-600 mr-2" />
+                                    Suspendre l'utilisateur
+                                  </AlertDialogTitle>
+                                  <AlertDialogDescription className="text-sm">
+                                    Êtes-vous sûr de vouloir suspendre <strong>{user.full_name || user.email}</strong> ?
+                                    <br /><br />
+                                    Cette action empêchera l'utilisateur de se connecter et masquera ses annonces.
+                                    <br /><br />
+                                    <strong>Statut actuel:</strong> {realStatus}
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                                  <AlertDialogCancel className="w-full sm:w-auto">Annuler</AlertDialogCancel>
+                                  <AlertDialogAction 
+                                    onClick={() => handleUserStatusAction(user, 'suspend')}
+                                    className="bg-red-600 hover:bg-red-700 w-full sm:w-auto"
+                                  >
+                                    Confirmer la suspension
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          ) : (
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  disabled={actionLoading === user.id}
+                                  className="h-7 px-2 text-xs"
+                                  title="Réactiver cet utilisateur"
+                                >
+                                  {actionLoading === user.id ? (
+                                    <div className="animate-spin rounded-full h-3 w-3 border-b border-green-600" />
+                                  ) : (
+                                    <CheckCircle className="h-3 w-3 text-green-600" />
+                                  )}
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent className="w-[95vw] max-w-md m-2">
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle className="flex items-center text-base">
+                                    <CheckCircle className="h-4 w-4 text-green-600 mr-2" />
+                                    Réactiver l'utilisateur
+                                  </AlertDialogTitle>
+                                  <AlertDialogDescription className="text-sm">
+                                    Êtes-vous sûr de vouloir réactiver <strong>{user.full_name || user.email}</strong> ?
+                                    <br /><br />
+                                    Cette action lèvera la suspension et permettra à l'utilisateur de se reconnecter.
+                                    <br /><br />
+                                    <strong>Statut actuel:</strong> {realStatus}
+                                    {user.suspended_until && (
+                                      <>
+                                        <br />
+                                        <strong>Suspendu jusqu'au:</strong> {new Date(user.suspended_until).toLocaleString('fr-FR')}
+                                      </>
+                                    )}
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                                  <AlertDialogCancel className="w-full sm:w-auto">Annuler</AlertDialogCancel>
+                                  <AlertDialogAction 
+                                    onClick={() => handleUserStatusAction(user, 'activate')}
+                                    className="bg-green-600 hover:bg-green-700 w-full sm:w-auto"
+                                  >
+                                    Confirmer la réactivation
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </Card>
-              ))}
+                  </Card>
+                );
+              })}
             </div>
           </div>
 
@@ -759,203 +916,260 @@ const UsersTab: React.FC<UsersTabProps> = ({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredUsers.map((user) => (
-                        <TableRow 
-                          key={user.id} 
-                          className={`${getUserRiskLevel(user) === 'Élevé' ? 'bg-red-50' : ''} hover:bg-gray-50 transition-colors`}
-                        >
-                          <TableCell>
-                            <input
-                              type="checkbox"
-                              checked={selectedUsers.includes(user.id)}
-                              onChange={() => handleSelectUser(user.id)}
-                              className="rounded"
-                            />
-                          </TableCell>
-                          
-                          <TableCell className="min-w-0">
-                            <div className="space-y-1">
-                              <div className="flex items-center space-x-2">
-                                <span className="font-medium text-sm truncate max-w-[150px]" title={user.full_name || user.email}>
-                                  {user.full_name || user.email.split('@')[0]}
-                                </span>
-                                {user.verification_status === 'verified' && (
-                                  <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
-                                )}
-                                {user.role === 'admin' && (
-                                  <Badge variant="secondary" className="text-xs">Admin</Badge>
-                                )}
-                              </div>
-                              <span className="text-sm text-gray-500 truncate block max-w-[180px]">
-                                {user.location || 'Localisation non renseignée'}
-                              </span>
-                              {/* Informations mobiles dans le tableau */}
-                              <div className="lg:hidden space-y-1">
-                                <p className="text-xs text-gray-600 truncate max-w-[180px]" title={user.email}>
-                                  {user.email}
-                                </p>
-                                <div className="flex items-center space-x-2 text-xs">
-                                  <Badge className={`${getStatusColor(user.status)}`}>
-                                    {user.status}
-                                  </Badge>
-                                  <span className="text-gray-500">{user.trust_score}%</span>
-                                  <span className={`${
-                                    getUserRiskLevel(user) === 'Élevé' ? 'text-red-600' :
-                                    getUserRiskLevel(user) === 'Moyen' ? 'text-yellow-600' : 'text-green-600'
-                                  }`}>
-                                    {getUserRiskLevel(user) === 'Élevé' ? 'É' :
-                                     getUserRiskLevel(user) === 'Moyen' ? 'M' : 'F'}
+                      {filteredUsers.map((user) => {
+                        const realStatus = getUserRealStatus(user);
+                        const isSuspended = isUserSuspended(user);
+                        
+                        return (
+                          <TableRow 
+                            key={user.id} 
+                            className={`${getUserRiskLevel(user) === 'Élevé' ? 'bg-red-50' : ''} hover:bg-gray-50 transition-colors`}
+                          >
+                            <TableCell>
+                              <input
+                                type="checkbox"
+                                checked={selectedUsers.includes(user.id)}
+                                onChange={() => handleSelectUser(user.id)}
+                                className="rounded"
+                              />
+                            </TableCell>
+                            
+                            <TableCell className="min-w-0">
+                              <div className="space-y-1">
+                                <div className="flex items-center space-x-2">
+                                  <span className="font-medium text-sm truncate max-w-[150px]" title={user.full_name || user.email}>
+                                    {user.full_name || user.email.split('@')[0]}
                                   </span>
+                                  {user.verification_status === 'verified' && (
+                                    <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
+                                  )}
+                                  {user.role === 'admin' && (
+                                    <Badge variant="secondary" className="text-xs">Admin</Badge>
+                                  )}
+                                </div>
+                                <span className="text-sm text-gray-500 truncate block max-w-[180px]">
+                                  {user.location || 'Localisation non renseignée'}
+                                </span>
+                                
+                                {/* Informations mobiles dans le tableau */}
+                                <div className="lg:hidden space-y-1">
+                                  <p className="text-xs text-gray-600 truncate max-w-[180px]" title={user.email}>
+                                    {user.email}
+                                  </p>
+                                  <div className="flex items-center space-x-2 text-xs">
+                                    <Badge className={`${getStatusColor(realStatus)}`}>
+                                      {realStatus === 'active' && 'Actif'}
+                                      {realStatus === 'suspended' && 'Suspendu'}
+                                      {realStatus === 'banned' && 'Banni'}
+                                      {realStatus === 'pending_verification' && 'En attente'}
+                                    </Badge>
+                                    <span className="text-gray-500">{user.trust_score}%</span>
+                                    <span className={`${
+                                      getUserRiskLevel(user) === 'Élevé' ? 'text-red-600' :
+                                      getUserRiskLevel(user) === 'Moyen' ? 'text-yellow-600' : 'text-green-600'
+                                    }`}>
+                                      {getUserRiskLevel(user) === 'Élevé' ? 'É' :
+                                       getUserRiskLevel(user) === 'Moyen' ? 'M' : 'F'}
+                                    </span>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          </TableCell>
-                          
-                          <TableCell className="hidden lg:table-cell">
-                            <div className="space-y-1 text-sm">
-                              <span className="truncate block max-w-[120px]" title={user.email}>
-                                {user.email}
-                              </span>
-                              <span className="text-gray-500">{user.phone || 'N/A'}</span>
-                            </div>
-                          </TableCell>
-                          
-                          <TableCell className="hidden sm:table-cell">
-                            <Badge className={`text-xs ${getStatusColor(user.status)}`}>
-                              {user.status}
-                            </Badge>
-                          </TableCell>
-                          
-                          <TableCell className="hidden md:table-cell">
-                            <div className="flex items-center space-x-2">
-                              <div className="w-16 bg-gray-200 rounded-full h-2">
-                                <div 
-                                  className={`h-2 rounded-full ${
-                                    user.trust_score >= 80 ? 'bg-green-500' : 
-                                    user.trust_score >= 60 ? 'bg-yellow-500' : 'bg-red-500'
-                                  }`}
-                                  style={{ width: `${user.trust_score}%` }}
-                                />
+                            </TableCell>
+                            
+                            <TableCell className="hidden lg:table-cell">
+                              <div className="space-y-1 text-sm">
+                                <span className="truncate block max-w-[120px]" title={user.email}>
+                                  {user.email}
+                                </span>
+                                <span className="text-gray-500">{user.phone || 'N/A'}</span>
                               </div>
-                              <span className="text-sm font-medium">{user.trust_score}%</span>
-                            </div>
-                          </TableCell>
-                          
-                          <TableCell className="hidden lg:table-cell">
-                            <div className="space-y-1 text-sm">
-                              <span>{user.listings_count} annonces</span>
-                              <span className="text-gray-500">{formatAccountAge(user.account_age_days)}</span>
-                            </div>
-                          </TableCell>
-                          
-                          <TableCell className="hidden md:table-cell">
-                            <div className="space-y-1">
-                              <span className={`text-xs font-medium ${
-                                getUserRiskLevel(user) === 'Élevé' ? 'text-red-600' :
-                                getUserRiskLevel(user) === 'Moyen' ? 'text-yellow-600' : 'text-green-600'
-                              }`}>
-                                {getUserRiskLevel(user)}
-                              </span>
-                              {user.reports_received > 0 && (
-                                <div className="text-xs text-red-600">{user.reports_received} signalement(s)</div>
-                              )}
-                            </div>
-                          </TableCell>
-                          
-                          <TableCell className="text-sm text-gray-500 hidden xl:table-cell">
-                            {formatDate ? formatDate(user.created_at) : new Date(user.created_at).toLocaleDateString('fr-FR')}
-                          </TableCell>
-                          
-                          <TableCell>
-                            <div className="flex items-center space-x-1">
-                              {/* Bouton Voir Profil - toujours visible */}
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
-                                title="Voir le profil utilisateur"
-                                onClick={() => handleViewProfile(user)}
-                                className="h-8 w-8 p-0 flex-shrink-0"
-                              >
-                                <Eye className="h-4 w-4 text-blue-600" />
-                              </Button>
-                              
-                              {/* Actions contextuelles cachées sur très petit écran */}
-                              <div className="hidden sm:flex items-center space-x-1">
-                                {/* Bouton Message Admin */}
+                            </TableCell>
+                            
+                            <TableCell className="hidden sm:table-cell">
+                              <div className="space-y-1">
+                                <Badge className={`text-xs ${getStatusColor(realStatus)}`}>
+                                  {realStatus === 'active' && 'Actif'}
+                                  {realStatus === 'suspended' && 'Suspendu'}
+                                  {realStatus === 'banned' && 'Banni'}
+                                  {realStatus === 'pending_verification' && 'En attente'}
+                                </Badge>
+                                
+                                {/* Affichage de la durée de suspension */}
+                                {realStatus === 'suspended' && user.suspended_until && (
+                                  <div className="text-xs text-orange-600">
+                                    Jusqu'au {new Date(user.suspended_until).toLocaleDateString('fr-FR')}
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
+                            
+                            <TableCell className="hidden md:table-cell">
+                              <div className="flex items-center space-x-2">
+                                <div className="w-16 bg-gray-200 rounded-full h-2">
+                                  <div 
+                                    className={`h-2 rounded-full ${
+                                      user.trust_score >= 80 ? 'bg-green-500' : 
+                                      user.trust_score >= 60 ? 'bg-yellow-500' : 'bg-red-500'
+                                    }`}
+                                    style={{ width: `${user.trust_score}%` }}
+                                  />
+                                </div>
+                                <span className="text-sm font-medium">{user.trust_score}%</span>
+                              </div>
+                            </TableCell>
+                            
+                            <TableCell className="hidden lg:table-cell">
+                              <div className="space-y-1 text-sm">
+                                <span>{user.listings_count} annonces</span>
+                                <span className="text-gray-500">{formatAccountAge(user.account_age_days)}</span>
+                              </div>
+                            </TableCell>
+                            
+                            <TableCell className="hidden md:table-cell">
+                              <div className="space-y-1">
+                                <span className={`text-xs font-medium ${
+                                  getUserRiskLevel(user) === 'Élevé' ? 'text-red-600' :
+                                  getUserRiskLevel(user) === 'Moyen' ? 'text-yellow-600' : 'text-green-600'
+                                }`}>
+                                  {getUserRiskLevel(user)}
+                                </span>
+                                {user.reports_received > 0 && (
+                                  <div className="text-xs text-red-600">{user.reports_received} signalement(s)</div>
+                                )}
+                              </div>
+                            </TableCell>
+                            
+                            <TableCell className="text-sm text-gray-500 hidden xl:table-cell">
+                              {formatDate ? formatDate(user.created_at) : new Date(user.created_at).toLocaleDateString('fr-FR')}
+                            </TableCell>
+                            
+                            <TableCell>
+                              <div className="flex items-center space-x-1">
+                                {/* Bouton Voir Profil - toujours visible */}
                                 <Button 
                                   variant="outline" 
                                   size="sm" 
-                                  title="Envoyer un message administrateur"
-                                  onClick={() => handleOpenAdminChat(user)}
-                                  className="h-8 w-8 p-0"
+                                  title="Voir le profil utilisateur"
+                                  onClick={() => handleViewProfile(user)}
+                                  className="h-8 w-8 p-0 flex-shrink-0"
                                 >
-                                  <Mail className="h-4 w-4 text-green-600" />
+                                  <Eye className="h-4 w-4 text-blue-600" />
                                 </Button>
                                 
-                                {/* Bouton Suspension/Activation */}
-                                {user.status === 'active' ? (
-                                  <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                      <Button 
-                                        variant="outline" 
-                                        size="sm" 
-                                        title="Suspendre cet utilisateur"
-                                        className="h-8 w-8 p-0"
-                                        disabled={actionLoading === user.id}
-                                      >
-                                        {actionLoading === user.id ? (
-                                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600" />
-                                        ) : (
-                                          <Ban className="h-4 w-4 text-red-600" />
-                                        )}
-                                      </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent className="w-[95vw] max-w-lg m-2">
-                                      <AlertDialogHeader>
-                                        <AlertDialogTitle className="flex items-center">
-                                          <Ban className="h-5 w-5 text-red-600 mr-2" />
-                                          Suspendre l'utilisateur
-                                        </AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                          Êtes-vous sûr de vouloir suspendre <strong>{user.full_name || user.email}</strong> ? 
-                                          <br /><br />
-                                          Cette action va empêcher l'utilisateur de se connecter, masquer ses annonces actives et lui envoyer une notification de suspension.
-                                          <br /><br />
-                                          Cette action peut être annulée ultérieurement.
-                                        </AlertDialogDescription>
-                                      </AlertDialogHeader>
-                                      <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-                                        <AlertDialogCancel className="w-full sm:w-auto">Annuler</AlertDialogCancel>
-                                        <AlertDialogAction 
-                                          onClick={() => handleUserStatusAction(user, 'suspend')}
-                                          className="bg-red-600 hover:bg-red-700 w-full sm:w-auto"
-                                        >
-                                          Confirmer la suspension
-                                        </AlertDialogAction>
-                                      </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                  </AlertDialog>
-                                ) : (
+                                {/* Actions contextuelles cachées sur très petit écran */}
+                                <div className="hidden sm:flex items-center space-x-1">
+                                  {/* Bouton Message Admin */}
                                   <Button 
                                     variant="outline" 
-                                    size="sm"
-                                    title="Réactiver cet utilisateur"
-                                    onClick={() => handleUserStatusAction(user, 'activate')}
-                                    disabled={actionLoading === user.id}
+                                    size="sm" 
+                                    title="Envoyer un message administrateur"
+                                    onClick={() => handleOpenAdminChat(user)}
                                     className="h-8 w-8 p-0"
                                   >
-                                    {actionLoading === user.id ? (
-                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600" />
-                                    ) : (
-                                      <CheckCircle className="h-4 w-4 text-green-600" />
-                                    )}
+                                    <Mail className="h-4 w-4 text-green-600" />
                                   </Button>
-                                )}
+                                  
+                                  {/* LOGIQUE CORRIGÉE POUR LES BOUTONS DE SUSPENSION/RÉACTIVATION */}
+                                  {!isSuspended ? (
+                                    <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                        <Button 
+                                          variant="outline" 
+                                          size="sm" 
+                                          title="Suspendre cet utilisateur"
+                                          className="h-8 w-8 p-0"
+                                          disabled={actionLoading === user.id}
+                                        >
+                                          {actionLoading === user.id ? (
+                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600" />
+                                          ) : (
+                                            <Ban className="h-4 w-4 text-red-600" />
+                                          )}
+                                        </Button>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent className="w-[95vw] max-w-lg m-2">
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle className="flex items-center">
+                                            <Ban className="h-5 w-5 text-red-600 mr-2" />
+                                            Suspendre l'utilisateur
+                                          </AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                            Êtes-vous sûr de vouloir suspendre <strong>{user.full_name || user.email}</strong> ? 
+                                            <br /><br />
+                                            Cette action va empêcher l'utilisateur de se connecter, masquer ses annonces actives et lui envoyer une notification de suspension.
+                                            <br /><br />
+                                            <strong>Statut actuel:</strong> {realStatus}
+                                            <br /><br />
+                                            Cette action peut être annulée ultérieurement.
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                                          <AlertDialogCancel className="w-full sm:w-auto">Annuler</AlertDialogCancel>
+                                          <AlertDialogAction 
+                                            onClick={() => handleUserStatusAction(user, 'suspend')}
+                                            className="bg-red-600 hover:bg-red-700 w-full sm:w-auto"
+                                          >
+                                            Confirmer la suspension
+                                          </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
+                                  ) : (
+                                    <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                        <Button 
+                                          variant="outline" 
+                                          size="sm"
+                                          title="Réactiver cet utilisateur"
+                                          onClick={() => {}} // Ouverture du dialog
+                                          disabled={actionLoading === user.id}
+                                          className="h-8 w-8 p-0"
+                                        >
+                                          {actionLoading === user.id ? (
+                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600" />
+                                          ) : (
+                                            <CheckCircle className="h-4 w-4 text-green-600" />
+                                          )}
+                                        </Button>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent className="w-[95vw] max-w-lg m-2">
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle className="flex items-center">
+                                            <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
+                                            Réactiver l'utilisateur
+                                          </AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                            Êtes-vous sûr de vouloir réactiver <strong>{user.full_name || user.email}</strong> ?
+                                            <br /><br />
+                                            Cette action va lever la suspension et permettre à l'utilisateur de se reconnecter.
+                                            <br /><br />
+                                            <strong>Statut actuel:</strong> {realStatus}
+                                            {user.suspended_until && (
+                                              <>
+                                                <br />
+                                                <strong>Suspendu jusqu'au:</strong> {new Date(user.suspended_until).toLocaleString('fr-FR')}
+                                              </>
+                                            )}
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                                          <AlertDialogCancel className="w-full sm:w-auto">Annuler</AlertDialogCancel>
+                                          <AlertDialogAction 
+                                            onClick={() => handleUserStatusAction(user, 'activate')}
+                                            className="bg-green-600 hover:bg-green-700 w-full sm:w-auto"
+                                          >
+                                            Confirmer la réactivation
+                                          </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>

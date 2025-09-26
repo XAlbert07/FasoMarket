@@ -43,6 +43,9 @@ import AnalyticsTab from '@/pages/admin/components/AnalyticsTab';
 import AlertsSection from '@/pages/admin/components/AlertsSection';
 import HealthIndicators from '@/pages/admin/components/HealthIndicators';
 
+
+
+
 // =============================================================================
 // HOOK USESCREENSIZE - COMPOSANT INTÉGRÉ
 // =============================================================================
@@ -1062,6 +1065,7 @@ const AdminDashboard = () => {
                 getPriorityColor={dashboard.getPriorityColor}
                 getStatusColor={dashboard.getStatusColor}
                 formatResponseTime={dashboard.formatResponseTime}
+                formatDate={dashboard.formatDate}
                 pendingCount={dashboard.pendingCount}
                 totalReports={dashboard.reports.length}
                 averageResponseTime={dashboard.reports.length > 0 
@@ -1264,6 +1268,7 @@ const AdminDashboard = () => {
               getPriorityColor={dashboard.getPriorityColor}
               getStatusColor={dashboard.getStatusColor}
               formatResponseTime={dashboard.formatResponseTime}
+              formatDate={dashboard.formatDate}
               pendingCount={dashboard.pendingCount}
               totalReports={dashboard.reports.length}
               averageResponseTime={dashboard.reports.length > 0 

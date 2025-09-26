@@ -14,7 +14,7 @@ import {
   AlertTriangle, Package, Users, TrendingUp, TrendingDown,
   Activity, Clock, CheckCircle, Eye, MessageSquare, Shield,
   Search, Zap, BarChart3, AlertCircle, ThermometerSun,
-  ChevronRight, Menu, Maximize2
+  ChevronRight, Menu, Maximize2, X
 } from "lucide-react";
 import { DashboardStats, WeeklyData, CategoryData } from '@/hooks/useAdminDashboard';
 
@@ -291,11 +291,18 @@ const MobileTrendChart: React.FC<{
   const latestData = weeklyData[weeklyData.length - 1];
   const previousData = weeklyData[weeklyData.length - 2];
   
-  const userTrend = previousData ? ((latestData.users - previousData.users) / previousData.users) * 100 : 0;
-  const listingTrend = previousData ? ((latestData.listings - previousData.listings) / previousData.listings) * 100 : 0;
-  const reportTrend = previousData && latestData.reports && previousData.reports ? 
-    ((latestData.reports - previousData.reports) / previousData.reports) * 100 : 0;
+  const userTrend = (previousData && previousData.users > 0) 
+  ? ((latestData.users - previousData.users) / previousData.users) * 100 
+  : 0;
 
+const listingTrend = (previousData && previousData.listings > 0) 
+  ? ((latestData.listings - previousData.listings) / previousData.listings) * 100 
+  : 0;
+
+const reportTrend = (previousData && latestData.reports && previousData.reports && previousData.reports > 0) 
+  ? ((latestData.reports - previousData.reports) / previousData.reports) * 100 
+  : 0;
+  
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -315,9 +322,11 @@ const MobileTrendChart: React.FC<{
               <div className={`flex items-center text-xs ${userTrend >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                 {userTrend >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                 {Math.abs(userTrend).toFixed(1)}%
+                
               </div>
             </div>
           </div>
+          
           
           <div className="flex items-center justify-between">
             <span className="text-sm text-gray-600">Annonces</span>
@@ -329,7 +338,7 @@ const MobileTrendChart: React.FC<{
               </div>
             </div>
           </div>
-
+           
           {latestData.reports !== undefined && (
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-600">Signalements</span>
@@ -358,7 +367,7 @@ const MobileTrendChart: React.FC<{
                       title={`${day.name}: ${day.users + day.listings} total`}
                     ></div>
                     <span className="text-xs text-gray-400 mt-1">
-                      {day.name.slice(0, 1)}
+                     {typeof day.name === 'string' ? day.name.slice(0, 1) : String(day.name).slice(0, 1)}
                     </span>
                   </div>
                 );
@@ -1333,7 +1342,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
                       fontSize: '12px'
                     }}
                     formatter={(value, name) => [
-                      `${value} ${name.toLowerCase()}`,
+                      `${value} ${String(name).toLowerCase()}`,
                       name
                     ]}
                   />

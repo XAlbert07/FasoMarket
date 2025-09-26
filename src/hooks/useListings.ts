@@ -1,6 +1,6 @@
-// hooks/useListings.ts - VERSION CORRIGÉE POUR ÉLIMINER LES ERREURS TYPESCRIPT
+// hooks/useListings.ts - VERSION ÉTENDUE POUR MyListings.tsx
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { Listing, SearchFilters } from '@/types/database';
@@ -8,36 +8,109 @@ import { useToast } from '@/hooks/use-toast';
 import { useListingViews } from '@/hooks/useListingViews';
 
 /**
- * Hook principal pour la gestion des collections d'annonces
- * VERSION CORRIGÉE - Elimination des erreurs TypeScript
+ * Interface étendue pour le hook useListings
+ * Inclut toutes les propriétés requises par MyListings.tsx
  */
-export const useListings = () => {
+export interface UseListingsReturn {
+  // Propriétés de base existantes
+  listings: Listing[];
+  loading: boolean;
+  error: string | null;
+  
+  // Propriétés manquantes requises par MyListings.tsx
+  dataSource: Listing[];        // Alias ou vue filtrée des listings
+  soldListings: Listing[];      // Annonces vendues
+  draftListings: Listing[];     // Annonces en brouillon
+  
+  // Fonctions existantes
+  fetchListings: (filters?: SearchFilters) => Promise<void>;
+  fetchListingsSimple: (filters?: SearchFilters) => Promise<void>;
+  fetchUserListings: (userId: string) => Promise<void>;
+  
+  // Fonction manquante
+  clearListings: () => void;    // Fonction pour vider les listings
+  
+  // Fonctions additionnelles utiles
+  refreshListings: () => Promise<void>;
+  filterByStatus: (status: string) => Listing[];
+}
+
+/**
+ * Hook principal pour la gestion des collections d'annonces
+ * VERSION ÉTENDUE - Compatible avec MyListings.tsx
+ */
+export const useListings = (): UseListingsReturn => {
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastUserId, setLastUserId] = useState<string | null>(null);
   const { toast } = useToast();
 
   /**
+   * Fonction pour vider la liste des annonces
+   * NOUVELLE PROPRIÉTÉ REQUISE
+   */
+  const clearListings = useCallback(() => {
+    setListings([]);
+    setError(null);
+    setLastUserId(null);
+  }, []);
+
+  /**
+   * Calculs en temps réel des listes catégorisées
+   * NOUVELLES PROPRIÉTÉS CALCULÉES
+   */
+  const dataSource = useMemo(() => listings, [listings]);
+  
+  const soldListings = useMemo(() => 
+    listings.filter(listing => listing.status === 'sold'),
+    [listings]
+  );
+  
+  const draftListings = useMemo(() => 
+    listings.filter(listing => 
+      !listing.status || 
+      listing.status === 'expired' ||
+      listing.status === 'suspended'
+    ),
+    [listings]
+  );
+
+  /**
+   * Fonction utilitaire pour filtrer par statut
+   */
+  const filterByStatus = useCallback((status: string) => {
+    return listings.filter(listing => listing.status === status);
+  }, [listings]);
+
+  /**
+   * Fonction pour actualiser les données
+   */
+  const refreshListings = useCallback(async () => {
+    if (lastUserId) {
+      await fetchUserListings(lastUserId);
+    }
+  }, [lastUserId]);
+
+  /**
    * Fonction pour résoudre l'ID d'une catégorie à partir de son nom
-   * CORRECTION: Typage explicite des données de retour
+   * CODE EXISTANT MAINTENU
    */
   const resolveCategoryId = useCallback(async (categoryName: string): Promise<string | null> => {
     try {
       console.log(`Recherche de l'ID pour la catégorie: "${categoryName}"`);
       
-      // Rechercher d'abord par nom exact - CORRECTION: Typage explicite
       let { data, error } = await supabase
         .from('categories')
         .select('id, name')
         .eq('name', categoryName)
         .single();
 
-      if (data && !error && data.name) { // CORRECTION: Vérification de l'existence de 'name'
+      if (data && !error && data.name) {
         console.log(`Catégorie trouvée par nom exact: ${data.id} (${data.name})`);
         return data.id;
       }
 
-      // Si pas trouvé, essayer par slug
       const slug = categoryName.toLowerCase()
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
@@ -49,12 +122,11 @@ export const useListings = () => {
         .eq('slug', slug)
         .single());
 
-      if (data && !error && data.name) { // CORRECTION: Vérification de l'existence de 'name'
+      if (data && !error && data.name) {
         console.log(`Catégorie trouvée par slug: ${data.id} (${data.name})`);
         return data.id;
       }
 
-      // Recherche floue - CORRECTION: Typage explicite
       ({ data, error } = await supabase
         .from('categories')
         .select('id, name')
@@ -62,7 +134,7 @@ export const useListings = () => {
         .limit(1)
         .single());
 
-      if (data && !error && data.name) { // CORRECTION: Vérification explicite
+      if (data && !error && data.name) {
         console.log(`Catégorie trouvée par recherche floue: ${data.id} (${data.name})`);
         return data.id;
       }
@@ -77,20 +149,17 @@ export const useListings = () => {
 
   /**
    * Fonction pour enrichir une annonce avec les données des tables liées
-   * CORRECTION: Typage plus strict et gestion des propriétés optionnelles
+   * CODE EXISTANT MAINTENU
    */
   const enrichListing = useCallback(async (listing: any): Promise<Listing> => {
-    // Initialiser avec les données de base et un typage correct
     let enrichedListing: Listing = {
       ...listing,
-      // S'assurer que toutes les propriétés requises sont présentes avec des valeurs par défaut
       profiles: undefined,
       categories: undefined,
       category: undefined
     };
 
     try {
-      // Récupération des données du profil utilisateur
       if (listing.user_id) {
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
@@ -99,7 +168,6 @@ export const useListings = () => {
           .single();
         
         if (profileData && !profileError) {
-          // CORRECTION: Assignation typée correcte
           enrichedListing.profiles = {
             id: profileData.id,
             full_name: profileData.full_name,
@@ -112,7 +180,6 @@ export const useListings = () => {
         }
       }
 
-      // Récupération des données de catégorie
       if (listing.category_id) {
         const { data: categoryData, error: categoryError } = await supabase
           .from('categories')
@@ -121,7 +188,6 @@ export const useListings = () => {
           .single();
         
         if (categoryData && !categoryError) {
-          // CORRECTION: Assignation typée correcte
           enrichedListing.categories = {
             id: categoryData.id,
             name: categoryData.name,
@@ -129,19 +195,16 @@ export const useListings = () => {
             icon: categoryData.icon,
             description: categoryData.description
           };
-          // Ajout du nom de catégorie pour la compatibilité
           enrichedListing.category = categoryData.name;
         }
       }
 
-      // Assurer une catégorie par défaut si aucune n'est trouvée
       if (!enrichedListing.category) {
         enrichedListing.category = 'Catégorie inconnue';
       }
 
     } catch (enrichmentError) {
       console.warn('Impossible d\'enrichir les données de l\'annonce:', enrichmentError);
-      // Assurer au minimum une catégorie par défaut
       enrichedListing.category = 'Catégorie inconnue';
     }
 
@@ -149,7 +212,8 @@ export const useListings = () => {
   }, []);
 
   /**
-   * Fonction principale de récupération des annonces - VERSION CORRIGÉE
+   * Fonction principale de récupération des annonces
+   * CODE EXISTANT MAINTENU
    */
   const fetchListings = useCallback(async (filters?: SearchFilters) => {
     setLoading(true);
@@ -158,14 +222,12 @@ export const useListings = () => {
     try {
       console.log('Début de fetchListings avec filtres:', filters);
 
-      // Requête de base
       let query = supabase
         .from('listings')
         .select('*')
         .eq('status', 'active')
         .order('created_at', { ascending: false });
 
-      // Gestion des catégories par nom
       if (filters?.category) {
         console.log(`Filtrage par catégorie: "${filters.category}"`);
         
@@ -182,7 +244,6 @@ export const useListings = () => {
         }
       }
 
-      // Application des autres filtres
       if (filters?.query) {
         query = query.or(`title.ilike.%${filters.query}%,description.ilike.%${filters.query}%`);
       }
@@ -203,7 +264,6 @@ export const useListings = () => {
         query = query.lte('price', filters.priceMax);
       }
 
-      // Gestion du tri
       if (filters?.sortBy === 'price_asc') {
         query = query.order('price', { ascending: true });
       } else if (filters?.sortBy === 'price_desc') {
@@ -221,7 +281,6 @@ export const useListings = () => {
 
       console.log(`Requête réussie: ${data?.length || 0} annonces trouvées`);
 
-      // Enrichissement de chaque annonce - CORRECTION: Typage approprié
       const enrichedListings: Listing[] = [];
       if (data) {
         for (const listing of data) {
@@ -247,8 +306,8 @@ export const useListings = () => {
   }, [toast, resolveCategoryId, enrichListing]);
 
   /**
-   * Version simple sans enrichissement pour de meilleures performances
-   * CORRECTION: Typage approprié des données retournées
+   * Version simple sans enrichissement
+   * CODE EXISTANT MAINTENU
    */
   const fetchListingsSimple = useCallback(async (filters?: SearchFilters) => {
     setLoading(true);
@@ -263,7 +322,6 @@ export const useListings = () => {
         .eq('status', 'active')
         .order('created_at', { ascending: false });
 
-      // Application des filtres de base
       if (filters?.query) {
         query = query.or(`title.ilike.%${filters.query}%,description.ilike.%${filters.query}%`);
       }
@@ -284,7 +342,6 @@ export const useListings = () => {
         query = query.lte('price', filters.priceMax);
       }
 
-      // Gestion du tri
       if (filters?.sortBy === 'price_asc') {
         query = query.order('price', { ascending: true });
       } else if (filters?.sortBy === 'price_desc') {
@@ -302,11 +359,10 @@ export const useListings = () => {
 
       console.log(`Requête simple réussie: ${data?.length || 0} annonces trouvées`);
 
-      // CORRECTION: Transformation avec typage approprié
       const processedListings: Listing[] = (data || []).map(listing => ({
         ...listing,
-        category: 'Non spécifiée', // Valeur par défaut simple
-        profiles: undefined, // Propriétés optionnelles explicites
+        category: 'Non spécifiée',
+        profiles: undefined,
         categories: undefined
       }));
 
@@ -328,15 +384,17 @@ export const useListings = () => {
 
   /**
    * Fonction pour récupérer les annonces d'un utilisateur spécifique
-   * CORRECTION: Typage approprié
+   * CODE EXISTANT AVEC AJOUT DU TRACKING DE L'UTILISATEUR
    */
   const fetchUserListings = useCallback(async (userId: string) => {
     setLoading(true);
     setError(null);
+    setLastUserId(userId); // NOUVEAU: Sauvegarder l'userId pour refreshListings
     
     try {
       console.log("Début de fetchUserListings pour userId:", userId);
       
+      // MODIFICATION: Récupérer TOUS les statuts pour MyListings, pas seulement 'active'
       const { data, error } = await supabase
         .from('listings')
         .select('*')
@@ -347,7 +405,6 @@ export const useListings = () => {
       
       console.log("Données récupérées:", data?.length || 0, "annonces");
       
-      // CORRECTION: Enrichissement avec typage approprié
       const processedListings: Listing[] = (data || []).map(listing => ({
         ...listing,
         category: 'Non spécifiée',
@@ -371,18 +428,32 @@ export const useListings = () => {
     }
   }, [toast]);
 
+  // RETOUR ÉTENDU AVEC TOUTES LES PROPRIÉTÉS REQUISES
   return {
+    // Propriétés de base
     listings,
     loading,
     error,
+    
+    // Propriétés calculées requises par MyListings.tsx
+    dataSource,
+    soldListings,
+    draftListings,
+    
+    // Fonctions existantes
     fetchListings,
     fetchListingsSimple,
-    fetchUserListings
+    fetchUserListings,
+    
+    // Nouvelles fonctions
+    clearListings,
+    refreshListings,
+    filterByStatus
   };
 };
 
 /**
- * Hook pour une annonce individuelle - VERSION CORRIGÉE
+ * Hook pour une annonce individuelle - VERSION MAINTENUE
  */
 export const useListing = (id: string) => {
   const [listing, setListing] = useState<Listing | null>(null);
@@ -412,7 +483,6 @@ export const useListing = (id: string) => {
         throw error;
       }
 
-      // CORRECTION: Initialisation avec typage approprié
       let enrichedListing: Listing = {
         ...data,
         profiles: undefined,
@@ -421,7 +491,6 @@ export const useListing = (id: string) => {
       };
 
       try {
-        // Enrichissement optionnel des données du profil
         if (data.user_id) {
           const { data: profileData } = await supabase
             .from('profiles')
@@ -442,7 +511,6 @@ export const useListing = (id: string) => {
           }
         }
 
-        // Enrichissement optionnel des données de catégorie
         if (data.category_id) {
           const { data: categoryData } = await supabase
             .from('categories')
@@ -469,7 +537,6 @@ export const useListing = (id: string) => {
       console.log('Annonce récupérée avec succès');
       setListing(enrichedListing);
 
-      // Enregistrement de la vue
       if (enrichedListing) {
         recordView(enrichedListing.id);
       }
@@ -516,7 +583,9 @@ export const useListing = (id: string) => {
   };
 };
 
-// Le reste du code reste identique...
+/**
+ * Hook pour la création et gestion des annonces - EXPORT MANQUANT AJOUTÉ
+ */
 export const useCreateListing = () => {
   const [loading, setLoading] = useState(false);
   const { user } = useAuthContext();
@@ -740,7 +809,6 @@ export const useCreateListing = () => {
         throw new Error('Vous n\'avez pas les droits pour supprimer cette annonce');
       }
 
-      // Supprimer les données liées
       const { error: favoritesError } = await supabase
         .from('favorites')
         .delete()
@@ -777,7 +845,6 @@ export const useCreateListing = () => {
         console.warn('Erreur suppression reports (non critique):', reportsError);
       }
 
-      // Finalement, supprimer l'annonce
       const { error: deleteError } = await supabase
         .from('listings')
         .delete()

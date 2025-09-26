@@ -1,5 +1,5 @@
 // pages/admin/components/ReportsTab.tsx
-// Version migrée pour useAdminDashboard - Props adaptées au hook centralisé
+// VERSION CORRIGÉE - Flux logique cohérent et traductions complètes
 
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   Eye, CheckCircle, XCircle, AlertTriangle, Clock, User, Package, 
-  RefreshCw, Search, Filter, ChevronDown, Settings, Activity
+  RefreshCw, Search, Filter, ChevronDown, Settings, Activity, Gavel
 } from "lucide-react";
 
 import ReportActionModal from './ReportActionModal';
@@ -37,6 +37,7 @@ interface ReportsTabProps {
   getPriorityColor: (priority: string) => string;
   formatResponseTime: (hours: number) => string;
   formatDate: (date: string) => string;
+  getStatusColor: (status: string) => string;
   
   // Nouvelles propriétés disponibles dans le hook centralisé
   totalReports?: number;
@@ -56,7 +57,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({
   totalReports = 0,
   averageResponseTime = 0
 }) => {
-  // États de l'interface utilisateur - logique préservée
+  // États de l'interface utilisateur
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterPriority, setFilterPriority] = useState("all");
@@ -65,7 +66,29 @@ const ReportsTab: React.FC<ReportsTabProps> = ({
   const [showActionModal, setShowActionModal] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Fonction pour déterminer l'urgence - logique métier préservée
+  // Traductions des statuts et priorités
+  const statusTranslations = {
+    'pending': 'En attente',
+    'in_review': 'En cours',
+    'resolved': 'Résolu',
+    'dismissed': 'Rejeté'
+  };
+
+  const priorityTranslations = {
+    'high': 'Haute',
+    'medium': 'Moyenne',
+    'low': 'Basse'
+  };
+
+  const urgencyTranslations = {
+    'critical': 'Critique',
+    'urgent': 'Urgent', 
+    'delayed': 'Retardé',
+    'overdue': 'En retard',
+    'normal': 'Normal'
+  };
+
+  // Fonction pour déterminer l'urgence
   const getUrgencyLevel = (report: any) => {
     const hoursElapsed = report.response_time_hours || 0;
     const priority = report.priority;
@@ -77,7 +100,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({
     return 'normal';
   };
 
-  // Fonction pour colorer l'urgence - logique préservée
+  // Fonction pour colorer l'urgence
   const getUrgencyColor = (urgency: string) => {
     const colors = {
       critical: 'bg-red-100 text-red-700 border-red-300',
@@ -89,7 +112,18 @@ const ReportsTab: React.FC<ReportsTabProps> = ({
     return colors[urgency as keyof typeof colors] || colors.normal;
   };
 
-  // Filtrage optimisé avec mémoisation - logique préservée mais adaptée aux données du hook
+  // Fonction pour les couleurs de statut (traduite)
+  const getStatusColorTranslated = (status: string) => {
+    const colors = {
+      'pending': 'bg-orange-100 text-orange-600',
+      'in_review': 'bg-blue-100 text-blue-600',
+      'resolved': 'bg-green-100 text-green-600', 
+      'dismissed': 'bg-gray-100 text-gray-600'
+    };
+    return colors[status as keyof typeof colors] || colors.pending;
+  };
+
+  // Filtrage optimisé avec mémoisation
   const filteredReports = useMemo(() => {
     if (!Array.isArray(reports)) return [];
     
@@ -106,7 +140,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({
       
       return matchesSearch && matchesStatus && matchesPriority;
     }).sort((a, b) => {
-      // Tri par priorité puis par date (plus récents d'abord) - logique préservée
+      // Tri par priorité puis par date (plus récents d'abord)
       const priorityOrder = { high: 3, medium: 2, low: 1 };
       const priorityDiff = priorityOrder[b.priority as keyof typeof priorityOrder] - priorityOrder[a.priority as keyof typeof priorityOrder];
       
@@ -116,7 +150,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({
     });
   }, [reports, searchTerm, filterStatus, filterPriority]);
 
-  // Statistiques calculées - adaptées aux données du hook centralisé
+  // Statistiques calculées avec traductions
   const stats = useMemo(() => {
     const safeReports = Array.isArray(reports) ? reports : [];
     const total = safeReports.length;
@@ -126,7 +160,6 @@ const ReportsTab: React.FC<ReportsTabProps> = ({
     const inReview = safeReports.filter(r => r.status === 'in_review').length;
     const critical = safeReports.filter(r => getUrgencyLevel(r) === 'critical').length;
     
-    // Utilise la moyenne du hook centralisé si disponible, sinon calcule localement
     const avgResponseTime = averageResponseTime > 0 
       ? averageResponseTime
       : total > 0 
@@ -149,7 +182,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({
     };
   }, [reports, averageResponseTime]);
 
-  // Gestionnaire de rafraîchissement - utilise la fonction du hook centralisé
+  // Gestionnaire de rafraîchissement
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
@@ -161,19 +194,49 @@ const ReportsTab: React.FC<ReportsTabProps> = ({
     }
   };
 
-  // Action rapide - utilise la fonction du hook centralisé
-  const handleQuickAction = async (reportId: string, actionType: string, reason: string) => {
-    try {
-      await handleReportAction(reportId, {
-        type: actionType,
-        reason
-      });
-    } catch (error) {
-      console.error('Erreur lors de l\'action rapide:', error);
+  // CORRECTION MAJEURE: Logique des actions selon le statut
+  // CORRECTION MAJEURE: Logique des actions selon le statut
+const handleQuickAction = async (reportId: string, actionType: string, reason: string) => {
+  try {
+    console.log(`🔧 [REPORTS] Action rapide: ${actionType} sur ${reportId}`, { reason });
+    
+    const success = await handleReportAction(reportId, {
+      type: actionType,
+      reason: reason,
+      notifyUser: true
+    });
+    
+    if (success) {
+      console.log(`✅ [REPORTS] Action ${actionType} appliquée avec succès sur le signalement ${reportId}`);
+      
+      // Message de confirmation selon l'action
+      const messages = {
+        approve: 'Signalement approuvé avec succès',
+        dismiss: 'Signalement rejeté avec succès',
+        escalate: 'Signalement escaladé avec succès'
+      };
+      
+      const message = messages[actionType as keyof typeof messages] || 'Action appliquée avec succès';
+      
+      // Toast de confirmation (optionnel)
+      if (typeof window !== 'undefined' && window.dispatchEvent) {
+        window.dispatchEvent(new CustomEvent('report-action-success', { 
+          detail: { message, reportId, actionType } 
+        }));
+      }
+      
+    } else {
+      console.error(`❌ [REPORTS] Échec de l'action ${actionType} sur ${reportId}`);
     }
-  };
+    
+    return success;
+  } catch (error) {
+    console.error(`❌ [REPORTS] Erreur lors de l'action ${actionType}:`, error);
+    return false;
+  }
+};
 
-  // Gestionnaires de modales - logique préservée
+  // Gestionnaires de modales
   const openDetailModal = (report: any) => {
     setSelectedReport(report);
     setShowDetailModal(true);
@@ -190,7 +253,18 @@ const ReportsTab: React.FC<ReportsTabProps> = ({
     setFilterPriority("all");
   };
 
-  // Gestion des erreurs - nouvelle fonctionnalité du hook centralisé
+  // NOUVELLE FONCTION: Logique pour déterminer quels boutons afficher
+  const getAvailableActions = (report: any) => {
+    const actions = {
+      canView: true, // Toujours visible
+      canApprove: report.status === 'pending',
+      canDismiss: report.status === 'pending', 
+      canAdvancedActions: report.status === 'resolved' // Seulement après approbation
+    };
+    return actions;
+  };
+
+  // Gestion des erreurs
   if (error) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -224,7 +298,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({
   return (
     <div className="space-y-4 sm:space-y-6">
       
-      {/* En-tête avec informations d'état du hook centralisé */}
+      {/* En-tête avec informations d'état */}
       <div className="flex flex-col space-y-3 sm:flex-row sm:justify-between sm:items-center sm:space-y-0">
         <div>
           <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Signalements</h2>
@@ -263,7 +337,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({
         </div>
       </div>
 
-      {/* Indicateurs de performance - Données du hook centralisé */}
+      {/* Indicateurs de performance avec traductions */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
         <Card>
           <CardContent className="p-3 sm:p-4">
@@ -320,7 +394,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({
         </Card>
       </div>
 
-      {/* Filtres - Interface préservée */}
+      {/* Filtres avec traductions */}
       <Card>
         <CardContent className="p-3 sm:p-4">
           <div className="space-y-3">
@@ -335,7 +409,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({
               />
             </div>
             
-            {/* Filtres */}
+            {/* Filtres avec traductions */}
             <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
               <div className="flex-1">
                 <Select value={filterStatus} onValueChange={setFilterStatus}>
@@ -367,13 +441,13 @@ const ReportsTab: React.FC<ReportsTabProps> = ({
               </div>
             </div>
 
-            {/* Résumé des filtres actifs */}
+            {/* Résumé des filtres actifs avec traductions */}
             {(searchTerm || filterStatus !== "all" || filterPriority !== "all") && (
               <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
                 <span>Filtres:</span>
                 {searchTerm && <Badge variant="secondary">"{searchTerm}"</Badge>}
-                {filterStatus !== "all" && <Badge variant="secondary">Statut: {filterStatus}</Badge>}
-                {filterPriority !== "all" && <Badge variant="secondary">Priorité: {filterPriority}</Badge>}
+                {filterStatus !== "all" && <Badge variant="secondary">Statut: {statusTranslations[filterStatus as keyof typeof statusTranslations]}</Badge>}
+                {filterPriority !== "all" && <Badge variant="secondary">Priorité: {priorityTranslations[filterPriority as keyof typeof priorityTranslations]}</Badge>}
                 <span>→ {filteredReports.length} résultat(s)</span>
               </div>
             )}
@@ -381,7 +455,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({
         </CardContent>
       </Card>
 
-      {/* Liste des signalements */}
+      {/* Liste des signalements avec logique de boutons corrigée */}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
@@ -414,11 +488,12 @@ const ReportsTab: React.FC<ReportsTabProps> = ({
             </div>
           ) : (
             <>
-              {/* Vue mobile - Cards */}
+              {/* Vue mobile - Cards avec logique corrigée */}
               <div className="sm:hidden space-y-3 p-4">
                 {filteredReports.map((report) => {
                   const urgency = getUrgencyLevel(report);
                   const urgencyColor = getUrgencyColor(urgency);
+                  const actions = getAvailableActions(report);
                   
                   return (
                     <Card key={report.id} className={`${report.priority === 'high' ? 'border-red-200 bg-red-50' : ''}`}>
@@ -453,27 +528,20 @@ const ReportsTab: React.FC<ReportsTabProps> = ({
                             </p>
                           </div>
 
-                          {/* Badges de statut */}
+                          {/* Badges de statut avec traductions */}
                           <div className="flex flex-wrap items-center gap-2">
                             <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(report.priority)}`}>
-                              {report.priority}
+                              {priorityTranslations[report.priority as keyof typeof priorityTranslations]}
                             </span>
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              report.status === 'pending' ? 'bg-orange-100 text-orange-600' :
-                              report.status === 'resolved' ? 'bg-green-100 text-green-600' :
-                              report.status === 'dismissed' ? 'bg-gray-100 text-gray-600' :
-                              'bg-blue-100 text-blue-600'
-                            }`}>
-                              {report.status}
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColorTranslated(report.status)}`}>
+                              {statusTranslations[report.status as keyof typeof statusTranslations]}
                             </span>
                             <span className={`px-2 py-1 rounded-full text-xs font-medium border ${urgencyColor}`}>
-                              {urgency === 'critical' ? 'Critique' : 
-                               urgency === 'urgent' ? 'Urgent' :
-                               urgency === 'normal' ? 'Normal' : urgency}
+                              {urgencyTranslations[urgency as keyof typeof urgencyTranslations]}
                             </span>
                           </div>
 
-                          {/* Actions mobiles */}
+                          {/* CORRECTION: Actions mobiles selon la logique */}
                           <div className="flex items-center justify-between pt-2 border-t border-gray-100">
                             <Button 
                               variant="ghost" 
@@ -485,36 +553,43 @@ const ReportsTab: React.FC<ReportsTabProps> = ({
                               Détails
                             </Button>
                             
-                            {report.status === 'pending' && (
-                              <div className="flex items-center space-x-1">
+                            <div className="flex items-center space-x-1">
+                              {actions.canApprove && (
                                 <Button 
                                   variant="ghost" 
                                   size="sm"
                                   onClick={() => handleQuickAction(report.id, 'approve', 'Signalement approuvé')}
                                   className="text-xs text-green-600"
+                                  title="Approuver le signalement"
                                 >
                                   <CheckCircle className="h-3 w-3" />
                                 </Button>
-                                
+                              )}
+                              
+                              {actions.canDismiss && (
                                 <Button 
                                   variant="ghost" 
                                   size="sm"
                                   onClick={() => handleQuickAction(report.id, 'dismiss', 'Signalement rejeté')}
                                   className="text-xs text-red-600"
+                                  title="Rejeter le signalement"
                                 >
                                   <XCircle className="h-3 w-3" />
                                 </Button>
-                                
+                              )}
+                              
+                              {actions.canAdvancedActions && (
                                 <Button 
                                   variant="ghost" 
                                   size="sm"
                                   onClick={() => openActionModal(report)}
-                                  className="text-xs"
+                                  className="text-xs text-blue-600"
+                                  title="Actions avancées"
                                 >
-                                  <Settings className="h-3 w-3" />
+                                  <Gavel className="h-3 w-3" />
                                 </Button>
-                              </div>
-                            )}
+                              )}
+                            </div>
                           </div>
                         </div>
                       </CardContent>
@@ -523,7 +598,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({
                 })}
               </div>
 
-              {/* Vue desktop - Tableau */}
+              {/* Vue desktop - Tableau avec logique corrigée */}
               <div className="hidden sm:block">
                 <ScrollArea className="h-[500px]">
                   <Table>
@@ -537,13 +612,14 @@ const ReportsTab: React.FC<ReportsTabProps> = ({
                         <TableHead className="w-[90px]">Statut</TableHead>
                         <TableHead className="w-[80px]">Urgence</TableHead>
                         <TableHead className="w-[80px]">Temps</TableHead>
-                        <TableHead className="w-[160px]">Actions</TableHead>
+                        <TableHead className="w-[200px]">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredReports.map((report) => {
                         const urgency = getUrgencyLevel(report);
                         const urgencyColor = getUrgencyColor(urgency);
+                        const actions = getAvailableActions(report);
                         
                         return (
                           <TableRow 
@@ -590,26 +666,19 @@ const ReportsTab: React.FC<ReportsTabProps> = ({
                             
                             <TableCell>
                               <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(report.priority)}`}>
-                                {report.priority}
+                                {priorityTranslations[report.priority as keyof typeof priorityTranslations]}
                               </span>
                             </TableCell>
                             
                             <TableCell>
-                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                report.status === 'pending' ? 'bg-orange-100 text-orange-600' :
-                                report.status === 'resolved' ? 'bg-green-100 text-green-600' :
-                                report.status === 'dismissed' ? 'bg-gray-100 text-gray-600' :
-                                'bg-blue-100 text-blue-600'
-                              }`}>
-                                {report.status}
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColorTranslated(report.status)}`}>
+                                {statusTranslations[report.status as keyof typeof statusTranslations]}
                               </span>
                             </TableCell>
                             
                             <TableCell>
                               <span className={`px-2 py-1 rounded-full text-xs font-medium border ${urgencyColor}`}>
-                                {urgency === 'critical' ? 'Critique' : 
-                                 urgency === 'urgent' ? 'Urgent' :
-                                 urgency === 'normal' ? 'Normal' : urgency}
+                                {urgencyTranslations[urgency as keyof typeof urgencyTranslations]}
                               </span>
                             </TableCell>
                             
@@ -617,49 +686,69 @@ const ReportsTab: React.FC<ReportsTabProps> = ({
                               {formatResponseTime(report.response_time_hours || 0)}
                             </TableCell>
                             
+                            {/* CORRECTION MAJEURE: Actions selon la logique métier */}
                             <TableCell>
                               <div className="flex items-center space-x-1">
+                                {/* Bouton de détail - toujours visible */}
                                 <Button 
                                   variant="outline" 
                                   size="sm"
                                   onClick={() => openDetailModal(report)}
                                   className="h-7 w-7 p-0"
+                                  title="Voir les détails"
                                 >
                                   <Eye className="h-3 w-3" />
                                 </Button>
                                 
-                                {report.status === 'pending' && (
-                                  <>
-                                    <Button 
-                                      variant="outline" 
-                                      size="sm"
-                                      onClick={() => handleQuickAction(report.id, 'approve', 'Signalement approuvé')}
-                                      className="h-7 w-7 p-0"
-                                      title="Approuver"
-                                    >
-                                      <CheckCircle className="h-3 w-3 text-green-600" />
-                                    </Button>
-                                    
-                                    <Button 
-                                      variant="outline" 
-                                      size="sm"
-                                      onClick={() => handleQuickAction(report.id, 'dismiss', 'Signalement rejeté')}
-                                      className="h-7 w-7 p-0"
-                                      title="Rejeter"
-                                    >
-                                      <XCircle className="h-3 w-3 text-red-600" />
-                                    </Button>
-                                    
-                                    <Button 
-                                      variant="outline" 
-                                      size="sm"
-                                      onClick={() => openActionModal(report)}
-                                      className="h-7 w-7 p-0"
-                                      title="Actions avancées"
-                                    >
-                                      <Settings className="h-3 w-3" />
-                                    </Button>
-                                  </>
+                                {/* Boutons d'approbation/rejet - seulement si en attente */}
+                                {actions.canApprove && (
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => handleQuickAction(report.id, 'approve', 'Signalement approuvé après examen')}
+                                    className="h-7 w-7 p-0 border-green-300 hover:bg-green-50"
+                                    title="Approuver le signalement"
+                                  >
+                                    <CheckCircle className="h-3 w-3 text-green-600" />
+                                  </Button>
+                                )}
+                                
+                                {actions.canDismiss && (
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => handleQuickAction(report.id, 'dismiss', 'Signalement rejeté après examen')}
+                                    className="h-7 w-7 p-0 border-red-300 hover:bg-red-50"
+                                    title="Rejeter le signalement"
+                                  >
+                                    <XCircle className="h-3 w-3 text-red-600" />
+                                  </Button>
+                                )}
+                                
+                                {/* Actions avancées - seulement si approuvé */}
+                                {actions.canAdvancedActions && (
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => openActionModal(report)}
+                                    className="h-7 w-7 p-0 border-blue-300 hover:bg-blue-50"
+                                    title="Appliquer des sanctions"
+                                  >
+                                    <Gavel className="h-3 w-3 text-blue-600" />
+                                  </Button>
+                                )}
+
+                                {/* Indicateur d'état pour les rapports traités */}
+                                {report.status === 'resolved' && !actions.canAdvancedActions && (
+                                  <Badge variant="outline" className="text-xs px-2 py-1 bg-green-50 text-green-700 border-green-200">
+                                    Traité
+                                  </Badge>
+                                )}
+                                
+                                {report.status === 'dismissed' && (
+                                  <Badge variant="outline" className="text-xs px-2 py-1 bg-gray-50 text-gray-700 border-gray-200">
+                                    Rejeté
+                                  </Badge>
                                 )}
                               </div>
                             </TableCell>
@@ -675,7 +764,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({
         </CardContent>
       </Card>
 
-      {/* Modal de détail - Interface préservée mais adaptée */}
+      {/* Modal de détail avec traductions */}
       <AlertDialog open={showDetailModal} onOpenChange={setShowDetailModal}>
         <AlertDialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <AlertDialogHeader>
@@ -687,7 +776,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({
           
           {selectedReport && (
             <div className="space-y-4">
-              {/* Informations principales */}
+              {/* Informations principales avec traductions */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label className="text-sm font-medium">Cible</Label>
@@ -706,19 +795,14 @@ const ReportsTab: React.FC<ReportsTabProps> = ({
                 <div>
                   <Label className="text-sm font-medium">Priorité</Label>
                   <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium mt-1 ${getPriorityColor(selectedReport.priority)}`}>
-                    {selectedReport.priority}
+                    {priorityTranslations[selectedReport.priority as keyof typeof priorityTranslations]}
                   </span>
                 </div>
                 
                 <div>
                   <Label className="text-sm font-medium">Statut</Label>
-                  <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium mt-1 ${
-                    selectedReport.status === 'pending' ? 'bg-orange-100 text-orange-600' :
-                    selectedReport.status === 'resolved' ? 'bg-green-100 text-green-600' :
-                    selectedReport.status === 'dismissed' ? 'bg-gray-100 text-gray-600' :
-                    'bg-blue-100 text-blue-600'
-                  }`}>
-                    {selectedReport.status}
+                  <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium mt-1 ${getStatusColorTranslated(selectedReport.status)}`}>
+                    {statusTranslations[selectedReport.status as keyof typeof statusTranslations]}
                   </span>
                 </div>
               </div>
@@ -759,7 +843,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({
                 </div>
               </div>
 
-              {/* Informations temporelles - utilise formatDate du hook */}
+              {/* Informations temporelles */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label className="text-sm font-medium">Date de signalement</Label>
@@ -776,46 +860,90 @@ const ReportsTab: React.FC<ReportsTabProps> = ({
                 </div>
               </div>
 
-              {/* Actions rapides dans le modal */}
-              {selectedReport.status === 'pending' && (
-                <div className="flex flex-col sm:flex-row gap-2 pt-4 border-t border-gray-200">
-                  <Button 
-                    onClick={() => {
-                      handleQuickAction(selectedReport.id, 'approve', 'Signalement approuvé après examen');
-                      setShowDetailModal(false);
-                    }}
-                    size="sm"
-                    className="bg-green-600 hover:bg-green-700"
-                  >
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Approuver
-                  </Button>
-                  
-                  <Button 
-                    onClick={() => {
-                      handleQuickAction(selectedReport.id, 'dismiss', 'Signalement rejeté après examen');
-                      setShowDetailModal(false);
-                    }}
-                    size="sm"
-                    variant="destructive"
-                  >
-                    <XCircle className="h-4 w-4 mr-2" />
-                    Rejeter
-                  </Button>
-                  
-                  <Button 
-                    onClick={() => {
-                      setShowDetailModal(false);
-                      openActionModal(selectedReport);
-                    }}
-                    size="sm"
-                    variant="outline"
-                  >
-                    <Settings className="h-4 w-4 mr-2" />
-                    Actions avancées
-                  </Button>
-                </div>
-              )}
+              {/* CORRECTION: Actions dans le modal selon le statut */}
+              {(() => {
+                const modalActions = getAvailableActions(selectedReport);
+                
+                if (modalActions.canApprove || modalActions.canDismiss) {
+                  return (
+                    <div className="flex flex-col sm:flex-row gap-2 pt-4 border-t border-gray-200">
+                      <p className="text-sm text-gray-600 mb-2 sm:mb-0 sm:mr-4 flex-1">
+                        Que voulez-vous faire de ce signalement ?
+                      </p>
+                      
+                      {modalActions.canApprove && (
+                        <Button 
+                          onClick={() => {
+                            handleQuickAction(selectedReport.id, 'approve', 'Signalement approuvé après examen détaillé');
+                            setShowDetailModal(false);
+                          }}
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700"
+                        >
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                          Approuver
+                        </Button>
+                      )}
+                      
+                      {modalActions.canDismiss && (
+                        <Button 
+                          onClick={() => {
+                            handleQuickAction(selectedReport.id, 'dismiss', 'Signalement rejeté après examen détaillé');
+                            setShowDetailModal(false);
+                          }}
+                          size="sm"
+                          variant="destructive"
+                        >
+                          <XCircle className="h-4 w-4 mr-2" />
+                          Rejeter
+                        </Button>
+                      )}
+                    </div>
+                  );
+                } else if (modalActions.canAdvancedActions) {
+                  return (
+                    <div className="flex flex-col sm:flex-row gap-2 pt-4 border-t border-gray-200">
+                      <p className="text-sm text-gray-600 mb-2 sm:mb-0 sm:mr-4 flex-1">
+                        Ce signalement a été approuvé. Vous pouvez maintenant appliquer des sanctions.
+                      </p>
+                      
+                      <Button 
+                        onClick={() => {
+                          setShowDetailModal(false);
+                          openActionModal(selectedReport);
+                        }}
+                        size="sm"
+                        className="bg-blue-600 hover:bg-blue-700"
+                      >
+                        <Gavel className="h-4 w-4 mr-2" />
+                        Appliquer sanctions
+                      </Button>
+                    </div>
+                  );
+                } else {
+                  return (
+                    <div className="pt-4 border-t border-gray-200">
+                      <div className="flex items-center space-x-2">
+                        {selectedReport.status === 'dismissed' ? (
+                          <>
+                            <XCircle className="h-4 w-4 text-gray-500" />
+                            <p className="text-sm text-gray-600">
+                              Ce signalement a été rejeté et est maintenant fermé.
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle className="h-4 w-4 text-green-500" />
+                            <p className="text-sm text-gray-600">
+                              Ce signalement a été traité avec succès.
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
+              })()}
             </div>
           )}
 
@@ -827,8 +955,8 @@ const ReportsTab: React.FC<ReportsTabProps> = ({
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Modal d'actions avancées - utilise les actions du hook centralisé */}
-      {selectedReport && (
+      {/* Modal d'actions avancées - ne s'ouvre que pour les signalements approuvés */}
+      {selectedReport && getAvailableActions(selectedReport).canAdvancedActions && (
         <ReportActionModal
           report={selectedReport}
           isOpen={showActionModal}
