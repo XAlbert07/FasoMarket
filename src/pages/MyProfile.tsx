@@ -1,6 +1,6 @@
-// pages/MyProfile.tsx 
+// pages/MyProfile.tsx - VERSION COMPLÈTE MOBILE-FIRST AVEC UPLOAD AVATAR
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,13 +11,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
 
 import {
   User, Mail, Phone, MapPin, Calendar, Star, Package, Shield, Camera, Save, 
   AlertCircle, CheckCircle, Edit, Eye, Settings, ChevronRight, MoreVertical,
-  Lock, Smartphone, Monitor, TrendingUp, MessageCircle, Heart
+  Lock, Smartphone, Monitor, TrendingUp, MessageCircle, Heart, Upload, Trash2, X
 } from "lucide-react";
 
 // Imports des composants spécialisés 
@@ -67,6 +69,382 @@ const MobileLoadingSkeleton = () => (
   </div>
 );
 
+// Composant Modal d'upload d'avatar intégré - Mobile-First
+const AvatarUploadModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
+  const { user, profile, updateProfile } = useAuthContext();
+  const [uploading, setUploading] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validation immédiate
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Format invalide",
+        description: "Veuillez sélectionner une image (JPG, PNG, WebP)",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "Fichier trop volumineux",
+        description: "L'image ne doit pas dépasser 5MB",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setSelectedFile(file);
+    
+    // Création du preview
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setPreviewUrl(e.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const processAvatarImage = async (file: File): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+
+      if (!ctx) {
+        reject(new Error('Canvas non supporté'));
+        return;
+      }
+
+      img.onload = () => {
+        // Dimensions optimales pour avatar (carré)
+        const size = 400;
+        canvas.width = size;
+        canvas.height = size;
+
+        // Calcul pour crop carré centré
+        const { width: imgWidth, height: imgHeight } = img;
+        const minDimension = Math.min(imgWidth, imgHeight);
+        const cropX = (imgWidth - minDimension) / 2;
+        const cropY = (imgHeight - minDimension) / 2;
+
+        // Configuration optimisée pour avatars
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+
+        // Dessin avec crop carré centré
+        ctx.drawImage(
+          img,
+          cropX, cropY, minDimension, minDimension, // Source (crop carré)
+          0, 0, size, size // Destination (redimensionnement)
+        );
+
+        // Conversion en blob avec qualité élevée pour les avatars
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              console.log(`Avatar traité: ${imgWidth}x${imgHeight} → ${size}x${size} (${Math.round(blob.size/1024)}KB)`);
+              resolve(blob);
+            } else {
+              reject(new Error('Échec traitement image'));
+            }
+          },
+          'image/jpeg',
+          0.9 // Qualité élevée pour les avatars
+        );
+
+        img.remove();
+      };
+
+      img.onerror = () => reject(new Error('Impossible de charger l\'image'));
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
+  const deleteOldAvatar = async (userId: string) => {
+    try {
+      // Liste des fichiers existants pour cet utilisateur
+      const { data: files, error: listError } = await supabase.storage
+        .from('avatars')
+        .list('', {
+          search: userId
+        });
+
+      if (listError || !files) return;
+
+      // Suppression de tous les anciens avatars de l'utilisateur
+      const oldFiles = files
+        .filter(file => file.name.startsWith(userId))
+        .map(file => file.name);
+
+      if (oldFiles.length > 0) {
+        const { error: deleteError } = await supabase.storage
+          .from('avatars')
+          .remove(oldFiles);
+
+        if (deleteError) {
+          console.warn('Erreur suppression ancien avatar:', deleteError);
+        } else {
+          console.log(`Supprimé ${oldFiles.length} ancien(s) avatar(s)`);
+        }
+      }
+    } catch (error) {
+      console.warn('Erreur lors de la suppression de l\'ancien avatar:', error);
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!selectedFile || !user) return;
+
+    setUploading(true);
+
+    try {
+      // Compression et redimensionnement de l'avatar
+      const processedFile = await processAvatarImage(selectedFile);
+      
+      // Nom de fichier unique pour éviter les conflits
+      const fileExt = selectedFile.type.split('/')[1];
+      const fileName = `${user.id}_${Date.now()}.${fileExt}`;
+
+      // Suppression de l'ancien avatar si existant
+      await deleteOldAvatar(user.id);
+
+      // Upload vers Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, processedFile, {
+          contentType: 'image/jpeg',
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (uploadError) {
+        console.error('Erreur upload:', uploadError);
+        throw new Error(`Erreur upload: ${uploadError.message}`);
+      }
+
+      // Récupération de l'URL publique
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(uploadData.path);
+
+      // Mise à jour du profil utilisateur
+      await updateProfile({ avatar_url: publicUrl });
+
+      toast({
+        title: "Avatar mis à jour",
+        description: "Votre photo de profil a été mise à jour avec succès"
+      });
+
+      resetModal();
+      onClose();
+
+    } catch (error) {
+      console.error('Erreur upload avatar:', error);
+      toast({
+        title: "Erreur",
+        description: error instanceof Error ? error.message : 'Erreur lors de la mise à jour de l\'avatar',
+        variant: "destructive"
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!user) return;
+
+    setUploading(true);
+
+    try {
+      // Suppression du fichier dans le storage
+      await deleteOldAvatar(user.id);
+
+      // Mise à jour du profil pour supprimer l'URL
+      await updateProfile({ avatar_url: null });
+
+      toast({
+        title: "Avatar supprimé",
+        description: "Votre photo de profil a été supprimée"
+      });
+
+      resetModal();
+      onClose();
+
+    } catch (error) {
+      console.error('Erreur suppression avatar:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de supprimer l'avatar",
+        variant: "destructive"
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const resetModal = () => {
+    setPreviewUrl(null);
+    setSelectedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleClose = () => {
+    resetModal();
+    onClose();
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={handleClose}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Camera className="h-5 w-5" />
+            Photo de profil
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-6">
+          {/* Aperçu de l'avatar actuel/nouveau */}
+          <div className="flex flex-col items-center space-y-4">
+            <div className="relative">
+              <Avatar className="h-32 w-32 border-4 border-muted">
+                <AvatarImage 
+                  src={previewUrl || profile?.avatar_url} 
+                  className="object-cover"
+                />
+                <AvatarFallback className="text-2xl">
+                  {profile?.full_name?.charAt(0)?.toUpperCase() || 
+                   user?.email?.charAt(0)?.toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              
+              {(previewUrl || profile?.avatar_url) && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="absolute -top-2 -right-2 h-8 w-8 rounded-full p-0"
+                  onClick={() => {
+                    if (previewUrl) {
+                      resetModal();
+                    } else {
+                      handleDelete();
+                    }
+                  }}
+                  disabled={uploading}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground">
+                {selectedFile 
+                  ? `Nouvelle photo sélectionnée: ${selectedFile.name}`
+                  : profile?.avatar_url 
+                    ? 'Photo de profil actuelle'
+                    : 'Aucune photo de profil'}
+              </p>
+            </div>
+          </div>
+
+          {/* Input file caché */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleFileSelect}
+            className="hidden"
+          />
+
+          {/* Actions */}
+          <div className="space-y-3">
+            {!selectedFile ? (
+              <>
+                <Button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full"
+                  disabled={uploading}
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Choisir une photo
+                </Button>
+
+                {profile?.avatar_url && (
+                  <Button
+                    variant="destructive"
+                    onClick={handleDelete}
+                    className="w-full"
+                    disabled={uploading}
+                  >
+                    {uploading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2" />
+                        Suppression...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Supprimer la photo
+                      </>
+                    )}
+                  </Button>
+                )}
+              </>
+            ) : (
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={resetModal}
+                  className="flex-1"
+                  disabled={uploading}
+                >
+                  Annuler
+                </Button>
+                
+                <Button
+                  onClick={handleUpload}
+                  className="flex-1"
+                  disabled={uploading}
+                >
+                  {uploading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2" />
+                      Upload...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4 mr-2" />
+                      Sauvegarder
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* Conseils */}
+          <div className="text-xs text-muted-foreground space-y-1">
+            <p>• Formats acceptés: JPG, PNG, WebP</p>
+            <p>• Taille maximale: 5MB</p>
+            <p>• L'image sera automatiquement recadrée au format carré</p>
+            <p>• Résolution recommandée: 400x400px minimum</p>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 const MyProfile = () => {
   const { user, profile, updateProfile } = useAuthContext();
   const { listings, loading: listingsLoading, fetchUserListings } = useListings();
@@ -80,6 +458,7 @@ const MyProfile = () => {
   // États pour les modales d'édition - approche progressive disclosure
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [showStatsModal, setShowStatsModal] = useState(false);
+  const [showAvatarModal, setShowAvatarModal] = useState(false);
   
   // États pour les modales de sécurité - architecture modulaire maintenue
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -210,14 +589,17 @@ const MyProfile = () => {
           )}
         </div>
 
-        {/* MOBILE: Carte de profil principale - Design horizontal */}
+        {/* MOBILE: Carte de profil principale - Avatar cliquable */}
         <Card className="mb-6">
           <CardContent className="p-4 md:p-6">
             <div className="flex items-center gap-4">
-              {/* Avatar avec bouton de modification */}
+              {/* Avatar avec bouton de modification - Interactive */}
               <div className="relative flex-shrink-0">
-                <Avatar className="h-16 w-16 md:h-20 md:w-20">
-                  <AvatarImage src={profile.avatar_url} />
+                <Avatar 
+                  className="h-16 w-16 md:h-20 md:w-20 cursor-pointer ring-2 ring-offset-2 ring-transparent hover:ring-primary/50 transition-all duration-200" 
+                  onClick={() => setShowAvatarModal(true)}
+                >
+                  <AvatarImage src={profile.avatar_url} className="object-cover" />
                   <AvatarFallback className="text-lg md:text-xl">
                     {profile.full_name?.charAt(0)?.toUpperCase() || 
                      user.email?.charAt(0)?.toUpperCase()}
@@ -226,7 +608,8 @@ const MyProfile = () => {
                 <Button
                   size="sm"
                   variant="secondary"
-                  className="absolute -bottom-1 -right-1 h-8 w-8 rounded-full p-0"
+                  className="absolute -bottom-1 -right-1 h-8 w-8 rounded-full p-0 shadow-lg border-2 border-background hover:scale-110 transition-transform"
+                  onClick={() => setShowAvatarModal(true)}
                 >
                   <Camera className="h-4 w-4" />
                 </Button>
@@ -476,6 +859,12 @@ const MyProfile = () => {
         </div>
 
       </main>
+
+      {/* MODAL: Upload d'avatar - Mobile optimisé */}
+      <AvatarUploadModal
+        isOpen={showAvatarModal}
+        onClose={() => setShowAvatarModal(false)}
+      />
 
       {/* MODAL: Édition du profil - Mobile optimisé */}
       <Dialog open={showEditProfileModal} onOpenChange={setShowEditProfileModal}>

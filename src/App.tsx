@@ -36,6 +36,9 @@ import  SanctionsManagementPage  from '@/pages/admin/components/SanctionsManagem
 import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
 import Blog from "./pages/Blog";
+import { AvatarUploadModal } from '@/components/AvatarUploadModal';
+
+// Le hook sera automatiquement importé dans le modal
 
 const queryClient = new QueryClient();
 
