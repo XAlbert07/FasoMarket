@@ -10,12 +10,12 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 
 const HelpSupport = () => {
-  // États pour l'interface mobile interactive
+  // États pour l'interface 
   const [activeSection, setActiveSection] = useState<'faq' | 'security' | 'contact'>('faq');
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
 
-  // FAQ organisée par catégories pour une meilleure navigation mobile
+  // FAQ organisée par catégories 
   const faqCategories = [
     {
       id: 'account',

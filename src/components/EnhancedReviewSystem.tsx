@@ -1,5 +1,4 @@
 // components/EnhancedReviewSystem.tsx
-// Version améliorée avec guidance utilisateur et vérifications renforcées
 
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";

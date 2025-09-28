@@ -1,5 +1,4 @@
-// ActiveSessionsModal.tsx - VERSION RÉELLE avec intégration Supabase
-// Cette version utilise les vraies méthodes de gestion des sessions du hook useAuth étendu
+// ActiveSessionsModal.tsx
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -18,7 +17,7 @@ import {
   LogOut, Trash2, AlertTriangle, RefreshCw, Wifi 
 } from "lucide-react";
 
-// Import du hook d'authentification étendu
+// Import du hook d'authentification
 import { useAuthContext } from "@/contexts/AuthContext";
 
 interface ActiveSessionsModalProps {
@@ -28,7 +27,7 @@ interface ActiveSessionsModalProps {
   onError?: (error: string) => void;
 }
 
-// Interface étendue pour les sessions avec informations dérivées
+// Interface pour les sessions avec informations dérivées
 interface ExtendedActiveSession {
   id: string;
   user_id: string;
@@ -41,7 +40,6 @@ interface ExtendedActiveSession {
   device_type: 'mobile' | 'tablet' | 'desktop';
   browser: string;
   os: string;
-  location_estimate?: string;
 }
 
 export const ActiveSessionsModal = ({ 
@@ -51,7 +49,6 @@ export const ActiveSessionsModal = ({
   onError 
 }: ActiveSessionsModalProps) => {
   
-  // Utilisation du hook d'authentification étendu
   const { getActiveSessions, revokeSession, revokeAllOtherSessions } = useAuthContext();
   
   const [sessions, setSessions] = useState<ExtendedActiveSession[]>([]);
@@ -67,101 +64,85 @@ export const ActiveSessionsModal = ({
     }
   }, [isOpen]);
 
-  // Fonction pour parser le User-Agent et extraire des informations
+  // Fonction pour parser le User-Agent et extraire des informations RÉELLES
   const parseUserAgent = (userAgent: string) => {
     const ua = userAgent.toLowerCase();
     
-    // Détection du type d'appareil
+    // Détection du type d'appareil (basée sur des patterns réels)
     let deviceType: 'mobile' | 'tablet' | 'desktop' = 'desktop';
-    if (ua.includes('mobile')) {
+    if (/mobile|android|iphone|ipod|blackberry|windows phone/i.test(ua)) {
       deviceType = 'mobile';
-    } else if (ua.includes('tablet') || ua.includes('ipad')) {
+    } else if (/ipad|tablet|kindle|silk|playbook/i.test(ua)) {
       deviceType = 'tablet';
     }
     
-    // Détection du navigateur
-    let browser = 'Inconnu';
-    if (ua.includes('chrome') && !ua.includes('edg')) {
+    // Détection du navigateur (patterns réels)
+    let browser = 'Navigateur inconnu';
+    if (/chrome\/\d+/i.test(ua) && !/edg/i.test(ua)) {
       browser = 'Chrome';
-    } else if (ua.includes('firefox')) {
+    } else if (/firefox\/\d+/i.test(ua)) {
       browser = 'Firefox';
-    } else if (ua.includes('safari') && !ua.includes('chrome')) {
+    } else if (/safari\/\d+/i.test(ua) && !/chrome/i.test(ua)) {
       browser = 'Safari';
-    } else if (ua.includes('edg')) {
+    } else if (/edg\/\d+/i.test(ua)) {
       browser = 'Edge';
-    } else if (ua.includes('opera')) {
+    } else if (/opera|opr\/\d+/i.test(ua)) {
       browser = 'Opera';
     }
     
-    // Détection du système d'exploitation
-    let os = 'Inconnu';
-    if (ua.includes('windows nt')) {
-      os = 'Windows';
-    } else if (ua.includes('mac os x')) {
+    // Détection du système d'exploitation (patterns réels)
+    let os = 'OS inconnu';
+    if (/windows nt \d+/i.test(ua)) {
+      const version = ua.match(/windows nt ([\d.]+)/i)?.[1];
+      os = version === '10.0' ? 'Windows 10/11' : 'Windows';
+    } else if (/mac os x ([\d_]+)/i.test(ua)) {
       os = 'macOS';
-    } else if (ua.includes('linux')) {
+    } else if (/linux/i.test(ua) && !/android/i.test(ua)) {
       os = 'Linux';
-    } else if (ua.includes('android')) {
-      os = 'Android';
-    } else if (ua.includes('iphone') || ua.includes('ipad')) {
-      os = 'iOS';
+    } else if (/android ([\d.]+)/i.test(ua)) {
+      const version = ua.match(/android ([\d.]+)/i)?.[1];
+      os = `Android ${version}`;
+    } else if (/iphone os ([\d_]+)/i.test(ua)) {
+      const version = ua.match(/iphone os ([\d_]+)/i)?.[1]?.replace(/_/g, '.');
+      os = `iOS ${version}`;
+    } else if (/ipad.*os ([\d_]+)/i.test(ua)) {
+      const version = ua.match(/os ([\d_]+)/i)?.[1]?.replace(/_/g, '.');
+      os = `iPadOS ${version}`;
     }
     
     return { deviceType, browser, os };
   };
 
-  // Fonction pour estimer la localisation basée sur l'IP (simulation)
-  const estimateLocation = (ipAddress: string): string => {
-    // En production, vous pourriez utiliser un service de géolocalisation IP
-    // Ici nous simulons avec des données locales pour le Burkina Faso
-    if (ipAddress.startsWith('192.168.') || ipAddress.startsWith('10.') || ipAddress.startsWith('172.')) {
-      return 'Réseau local (Ouagadougou, BF)';
-    }
-    
-    // Simulation basée sur les plages d'IP burkinabè connues
-    if (ipAddress.startsWith('41.78.')) {
-      return 'Bobo-Dioulasso, Hauts-Bassins, BF';
-    } else if (ipAddress.startsWith('196.28.')) {
-      return 'Koudougou, Centre-Ouest, BF';
-    } else if (ipAddress.startsWith('154.72.')) {
-      return 'Ouahigouya, Nord, BF';
-    }
-    
-    return 'Burkina Faso';
-  };
-
-  // FONCTION PRINCIPALE - Chargement des sessions réelles
+  // Chargement des sessions réelles SANS simulation
   const loadSessions = async () => {
     setIsLoading(true);
     setLocalError("");
 
     try {
-      console.log('📋 Chargement des sessions actives...');
+      console.log('Chargement des sessions actives...');
       
       // Appel à la vraie méthode du hook
       const rawSessions = await getActiveSessions();
       
-      // Enrichissement des données de session
+      // Enrichissement des données de session avec des informations RÉELLES uniquement
       const enrichedSessions: ExtendedActiveSession[] = rawSessions.map(session => {
         const { deviceType, browser, os } = parseUserAgent(session.user_agent);
-        const location_estimate = estimateLocation(session.ip_address);
         
         return {
           ...session,
           device_type: deviceType,
           browser,
           os,
-          location_estimate,
           is_current: session.is_current || false
         };
       });
       
       setSessions(enrichedSessions);
-      console.log(`✅ ${enrichedSessions.length} sessions chargées`);
+      console.log(`${enrichedSessions.length} sessions chargées`);
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Erreur lors du chargement des sessions";
-      console.error('❌ Erreur lors du chargement des sessions:', error);
+      console.error('Erreur lors du chargement des sessions:', error);
       setLocalError(errorMessage);
       
       if (onError) {
@@ -179,7 +160,7 @@ export const ActiveSessionsModal = ({
     setIsRefreshing(false);
   };
 
-  // FONCTION RÉELLE - Terminer une session spécifique
+  // Terminer une session spécifique
   const handleTerminateSession = async (sessionId: string) => {
     const session = sessions.find(s => s.id === sessionId);
     
@@ -192,9 +173,8 @@ export const ActiveSessionsModal = ({
     setLocalError("");
 
     try {
-      console.log('🗑️ Terminaison de la session:', sessionId);
+      console.log('Terminaison de la session:', sessionId);
       
-      // Appel à la vraie méthode du hook
       await revokeSession(sessionId);
       
       // Mettre à jour la liste locale
@@ -204,7 +184,7 @@ export const ActiveSessionsModal = ({
         onSuccess();
       }
       
-      console.log('✅ Session terminée avec succès');
+      console.log('Session terminée avec succès');
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Erreur lors de la déconnexion";
@@ -218,7 +198,7 @@ export const ActiveSessionsModal = ({
     }
   };
 
-  // FONCTION RÉELLE - Terminer toutes les autres sessions
+  // Terminer toutes les autres sessions
   const handleTerminateAllOthers = async () => {
     const otherSessionsCount = sessions.filter(s => !s.is_current).length;
     
@@ -231,9 +211,8 @@ export const ActiveSessionsModal = ({
     setLocalError("");
 
     try {
-      console.log('🧹 Terminaison de toutes les autres sessions...');
+      console.log('Terminaison de toutes les autres sessions...');
       
-      // Appel à la vraie méthode du hook
       await revokeAllOtherSessions();
       
       // Mettre à jour la liste locale pour ne garder que la session courante
@@ -243,7 +222,7 @@ export const ActiveSessionsModal = ({
         onSuccess();
       }
       
-      console.log('✅ Toutes les autres sessions terminées');
+      console.log('Toutes les autres sessions terminées');
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Erreur lors de la déconnexion des sessions";
@@ -257,12 +236,8 @@ export const ActiveSessionsModal = ({
     }
   };
 
-  // Calculer les statistiques
+  // Calculer les statistiques (SANS simulations)
   const otherSessionsCount = sessions.filter(s => !s.is_current).length;
-  const insecureSessionsCount = sessions.filter(s => 
-    !s.ip_address.startsWith('https') && // Simulation de détection HTTPS
-    !s.is_current
-  ).length;
 
   // Fonction pour obtenir l'icône appropriée selon le type d'appareil
   const getDeviceIcon = (deviceType: 'mobile' | 'tablet' | 'desktop') => {
@@ -270,14 +245,14 @@ export const ActiveSessionsModal = ({
       case 'mobile':
         return <Smartphone className="h-4 w-4" />;
       case 'tablet':
-        return <Smartphone className="h-4 w-4" />; // Vous pouvez ajouter une icône spécifique pour tablette
+        return <Smartphone className="h-4 w-4" />; // Vous pouvez créer une icône spécifique pour tablette
       case 'desktop':
       default:
         return <Monitor className="h-4 w-4" />;
     }
   };
 
-  // Fonction pour obtenir le badge de statut d'une session
+  // Fonction pour obtenir le badge de statut d'une session (SANS simulations)
   const getSessionBadge = (session: ExtendedActiveSession) => {
     if (session.is_current) {
       return (
@@ -288,14 +263,15 @@ export const ActiveSessionsModal = ({
       );
     }
     
-    // Simulation de détection de connexion non sécurisée
-    const isOldSession = new Date(session.updated_at) < new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    // Détection basée sur l'âge réel de la session (plus de 30 jours)
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const sessionDate = new Date(session.updated_at);
     
-    if (isOldSession) {
+    if (sessionDate < thirtyDaysAgo) {
       return (
         <Badge variant="outline" className="text-xs text-orange-600 border-orange-600">
           <AlertTriangle className="h-3 w-3 mr-1" />
-          Ancienne
+          Session ancienne
         </Badge>
       );
     }
@@ -303,7 +279,7 @@ export const ActiveSessionsModal = ({
     return null;
   };
 
-  // Fonction pour formater la date de dernière activité
+  // Fonction pour formater la date de dernière activité (RÉELLE)
   const formatLastActivity = (updatedAt: string): string => {
     const now = new Date();
     const sessionDate = new Date(updatedAt);
@@ -318,7 +294,12 @@ export const ActiveSessionsModal = ({
     const diffInDays = Math.floor(diffInHours / 24);
     if (diffInDays < 7) return `Il y a ${diffInDays} jour${diffInDays > 1 ? 's' : ''}`;
     
-    return sessionDate.toLocaleDateString('fr-FR');
+    return sessionDate.toLocaleDateString('fr-FR', {
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   // Composant pour afficher une session individuelle
@@ -347,11 +328,11 @@ export const ActiveSessionsModal = ({
           <div className="text-xs text-muted-foreground space-y-1">
             <div className="flex items-center gap-1">
               <MapPin className="h-3 w-3 flex-shrink-0" />
-              <span className="truncate">{session.location_estimate}</span>
+              <span className="truncate">IP: {session.ip_address}</span>
             </div>
             
             <div>
-              IP: {session.ip_address} • {formatLastActivity(session.updated_at)}
+              Dernière activité: {formatLastActivity(session.updated_at)}
             </div>
           </div>
         </div>
@@ -411,7 +392,7 @@ export const ActiveSessionsModal = ({
             </Alert>
           )}
 
-          {/* Statistiques rapides */}
+          {/* Statistiques réelles */}
           <div className="flex gap-4 p-3 bg-muted/50 rounded-lg text-sm">
             <div className="flex items-center gap-2">
               <Monitor className="h-4 w-4" />

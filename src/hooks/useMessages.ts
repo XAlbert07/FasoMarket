@@ -1,13 +1,13 @@
-// hooks/useMessages.ts - VERSION AVEC VÉRIFICATIONS DE SÉCURITÉ TYPESCRIPT
-// Hook unifié pour gérer les messages standards et les messages d'invités
+// hooks/useMessages.ts - VERSION SIMPLIFIÉE ET ROBUSTE
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useGuestMessages, GuestMessage } from '@/hooks/useGuestMessages';
+import { RealtimeChannel } from '@supabase/supabase-js';
 
-// Interface pour les messages standards (utilisateurs connectés)
+// Types pour les messages standards
 export interface StandardMessage {
   id: string;
   listing_id: string;
@@ -16,8 +16,6 @@ export interface StandardMessage {
   content: string;
   read: boolean;
   created_at: string;
-  
-  // Relations avec d'autres tables - avec vérifications de nullité appropriées
   sender?: {
     id: string;
     full_name: string | null;
@@ -39,7 +37,7 @@ export interface StandardMessage {
   } | null;
 }
 
-// Interface unifiée qui combine les deux types de messages
+// Type unifié pour tous les messages
 export interface UnifiedMessage {
   id: string;
   listing_id: string;
@@ -47,7 +45,6 @@ export interface UnifiedMessage {
   created_at: string;
   is_read: boolean;
   type: 'standard' | 'guest';
-  
   sender_info: {
     id?: string;
     name: string;
@@ -55,19 +52,18 @@ export interface UnifiedMessage {
     phone?: string;
     avatar_url?: string | null;
     is_registered: boolean;
+    status?: 'online' | 'offline' | 'away';
   };
-  
   listing_info?: {
     title: string;
     price: number;
     currency: string;
     images: string[];
   };
-  
   original_data: StandardMessage | GuestMessage;
 }
 
-// Interface pour une conversation
+// Type pour les conversations avec statut simplifié
 export interface Conversation {
   id: string;
   listing_id: string;
@@ -85,38 +81,57 @@ export interface Conversation {
   unread_count: number;
   total_messages: number;
   conversation_type: 'standard' | 'guest' | 'mixed';
+  participant_status: 'online' | 'offline' | 'away';
+  is_typing: boolean;
+}
+
+// Type pour la présence utilisateur
+export interface UserPresence {
+  user_id: string;
+  status: 'online' | 'offline' | 'away';
+  last_seen: string;
 }
 
 export const useMessages = () => {
+  // États principaux simplifiés
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<UnifiedMessage[]>([]);
   const [loading, setLoading] = useState(false);
+  const [userPresence, setUserPresence] = useState<Record<string, UserPresence>>({});
+  const [isConnected, setIsConnected] = useState(true);
+
+  // Contextes
   const { user } = useAuthContext();
   const { toast } = useToast();
   const { getGuestMessagesForSeller } = useGuestMessages();
 
+  // Références pour éviter les re-créations et gérer les connexions
+  const messageChannelRef = useRef<RealtimeChannel | null>(null);
+  const presenceChannelRef = useRef<RealtimeChannel | null>(null);
+  const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const currentUserIdRef = useRef<string | null>(null);
+  const isInitializedRef = useRef(false);
+
   /**
-   * Fonctions utilitaires pour l'extraction sécurisée des données
+   * Fonction utilitaire pour extraire les données de listing de manière sécurisée
    */
   const extractListingData = useCallback((listing: any) => {
-    if (!listing) return { title: 'Annonce supprimée', price: 0, currency: 'CFA' };
-    
-    // Gestion du cas où listing est un tableau (relation one-to-many)
+    if (!listing) return { title: 'Annonce supprimée', price: 0, currency: 'CFA', images: [] };
     const listingData = Array.isArray(listing) ? listing[0] : listing;
-    
     return {
       title: listingData?.title || 'Annonce supprimée',
       price: listingData?.price || 0,
-      currency: listingData?.currency || 'CFA'
+      currency: listingData?.currency || 'CFA',
+      images: listingData?.images || []
     };
   }, []);
 
+  /**
+   * Fonction utilitaire pour extraire les données de profil de manière sécurisée
+   */
   const extractProfileData = useCallback((profile: any) => {
     if (!profile) return { id: null, full_name: 'Utilisateur inconnu', email: '', avatar_url: null };
-    
-    // Gestion du cas où profile est un tableau (relation one-to-many)
     const profileData = Array.isArray(profile) ? profile[0] : profile;
-    
     return {
       id: profileData?.id || null,
       full_name: profileData?.full_name || 'Utilisateur inconnu',
@@ -126,21 +141,33 @@ export const useMessages = () => {
   }, []);
 
   /**
-   * Récupère toutes les conversations pour l'utilisateur connecté
-   * VERSION AVEC VÉRIFICATIONS DE SÉCURITÉ COMPLÈTES
+   * Fonction pour mettre à jour la présence utilisateur
+   */
+  const updateUserPresence = useCallback(async (status: 'online' | 'offline' | 'away') => {
+    if (!presenceChannelRef.current || !currentUserIdRef.current) return;
+
+    try {
+      await presenceChannelRef.current.track({
+        user_id: currentUserIdRef.current,
+        status: status,
+        last_seen: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('Erreur mise à jour présence:', error);
+      setIsConnected(false);
+    }
+  }, []);
+
+  /**
+   * Fonction pour charger toutes les conversations
    */
   const fetchConversations = useCallback(async (): Promise<void> => {
-    if (!user) {
-      console.warn('Tentative de récupération des conversations sans utilisateur connecté');
-      return;
-    }
+    if (!currentUserIdRef.current) return;
 
     setLoading(true);
 
     try {
-      console.log('Récupération des conversations pour l\'utilisateur:', user.id);
-
-      // Récupération des conversations depuis les messages standards
+      // Récupération des conversations standards avec une seule requête optimisée
       const { data: standardConversations, error: standardError } = await supabase
         .from('messages')
         .select(`
@@ -150,185 +177,138 @@ export const useMessages = () => {
           content,
           created_at,
           read,
-          listing:listings(
-            id,
-            title,
-            price,
-            currency,
-            images
-          ),
-          sender:profiles!messages_sender_id_fkey(
-            id,
-            full_name,
-            email,
-            avatar_url
-          ),
-          receiver:profiles!messages_receiver_id_fkey(
-            id,
-            full_name,
-            email,
-            avatar_url
-          )
+          listing:listings(id, title, price, currency, images),
+          sender:profiles!messages_sender_id_fkey(id, full_name, email, avatar_url),
+          receiver:profiles!messages_receiver_id_fkey(id, full_name, email, avatar_url)
         `)
-        .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
+        .or(`sender_id.eq.${currentUserIdRef.current},receiver_id.eq.${currentUserIdRef.current}`)
         .order('created_at', { ascending: false });
 
-      if (standardError) {
-        console.error('Erreur lors de la récupération des messages standards:', standardError);
-        throw standardError;
-      }
+      if (standardError) throw standardError;
 
       // Récupération des messages d'invités
-      const guestMessages = await getGuestMessagesForSeller(user.id);
+      const guestMessages = await getGuestMessagesForSeller(currentUserIdRef.current);
 
-      // Traitement des conversations standards avec vérifications de sécurité
+      // Traitement simplifié des conversations standards
       const standardConversationsMap = new Map<string, Conversation>();
       
-      if (standardConversations && Array.isArray(standardConversations)) {
-        standardConversations.forEach(message => {
-          // CORRECTION: Extraction sécurisée des données relationnelles
-          const senderData = extractProfileData(message.sender);
-          const receiverData = extractProfileData(message.receiver);
-          const listingData = extractListingData(message.listing);
-          
-          // Déterminer qui est l'autre participant dans la conversation
-          const otherParticipant = message.sender_id === user.id ? receiverData : senderData;
-          const conversationKey = `${message.listing_id}_${otherParticipant.id}`;
-          
-          if (!standardConversationsMap.has(conversationKey)) {
-            standardConversationsMap.set(conversationKey, {
-              id: conversationKey,
-              listing_id: message.listing_id,
-              listing_title: listingData.title,
-              listing_price: listingData.price,
-              listing_currency: listingData.currency,
-              participant_id: otherParticipant.id,
-              participant_name: otherParticipant.full_name || 'Utilisateur inconnu',
-              participant_email: otherParticipant.email || '',
-              participant_avatar: otherParticipant.avatar_url,
-              is_participant_registered: true,
-              last_message: message.content || '',
-              last_message_at: message.created_at || new Date().toISOString(),
-              unread_count: 0,
-              total_messages: 0,
-              conversation_type: 'standard'
-            });
-          }
-          
-          // Mise à jour des compteurs et du dernier message
-          const conversation = standardConversationsMap.get(conversationKey);
-          if (conversation) {
-            conversation.total_messages++;
-            
-            // Compter les messages non lus (seulement ceux reçus par l'utilisateur actuel)
-            if (!message.read && message.receiver_id === user.id) {
-              conversation.unread_count++;
-            }
-            
-            // Mettre à jour le dernier message si celui-ci est plus récent
-            const messageDate = new Date(message.created_at || 0);
-            const conversationDate = new Date(conversation.last_message_at || 0);
-            
-            if (messageDate > conversationDate) {
-              conversation.last_message = message.content || '';
-              conversation.last_message_at = message.created_at || new Date().toISOString();
-            }
-          }
-        });
-      }
+      standardConversations?.forEach(message => {
+        const senderData = extractProfileData(message.sender);
+        const receiverData = extractProfileData(message.receiver);
+        const listingData = extractListingData(message.listing);
+        
+        // Détermine qui est l'autre participant
+        const otherParticipant = message.sender_id === currentUserIdRef.current ? receiverData : senderData;
+        const conversationKey = `${message.listing_id}_${otherParticipant.id}`;
+        
+        if (!standardConversationsMap.has(conversationKey)) {
+          standardConversationsMap.set(conversationKey, {
+            id: conversationKey,
+            listing_id: message.listing_id,
+            listing_title: listingData.title,
+            listing_price: listingData.price,
+            listing_currency: listingData.currency,
+            participant_id: otherParticipant.id,
+            participant_name: otherParticipant.full_name || 'Utilisateur inconnu',
+            participant_email: otherParticipant.email || '',
+            participant_avatar: otherParticipant.avatar_url,
+            is_participant_registered: true,
+            last_message: message.content || '',
+            last_message_at: message.created_at || new Date().toISOString(),
+            unread_count: 0,
+            total_messages: 0,
+            conversation_type: 'standard',
+            participant_status: 'offline', // Sera mis à jour par la présence
+            is_typing: false
+          });
+        }
+        
+        // Mise à jour des compteurs
+        const conversation = standardConversationsMap.get(conversationKey)!;
+        conversation.total_messages++;
+        
+        if (!message.read && message.receiver_id === currentUserIdRef.current) {
+          conversation.unread_count++;
+        }
+        
+        // Mise à jour du dernier message si plus récent
+        const messageDate = new Date(message.created_at || 0);
+        const conversationDate = new Date(conversation.last_message_at || 0);
+        
+        if (messageDate > conversationDate) {
+          conversation.last_message = message.content || '';
+          conversation.last_message_at = message.created_at || new Date().toISOString();
+        }
+      });
 
       // Traitement des conversations d'invités
       const guestConversationsMap = new Map<string, Conversation>();
       
-      if (Array.isArray(guestMessages)) {
-        guestMessages.forEach(guestMessage => {
-          // Pour les invités, on utilise l'email comme identifiant unique
-          const conversationKey = `${guestMessage.listing_id}_guest_${guestMessage.guest_email}`;
-          
-          if (!guestConversationsMap.has(conversationKey)) {
-            guestConversationsMap.set(conversationKey, {
-              id: conversationKey,
-              listing_id: guestMessage.listing_id || '',
-              listing_title: guestMessage.listing?.title || 'Annonce supprimée',
-              listing_price: guestMessage.listing?.price || 0,
-              listing_currency: guestMessage.listing?.currency || 'CFA',
-              participant_id: null, // Les invités n'ont pas d'ID utilisateur
-              participant_name: guestMessage.guest_name || 'Invité',
-              participant_email: guestMessage.guest_email || '',
-              participant_phone: guestMessage.guest_phone,
-              participant_avatar: null, // Les invités n'ont pas d'avatar
-              is_participant_registered: false,
-              last_message: guestMessage.content || '',
-              last_message_at: guestMessage.created_at || new Date().toISOString(),
-              unread_count: guestMessage.is_read ? 0 : 1,
-              total_messages: 1,
-              conversation_type: 'guest'
-            });
-          } else {
-            // Mise à jour d'une conversation existante
-            const conversation = guestConversationsMap.get(conversationKey);
-            if (conversation) {
-              conversation.total_messages++;
-              
-              if (!guestMessage.is_read) {
-                conversation.unread_count++;
-              }
-              
-              const messageDate = new Date(guestMessage.created_at || 0);
-              const conversationDate = new Date(conversation.last_message_at || 0);
-              
-              if (messageDate > conversationDate) {
-                conversation.last_message = guestMessage.content || '';
-                conversation.last_message_at = guestMessage.created_at || new Date().toISOString();
-              }
-            }
-          }
-        });
-      }
+      guestMessages?.forEach(guestMessage => {
+        const conversationKey = `${guestMessage.listing_id}_guest_${guestMessage.guest_email}`;
+        
+        if (!guestConversationsMap.has(conversationKey)) {
+          guestConversationsMap.set(conversationKey, {
+            id: conversationKey,
+            listing_id: guestMessage.listing_id || '',
+            listing_title: guestMessage.listing?.title || 'Annonce supprimée',
+            listing_price: guestMessage.listing?.price || 0,
+            listing_currency: guestMessage.listing?.currency || 'CFA',
+            participant_id: null,
+            participant_name: guestMessage.guest_name || 'Invité',
+            participant_email: guestMessage.guest_email || '',
+            participant_phone: guestMessage.guest_phone,
+            participant_avatar: null,
+            is_participant_registered: false,
+            last_message: guestMessage.content || '',
+            last_message_at: guestMessage.created_at || new Date().toISOString(),
+            unread_count: guestMessage.is_read ? 0 : 1,
+            total_messages: 1,
+            conversation_type: 'guest',
+            participant_status: 'offline',
+            is_typing: false
+          });
+        }
+      });
 
-      // Fusion et tri des conversations
+      // Fusion et tri par date du dernier message
       const allConversations = [
         ...Array.from(standardConversationsMap.values()),
         ...Array.from(guestConversationsMap.values())
       ].sort((a, b) => new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime());
 
       setConversations(allConversations);
-      
-      console.log(`${allConversations.length} conversations récupérées (${standardConversationsMap.size} standards, ${guestConversationsMap.size} invités)`);
+      setIsConnected(true);
 
     } catch (error) {
       console.error('Erreur lors de la récupération des conversations:', error);
+      setIsConnected(false);
       toast({
-        title: "Erreur",
+        title: "Erreur de connexion",
         description: "Impossible de récupérer vos conversations",
         variant: "destructive"
       });
     } finally {
       setLoading(false);
     }
-  }, [user, toast, getGuestMessagesForSeller, extractProfileData, extractListingData]);
+  }, [getGuestMessagesForSeller, toast, extractListingData, extractProfileData]);
 
   /**
-   * Récupère tous les messages pour une conversation spécifique
-   * VERSION AVEC VÉRIFICATIONS DE SÉCURITÉ
+   * Fonction pour charger les messages d'une conversation spécifique
    */
   const fetchMessages = useCallback(async (listingId: string, participantId: string | null): Promise<void> => {
-    if (!user) return;
+    if (!currentUserIdRef.current) return;
 
     setLoading(true);
 
     try {
-      console.log('Récupération des messages pour la conversation:', { listingId, participantId });
-
       let allMessages: UnifiedMessage[] = [];
 
-      // Si participantId est null, c'est une conversation avec un invité
       if (participantId === null) {
-        // Récupérer les messages d'invités pour cette annonce
-        const guestMessages = await getGuestMessagesForSeller(user.id);
+        // Messages d'invités uniquement
+        const guestMessages = await getGuestMessagesForSeller(currentUserIdRef.current);
         const relevantGuestMessages = guestMessages.filter(msg => msg.listing_id === listingId);
         
-        // Convertir les messages d'invités au format unifié
         allMessages = relevantGuestMessages.map(guestMsg => ({
           id: guestMsg.id || '',
           listing_id: guestMsg.listing_id || '',
@@ -340,7 +320,8 @@ export const useMessages = () => {
             name: guestMsg.guest_name || 'Invité',
             email: guestMsg.guest_email || '',
             phone: guestMsg.guest_phone,
-            is_registered: false
+            is_registered: false,
+            status: 'offline'
           },
           listing_info: guestMsg.listing ? {
             title: guestMsg.listing.title || '',
@@ -351,82 +332,58 @@ export const useMessages = () => {
           original_data: guestMsg
         }));
       } else {
-        // Récupérer les messages standards pour cette conversation
+        // Messages standards entre utilisateurs connectés
         const { data: standardMessages, error } = await supabase
           .from('messages')
           .select(`
             *,
-            sender:profiles!messages_sender_id_fkey(
-              id,
-              full_name,
-              email,
-              avatar_url
-            ),
-            receiver:profiles!messages_receiver_id_fkey(
-              id,
-              full_name,
-              email,
-              avatar_url
-            ),
-            listing:listings(
-              id,
-              title,
-              price,
-              currency,
-              images
-            )
+            sender:profiles!messages_sender_id_fkey(id, full_name, email, avatar_url),
+            receiver:profiles!messages_receiver_id_fkey(id, full_name, email, avatar_url),
+            listing:listings(id, title, price, currency, images)
           `)
           .eq('listing_id', listingId)
-          .or(`and(sender_id.eq.${user.id},receiver_id.eq.${participantId}),and(sender_id.eq.${participantId},receiver_id.eq.${user.id})`)
+          .or(`and(sender_id.eq.${currentUserIdRef.current},receiver_id.eq.${participantId}),and(sender_id.eq.${participantId},receiver_id.eq.${currentUserIdRef.current})`)
           .order('created_at', { ascending: true });
 
-        if (error) {
-          console.error('Erreur lors de la récupération des messages standards:', error);
-          throw error;
-        }
+        if (error) throw error;
 
-        // Convertir les messages standards au format unifié avec vérifications de sécurité
-        if (standardMessages && Array.isArray(standardMessages)) {
-          allMessages = standardMessages.map(stdMsg => {
-            const senderData = extractProfileData(stdMsg.sender);
-            const listingData = extractListingData(stdMsg.listing);
-            
-            return {
-              id: stdMsg.id || '',
-              listing_id: stdMsg.listing_id || '',
-              content: stdMsg.content || '',
-              created_at: stdMsg.created_at || new Date().toISOString(),
-              is_read: stdMsg.read || false,
-              type: 'standard' as const,
-              sender_info: {
-                id: senderData.id || undefined,
-                name: senderData.full_name || 'Utilisateur inconnu',
-                email: senderData.email || '',
-                avatar_url: senderData.avatar_url,
-                is_registered: true
-              },
-              listing_info: stdMsg.listing ? {
-                title: listingData.title,
-                price: listingData.price,
-                currency: listingData.currency,
-                images: Array.isArray(stdMsg.listing) 
-                  ? (stdMsg.listing[0]?.images || [])
-                  : (stdMsg.listing?.images || [])
-              } : undefined,
-              original_data: stdMsg as StandardMessage
-            };
-          });
-        }
+        allMessages = standardMessages?.map(stdMsg => {
+          const senderData = extractProfileData(stdMsg.sender);
+          const listingData = extractListingData(stdMsg.listing);
+          const senderPresence = userPresence[senderData.id || ''];
+          
+          return {
+            id: stdMsg.id || '',
+            listing_id: stdMsg.listing_id || '',
+            content: stdMsg.content || '',
+            created_at: stdMsg.created_at || new Date().toISOString(),
+            is_read: stdMsg.read || false,
+            type: 'standard' as const,
+            sender_info: {
+              id: senderData.id || undefined,
+              name: senderData.full_name || 'Utilisateur inconnu',
+              email: senderData.email || '',
+              avatar_url: senderData.avatar_url,
+              is_registered: true,
+              status: senderPresence?.status || 'offline'
+            },
+            listing_info: stdMsg.listing ? {
+              title: listingData.title,
+              price: listingData.price,
+              currency: listingData.currency,
+              images: listingData.images
+            } : undefined,
+            original_data: stdMsg as StandardMessage
+          };
+        }) || [];
       }
 
-      // Trier les messages par date (plus ancien en premier pour l'affichage de chat)
-      allMessages.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-      
       setMessages(allMessages);
-      console.log(`${allMessages.length} messages récupérés pour la conversation`);
+      setIsConnected(true);
 
     } catch (error) {
       console.error('Erreur lors de la récupération des messages:', error);
+      setIsConnected(false);
       toast({
         title: "Erreur",
         description: "Impossible de récupérer les messages",
@@ -435,110 +392,329 @@ export const useMessages = () => {
     } finally {
       setLoading(false);
     }
-  }, [user, toast, getGuestMessagesForSeller, extractProfileData, extractListingData]);
+  }, [getGuestMessagesForSeller, toast, userPresence, extractProfileData, extractListingData]);
 
   /**
-   * Envoie un message standard (utilisateur connecté à utilisateur connecté)
+   * FONCTION CLEF : Envoi de message SANS rechargement de page
+   * Cette fonction élimine complètement le besoin de recharger la page
    */
   const sendMessage = useCallback(async (
     listingId: string, 
     receiverId: string, 
     content: string
   ): Promise<boolean> => {
-    if (!user || !content.trim()) {
-      console.warn('Tentative d\'envoi de message invalide');
-      return false;
-    }
+    if (!currentUserIdRef.current || !content.trim()) return false;
 
+    const tempMessageId = `temp_${Date.now()}`;
+    
     try {
-      console.log('Envoi d\'un message standard:', { listingId, receiverId });
+      // Récupérer les données du profil utilisateur pour le feedback immédiat
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name, avatar_url, email')
+        .eq('id', currentUserIdRef.current)
+        .single();
 
-      const { error } = await supabase
+      // Créer un message temporaire pour un feedback instantané
+      const tempMessage: UnifiedMessage = {
+        id: tempMessageId,
+        listing_id: listingId,
+        content: content.trim(),
+        created_at: new Date().toISOString(),
+        is_read: false,
+        type: 'standard',
+        sender_info: {
+          id: currentUserIdRef.current,
+          name: profile?.full_name || user?.email?.split('@')[0] || 'Moi',
+          email: profile?.email || user?.email || '',
+          avatar_url: profile?.avatar_url || null,
+          is_registered: true,
+          status: 'online'
+        },
+        original_data: {
+          id: tempMessageId,
+          listing_id: listingId,
+          sender_id: currentUserIdRef.current,
+          receiver_id: receiverId,
+          content: content.trim(),
+          read: false,
+          created_at: new Date().toISOString()
+        } as StandardMessage
+      };
+
+      // Ajouter immédiatement le message temporaire pour un feedback instantané
+      setMessages(prev => [...prev, tempMessage]);
+
+      // Envoyer le message réel
+      const { data, error } = await supabase
         .from('messages')
         .insert({
           listing_id: listingId,
-          sender_id: user.id,
+          sender_id: currentUserIdRef.current,
           receiver_id: receiverId,
           content: content.trim(),
           read: false
-        });
+        })
+        .select()
+        .single();
 
       if (error) {
-        console.error('Erreur lors de l\'envoi du message:', error);
+        // Retirer le message temporaire en cas d'erreur
+        setMessages(prev => prev.filter(msg => msg.id !== tempMessageId));
         throw error;
       }
 
-      console.log('Message standard envoyé avec succès');
-      
-      toast({
-        title: "Message envoyé",
-        description: "Votre message a été envoyé avec succès"
-      });
+      // Remplacer le message temporaire par le message réel
+      if (data) {
+        setMessages(prev => prev.map(msg => 
+          msg.id === tempMessageId ? { ...msg, id: data.id } : msg
+        ));
+      }
 
-      // Rafraîchir les messages de la conversation actuelle
-      await fetchMessages(listingId, receiverId);
-      
+      // SOLUTION CLEF : Recharger les conversations via l'API au lieu de recharger la page
+      // Cette approche évite complètement les erreurs WebSocket
+      setTimeout(() => {
+        fetchConversations();
+      }, 500);
+
+      setIsConnected(true);
       return true;
 
     } catch (error) {
       console.error('Erreur lors de l\'envoi du message:', error);
+      setIsConnected(false);
+      
+      // Retirer le message temporaire en cas d'erreur
+      setMessages(prev => prev.filter(msg => msg.id !== tempMessageId));
+      
       toast({
         title: "Erreur d'envoi",
-        description: "Impossible d'envoyer le message",
+        description: "Impossible d'envoyer le message. Vérifiez votre connexion.",
         variant: "destructive"
       });
       return false;
     }
-  }, [user, toast, fetchMessages]);
+  }, [toast, user, fetchConversations]);
 
   /**
-   * Marque les messages comme lus pour une conversation
+   * Fonction pour marquer une conversation comme lue
    */
   const markConversationAsRead = useCallback(async (
     listingId: string, 
     participantId: string | null
   ): Promise<void> => {
-    if (!user) return;
+    if (!currentUserIdRef.current || participantId === null) return;
 
     try {
-      if (participantId === null) {
-        console.log('Marquage des messages d\'invités comme lus');
-        // Pour l'instant, on ne fait rien car useGuestMessages gère cela individuellement
-        // Une amélioration future serait de créer une fonction batch
-      } else {
-        console.log('Marquage des messages standards comme lus');
-        
-        await supabase
-          .from('messages')
-          .update({ read: true })
-          .eq('listing_id', listingId)
-          .eq('sender_id', participantId)
-          .eq('receiver_id', user.id);
-      }
+      const { error } = await supabase
+        .from('messages')
+        .update({ read: true })
+        .eq('listing_id', listingId)
+        .eq('sender_id', participantId)
+        .eq('receiver_id', currentUserIdRef.current);
 
-      // Rafraîchir les conversations pour mettre à jour les compteurs
+      if (error) throw error;
+
+      // Recharger les conversations pour mettre à jour les compteurs
       await fetchConversations();
 
     } catch (error) {
       console.error('Erreur lors du marquage comme lu:', error);
-      // On ne montre pas d'erreur à l'utilisateur pour cette action secondaire
     }
-  }, [user, fetchConversations]);
+  }, [fetchConversations]);
 
-  // Charger les conversations au montage du composant
+  /**
+   * Fonction simplifiée pour l'indicateur de frappe
+   */
+  const sendTypingIndicator = useCallback(async (conversationId: string, isTyping: boolean) => {
+    // Implémentation simple pour l'instant - peut être étendue plus tard
+    console.log('Typing indicator:', { conversationId, isTyping });
+  }, []);
+
+  /**
+   * Initialisation des connexions temps réel
+   */
+  const initializeRealtimeConnections = useCallback(() => {
+    if (!currentUserIdRef.current || isInitializedRef.current) return;
+
+    console.log('Initialisation des connexions temps réel pour:', currentUserIdRef.current);
+    isInitializedRef.current = true;
+
+    // Configuration du canal de présence
+    presenceChannelRef.current = supabase
+      .channel(`user-presence-${currentUserIdRef.current}`)
+      .on('presence', { event: 'sync' }, () => {
+        if (!presenceChannelRef.current) return;
+        
+        const state = presenceChannelRef.current.presenceState();
+        const newPresence: Record<string, UserPresence> = {};
+        
+        Object.entries(state).forEach(([userId, presences]) => {
+          if (presences && presences.length > 0) {
+            const presence = presences[0] as any;
+            newPresence[userId] = {
+              user_id: userId,
+              status: presence.status || 'online',
+              last_seen: presence.last_seen || new Date().toISOString()
+            };
+          }
+        });
+        
+        setUserPresence(newPresence);
+        
+        // Mise à jour des conversations avec les nouveaux statuts
+        setConversations(prev => prev.map(conv => ({
+          ...conv,
+          participant_status: conv.participant_id 
+            ? newPresence[conv.participant_id]?.status || 'offline'
+            : 'offline'
+        })));
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await updateUserPresence('online');
+          
+          // Heartbeat pour maintenir la connexion
+          if (heartbeatIntervalRef.current) {
+            clearInterval(heartbeatIntervalRef.current);
+          }
+          heartbeatIntervalRef.current = setInterval(() => {
+            updateUserPresence('online');
+          }, 30000);
+        }
+      });
+
+    // Configuration du canal de messages
+    messageChannelRef.current = supabase
+      .channel(`messages-realtime-${currentUserIdRef.current}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `receiver_id=eq.${currentUserIdRef.current}`
+        },
+        async (payload) => {
+          console.log('Nouveau message reçu');
+          
+          // Recharger les conversations automatiquement
+          await fetchConversations();
+
+          // Notification navigateur si autorisée
+          if (Notification.permission === 'granted' && payload.new.sender_id) {
+            const { data: sender } = await supabase
+              .from('profiles')
+              .select('full_name')
+              .eq('id', payload.new.sender_id)
+              .single();
+
+            if (sender) {
+              new Notification(`Nouveau message de ${sender.full_name}`, {
+                body: String(payload.new.content).substring(0, 100),
+              });
+            }
+          }
+        }
+      )
+      .subscribe();
+
+  }, [updateUserPresence, fetchConversations]);
+
+  /**
+   * Gestion des événements de présence
+   */
   useEffect(() => {
-    if (user) {
+    if (!currentUserIdRef.current) return;
+
+    const handleVisibilityChange = () => {
+      updateUserPresence(document.hidden ? 'away' : 'online');
+    };
+
+    const handleBeforeUnload = () => {
+      updateUserPresence('offline');
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [updateUserPresence]);
+
+  /**
+   * Effet principal - initialisation unique basée sur l'utilisateur connecté
+   */
+  useEffect(() => {
+    currentUserIdRef.current = user?.id || null;
+
+    if (user?.id) {
+      // Demander permission pour les notifications
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+      
+      // Charger les conversations initiales
       fetchConversations();
+      
+      // Initialiser les connexions temps réel
+      initializeRealtimeConnections();
+    } else {
+      // Nettoyage si pas d'utilisateur
+      setConversations([]);
+      setMessages([]);
+      setUserPresence({});
+      isInitializedRef.current = false;
     }
-  }, [user, fetchConversations]);
+
+    // Nettoyage lors du changement d'utilisateur ou démontage
+    return () => {
+      if (messageChannelRef.current) {
+        supabase.removeChannel(messageChannelRef.current);
+        messageChannelRef.current = null;
+      }
+      
+      if (presenceChannelRef.current) {
+        updateUserPresence('offline');
+        supabase.removeChannel(presenceChannelRef.current);
+        presenceChannelRef.current = null;
+      }
+      
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+        heartbeatIntervalRef.current = null;
+      }
+      
+      isInitializedRef.current = false;
+    };
+  }, [user?.id, fetchConversations, initializeRealtimeConnections, updateUserPresence]);
+
+  /**
+   * Fonction pour réinitialiser les messages (utile pour les nouvelles conversations)
+   * Cette fonction maintient l'encapsulation tout en permettant la réinitialisation
+   */
+  const clearMessages = useCallback(() => {
+    console.log('🗑️ Réinitialisation de la liste des messages');
+    setMessages([]);
+  }, []);
 
   return {
+    // États
     conversations,
     messages,
     loading,
+    userPresence,
+    isConnected,
+    
+    // Fonctions
     fetchConversations,
     fetchMessages,
     sendMessage,
-    markConversationAsRead
+    sendTypingIndicator,
+    markConversationAsRead,
+    updateUserPresence,
+    clearMessages
   };
 };

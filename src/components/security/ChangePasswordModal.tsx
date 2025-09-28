@@ -1,5 +1,4 @@
-// ChangePasswordModal.tsx - VERSION RÉELLE avec intégration Supabase
-// Cette version utilise les vraies méthodes d'authentification du hook useAuth étendu
+// ChangePasswordModal.tsx
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -45,7 +44,7 @@ export const ChangePasswordModal = ({
   onError 
 }: ChangePasswordModalProps) => {
   
-  // Utilisation du hook d'authentification étendu
+  // Utilisation du hook d'authentification 
   const { changePassword } = useAuthContext();
   
   const [formData, setFormData] = useState<PasswordFormData>({
@@ -111,7 +110,7 @@ export const ChangePasswordModal = ({
     }));
   };
 
-  // FONCTION PRINCIPALE - Utilise maintenant la vraie méthode changePassword
+  // FONCTION PRINCIPALE 
   const handleSubmit = async () => {
     const validationError = validateForm();
     if (validationError) {
@@ -123,8 +122,8 @@ export const ChangePasswordModal = ({
     setLocalError("");
     
     try {
-      // CHANGEMENT PRINCIPAL: Utilisation de la vraie méthode du hook
-      // Plus de simulation - appel direct à l'API Supabase via le hook
+      
+      // Appel direct à l'API Supabase via le hook
       await changePassword(formData.currentPassword, formData.newPassword);
       
       // Réinitialiser le formulaire après succès

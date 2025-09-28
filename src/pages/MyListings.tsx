@@ -35,8 +35,7 @@ const MyListings = () => {
   const { user } = useAuthContext();
   const { toast } = useToast();
   
-  // Utilisation correcte du hook amélioré - CONSERVÉ INTACT
-  // Dans MyListings.tsx, ligne 39 environ
+  
 const { 
   listings, 
   loading, 
@@ -51,10 +50,10 @@ const {
   const [activeTab, setActiveTab] = useState("all");
   const [operationLoading, setOperationLoading] = useState<string | null>(null);
   
-  // NOUVEAU : État pour la navigation mobile
+  // État pour la navigation mobile
   const [isMobileTabsOpen, setIsMobileTabsOpen] = useState(false);
 
-  // Effect pour charger les annonces utilisateur au montage du composant - CONSERVÉ INTACT
+  // Effect pour charger les annonces utilisateur au montage du composant
   useEffect(() => {
     if (user?.id) {
       console.log("🔄 Chargement des annonces utilisateur pour ID:", user.id);
@@ -65,7 +64,7 @@ const {
     }
   }, [user?.id, fetchUserListings, clearListings]);
 
-  // Maintenant listings contient directement les annonces de l'utilisateur - CONSERVÉ
+  // Maintenant listings contient directement les annonces de l'utilisateur 
   const userListings = listings;
   
   // Filtrage par statut pour les onglets - MODIFIÉ sans vendues et brouillons
@@ -73,12 +72,12 @@ const {
   const suspendedListings = userListings.filter(listing => listing.status === 'suspended');
 
   // ========================================
-  // FONCTIONS CONSERVÉES INTACTES : Gestion des suspensions
+  // FONCTIONS : Gestion des suspensions
   // ========================================
 
   /**
    * Détermine si l'utilisateur peut réactiver une annonce suspendue
-   * en fonction du type de suspension - CONSERVÉE INTACTE
+   * en fonction du type de suspension 
    */
   const canUserReactivateListing = (listing: any): boolean => {
     if (listing.status !== 'suspended') {
@@ -118,7 +117,7 @@ const {
   };
 
   /**
-   * Suspend volontairement une annonce (action utilisateur) - CONSERVÉE INTACTE
+   * Suspend volontairement une annonce (action utilisateur) 
    */
   const handlePauseListing = async (listingId: string) => {
     if (!user?.id) return;
@@ -158,7 +157,7 @@ const {
   };
 
   /**
-   * Réactive une annonce suspendue UNIQUEMENT si l'utilisateur en a le droit - CONSERVÉE INTACTE
+   * Réactive une annonce suspendue UNIQUEMENT si l'utilisateur en a le droit 
    */
   const handleResumeListing = async (listingId: string, listing: any) => {
     if (!user?.id) return;
@@ -210,11 +209,11 @@ const {
   };
 
   // ========================================
-  // FONCTION CONSERVÉE : Badge de statut avec logique complète
+  // Badge de statut avec logique complète
   // ========================================
 
   /**
-   * Génère le badge de statut approprié selon le statut et le type de suspension - CONSERVÉE INTACTE
+   * Génère le badge de statut approprié selon le statut et le type de suspension 
    */
   const getStatusBadge = (status: string, suspensionType?: string) => {
     switch (status) {
@@ -239,11 +238,11 @@ const {
   };
 
   // ========================================
-  // FONCTION CONSERVÉE : Menu d'actions avec logique conditionnelle
+  // Menu d'actions avec logique conditionnelle
   // ========================================
 
   /**
-   * Génère les éléments du menu d'actions selon le statut et les droits - CONSERVÉE INTACTE
+   * Génère les éléments du menu d'actions selon le statut et les droits 
    */
   const getActionMenuItems = (listing: any) => {
     const canReactivate = canUserReactivateListing(listing);
@@ -338,7 +337,7 @@ const {
     );
   };
 
-  // Fonction de filtrage mise à jour pour inclure les suspensions - CONSERVÉE
+  // Fonction de filtrage mise à jour pour inclure les suspensions 
   const getListingsToShow = () => {
     switch (activeTab) {
       case 'active':
@@ -354,7 +353,7 @@ const {
     }
   };
 
-  // Fonctions utilitaires - CONSERVÉES INTACTES
+  // Fonctions utilitaires 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('fr-FR').format(price) + ' FCFA';
   };
@@ -380,7 +379,7 @@ const {
     }
   };
 
-  // Gestion des états de chargement/erreur - CONSERVÉS INTACTS
+  // Gestion des états de chargement/erreur 
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
@@ -465,7 +464,7 @@ const {
           </Link>
         </div>
 
-        {/* Statistiques adaptées mobile - MODIFIÉES sans vendues et brouillons */}
+        {/* Statistiques adaptées mobile */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8">
           <Card>
             <CardContent className="p-3 md:p-4 text-center">
@@ -584,7 +583,7 @@ const {
               </Card>
             ) : (
               <>
-                {/* AFFICHAGE MOBILE : Liste horizontale avec image à gauche - Pattern RecentListings */}
+                {/* AFFICHAGE MOBILE : Liste horizontale avec image à gauche  */}
                 <div className="block md:hidden space-y-3">
                   {getListingsToShow().map((listing) => (
                     <div

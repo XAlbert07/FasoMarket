@@ -18,9 +18,9 @@ export type Database = {
           email: string
           full_name: string | null
           phone: string | null
-          bio: string | null // Nouveau champ
-          location: string | null // Nouveau champ
-          avatar_url: string | null // Nouveau champ
+          bio: string | null 
+          location: string | null 
+          avatar_url: string | null 
           role: 'merchant' | 'admin'
           created_at: string
           updated_at: string | null
@@ -30,9 +30,9 @@ export type Database = {
           email: string
           full_name?: string | null
           phone?: string | null
-          bio?: string | null // Nouveau champ optionnel pour l'insertion
-          location?: string | null // Nouveau champ optionnel pour l'insertion
-          avatar_url?: string | null // Nouveau champ optionnel pour l'insertion
+          bio?: string | null 
+          location?: string | null 
+          avatar_url?: string | null 
           role?: 'merchant' | 'admin'
           created_at?: string
           updated_at?: string | null
@@ -42,9 +42,9 @@ export type Database = {
           email?: string
           full_name?: string | null
           phone?: string | null
-          bio?: string | null // Nouveau champ optionnel pour la mise à jour
-          location?: string | null // Nouveau champ optionnel pour la mise à jour
-          avatar_url?: string | null // Nouveau champ optionnel pour la mise à jour
+          bio?: string | null 
+          location?: string | null 
+          avatar_url?: string | null 
           role?: 'merchant' | 'admin'
           created_at?: string
           updated_at?: string | null

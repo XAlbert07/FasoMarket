@@ -22,7 +22,7 @@ const LegalNotice = () => {
 
           <div className="space-y-4 sm:space-y-6">
             
-            {/* Section Contact - La plus importante pour les utilisateurs */}
+            {/* Section Contact */}
             <Card className="shadow-sm">
               <CardHeader className="pb-3 sm:pb-4">
                 <CardTitle className="flex items-center text-lg sm:text-xl">

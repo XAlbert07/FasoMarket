@@ -1,5 +1,4 @@
-// useAuth.ts - Version complète pour FasoMarket 
-// Combine la gestion des suspensions ET toutes les fonctionnalités de sécurité avancées
+// useAuth.ts 
 
 import { useState, useEffect, useRef } from 'react'
 import { User, Session, AuthError } from '@supabase/supabase-js'
@@ -21,14 +20,13 @@ export interface UserProfile {
   role: 'merchant' | 'admin'
   created_at: string
   updated_at: string | null
-  // Champs pour la gestion des suspensions (CONSERVÉS de votre nouveau code)
   suspended_until: string | null
   suspension_reason: string | null
   is_banned: boolean | null
   ban_reason: string | null
 }
 
-// Interface pour le résultat de vérification de suspension (CONSERVÉE)
+// Interface pour le résultat de vérification de suspension 
 export interface SuspensionCheckResult {
   canAccess: boolean
   reason?: 'banned' | 'suspended'
@@ -36,7 +34,7 @@ export interface SuspensionCheckResult {
   suspendedUntil?: Date
 }
 
-// Interface pour les sessions actives (RESTAURÉE de l'ancien code)
+// Interface pour les sessions actives 
 export interface ActiveSession {
   id: string
   user_id: string
@@ -47,7 +45,7 @@ export interface ActiveSession {
   is_current?: boolean
 }
 
-// Interface pour les facteurs MFA (RESTAURÉE)
+// Interface pour les facteurs MFA 
 export interface MFAFactor {
   id: string
   type: 'totp'
@@ -56,13 +54,13 @@ export interface MFAFactor {
   updated_at: string
 }
 
-// Interface pour les codes de récupération (RESTAURÉE)
+// Interface pour les codes de récupération 
 export interface BackupCode {
   code: string
   used: boolean
 }
 
-// Interface COMPLÈTE du contexte d'authentification
+// Interface du contexte d'authentification
 export interface AuthContextType {
   // États de base
   user: User | null
@@ -76,20 +74,22 @@ export interface AuthContextType {
   signOut: () => Promise<void>
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>
   
-  // MÉTHODES DE SÉCURITÉ AVANCÉE (RESTAURÉES)
+  // Méthodes de sécurité avancée
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>
   resetPassword: (email: string) => Promise<void>
   setupMFA: () => Promise<{ qr_code: string; secret: string; backup_codes: string[] }>
   verifyMFA: (code: string) => Promise<BackupCode[]>
   disableMFA: () => Promise<void>
   getMFAStatus: () => Promise<{ enabled: boolean; factors: MFAFactor[] }>
+  debugMFAState: () => Promise<void>
+  cleanupAllMFA: () => Promise<void> 
   getActiveSessions: () => Promise<ActiveSession[]>
   revokeSession: (sessionId: string) => Promise<void>
   revokeAllOtherSessions: () => Promise<void>
 }
 
 // ========================================
-// SYSTÈME DE LOGGING AMÉLIORÉ (CONSERVÉ)
+// SYSTÈME DE LOGGING AMÉLIORÉ 
 // ========================================
 
 const createLogger = (context: string) => {
@@ -113,7 +113,7 @@ const createLogger = (context: string) => {
 }
 
 // ========================================
-// HOOK PRINCIPAL COMPLET
+// HOOK PRINCIPAL 
 // ========================================
 
 export const useAuth = (): AuthContextType => {
@@ -126,7 +126,7 @@ export const useAuth = (): AuthContextType => {
   const [loading, setLoading] = useState(true)
   const { toast } = useToast()
 
-  // Système anti-collision pour la récupération de profil (CONSERVÉ)
+  // Système anti-collision pour la récupération de profil 
   const profileFetchRef = useRef<{
     isActive: boolean
     currentUserId: string | null
@@ -138,7 +138,7 @@ export const useAuth = (): AuthContextType => {
   })
 
   // ========================================
-  // FONCTION DE VÉRIFICATION DE SUSPENSION (CONSERVÉE)
+  // FONCTION DE VÉRIFICATION DE SUSPENSION 
   // ========================================
   
   const checkUserSuspension = async (userId: string): Promise<SuspensionCheckResult> => {
@@ -205,7 +205,7 @@ export const useAuth = (): AuthContextType => {
   }
 
   // ========================================
-  // FONCTION DE RÉCUPÉRATION DE PROFIL ANTI-COLLISION (CONSERVÉE ET MISE À JOUR)
+  // FONCTION DE RÉCUPÉRATION DE PROFIL ANTI-COLLISION 
   // ========================================
   
   const fetchProfile = async (userId: string, source: string = 'unknown') => {
@@ -239,7 +239,7 @@ export const useAuth = (): AuthContextType => {
         abortController.abort()
       }, 12000)
 
-      // Requête MISE À JOUR avec les champs de suspension
+      // Requête avec les champs de suspension
       const { data, error } = await supabase
         .from('profiles')
         .select('*, suspended_until, suspension_reason, is_banned, ban_reason')
@@ -274,7 +274,6 @@ export const useAuth = (): AuthContextType => {
             role: 'merchant',
             created_at: new Date().toISOString(),
             updated_at: null,
-            // Nouveaux champs par défaut
             suspended_until: null,
             suspension_reason: null,
             is_banned: null,
@@ -354,13 +353,280 @@ export const useAuth = (): AuthContextType => {
   }
 
   // ========================================
-  // INITIALISATION COORDONNÉE (CONSERVÉE)
+  // GESTION DES SESSIONS - VERSION PRODUCTION RÉELLE
+  // ========================================
+
+  /**
+   * Enregistrer la session courante pour le tracking
+   */
+  const trackCurrentSession = async (): Promise<void> => {
+    if (!user || !session) return
+
+    try {
+      const sessionData = {
+        id: session.access_token.substring(0, 16),
+        user_id: user.id,
+        ip_address: 'client_tracking', // Limitation : pas d'accès IP côté client
+        user_agent: navigator.userAgent,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        is_active: true,
+        expires_at: new Date(session.expires_at * 1000).toISOString(),
+        device_info: {
+          platform: navigator.platform,
+          language: navigator.language,
+          screen_resolution: `${screen.width}x${screen.height}`
+        }
+      }
+
+      await supabase
+        .from('user_sessions')
+        .upsert(sessionData, { 
+          onConflict: 'id',
+          ignoreDuplicates: false 
+        })
+
+      console.log('Session courante trackée avec succès')
+    } catch (error) {
+      console.warn('Erreur lors du tracking de session (non critique):', error)
+    }
+  }
+
+  /**
+   * Initialisation du tracking de session
+   */
+  const initializeSessionTracking = async () => {
+    if (!user || !session) return
+
+    try {
+      // 1. Tracker la session courante
+      await trackCurrentSession()
+
+      // 2. Nettoyer les sessions expirées
+      const now = new Date().toISOString()
+      await supabase
+        .from('user_sessions')
+        .update({ is_active: false })
+        .eq('user_id', user.id)
+        .lt('expires_at', now)
+
+      console.log('Initialisation du tracking de session terminée')
+    } catch (error) {
+      console.warn('Erreur lors de l\'initialisation du tracking:', error)
+    }
+  }
+
+  /**
+   * Récupération des sessions actives RÉELLES
+   */
+  const getActiveSessions = async (): Promise<ActiveSession[]> => {
+    if (!user || !session) {
+      throw new Error("Aucun utilisateur connecté")
+    }
+
+    try {
+      console.log('Récupération des sessions actives pour:', user.email)
+
+      // APPROCHE HYBRIDE : Combiner session courante + historique de tracking
+      const sessions: ActiveSession[] = []
+
+      // 1. Ajouter TOUJOURS la session courante (garantie d'être réelle)
+      const currentSession: ActiveSession = {
+        id: session.access_token.substring(0, 16),
+        user_id: user.id,
+        ip_address: 'Session courante',
+        user_agent: navigator.userAgent,
+        created_at: new Date(session.user?.created_at || Date.now()).toISOString(),
+        updated_at: new Date().toISOString(),
+        is_current: true
+      }
+      sessions.push(currentSession)
+
+      // 2. Essayer de récupérer l'historique depuis la table de tracking (optionnel)
+      try {
+        const { data: trackedSessions } = await supabase
+          .from('user_sessions')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('is_active', true)
+          .neq('id', currentSession.id) // Exclure la session courante
+          .order('updated_at', { ascending: false })
+          .limit(10) // Limiter à 10 sessions historiques
+
+        // Ajouter les sessions trackées (avec avertissement qu'elles peuvent être expirées)
+        if (trackedSessions && trackedSessions.length > 0) {
+          const historicalSessions: ActiveSession[] = trackedSessions.map(tracked => ({
+            id: tracked.id,
+            user_id: tracked.user_id,
+            ip_address: tracked.ip_address || 'IP inconnue',
+            user_agent: tracked.user_agent || 'Navigateur inconnu',
+            created_at: tracked.created_at,
+            updated_at: tracked.updated_at,
+            is_current: false
+          }))
+          sessions.push(...historicalSessions)
+        }
+      } catch (trackingError) {
+        console.warn('Impossible de récupérer l\'historique des sessions (non critique):', trackingError)
+      }
+
+      // 3. Nettoyer automatiquement les anciennes entrées (sessions > 30 jours)
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+      supabase
+        .from('user_sessions')
+        .delete()
+        .eq('user_id', user.id)
+        .lt('updated_at', thirtyDaysAgo)
+        .then(
+          () => console.log('Nettoyage automatique des anciennes sessions effectué'),
+          (err) => console.warn('Nettoyage automatique échoué:', err)
+             )
+
+
+      return sessions
+
+    } catch (error) {
+      console.error('Erreur lors de la récupération des sessions:', error)
+      
+      // Fallback : retourner au minimum la session courante
+      return [{
+        id: session?.access_token.substring(0, 16) || 'current',
+        user_id: user.id,
+        ip_address: 'Session courante',
+        user_agent: navigator.userAgent,
+        created_at: user.created_at,
+        updated_at: new Date().toISOString(),
+        is_current: true
+      }]
+    }
+  }
+
+  /**
+   * Révocation d'une session spécifique 
+   */
+  const revokeSession = async (sessionId: string): Promise<void> => {
+    if (!user) {
+      throw new Error("Aucun utilisateur connecté")
+    }
+
+    // Vérifier si c'est la session courante
+    const currentSessionId = session?.access_token.substring(0, 16)
+    if (sessionId === currentSessionId) {
+      throw new Error("Vous ne pouvez pas révoquer votre session actuelle depuis cette interface. Utilisez la déconnexion normale.")
+    }
+
+    try {
+      console.log('Révocation de la session:', sessionId)
+
+      // 1. Marquer la session comme inactive dans notre table de tracking
+      const { error: updateError } = await supabase
+        .from('user_sessions')
+        .update({ 
+          is_active: false,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', sessionId)
+        .eq('user_id', user.id)
+
+      if (updateError && updateError.code !== 'PGRST116') { // Ignorer si pas trouvé
+        throw updateError
+      }
+
+      // 2. AVERTISSEMENT UTILISATEUR : Limitation technique
+      console.warn('⚠️ NOTE TECHNIQUE: La révocation complète des sessions JWT Supabase n\'est pas possible côté client')
+      
+      toast({
+        title: "Session marquée comme inactive",
+        description: "La session a été marquée comme inactive. Le token JWT restera valide jusqu'à son expiration naturelle.",
+        duration: 6000
+      })
+
+    } catch (error) {
+      console.error('Erreur lors de la révocation de session:', error)
+      const errorMessage = error instanceof Error ? error.message : "Erreur lors de la révocation"
+      
+      toast({
+        title: "Erreur",
+        description: errorMessage,
+        variant: "destructive"
+      })
+      throw error
+    }
+  }
+
+  /**
+   * Révocation de toutes les autres sessions 
+   */
+  const revokeAllOtherSessions = async (): Promise<void> => {
+    if (!user || !session) {
+      throw new Error("Aucun utilisateur connecté")
+    }
+
+    try {
+      console.log('Révocation de toutes les autres sessions pour:', user.email)
+
+      const currentSessionId = session.access_token.substring(0, 16)
+
+      // Marquer toutes les autres sessions comme inactives
+      const { error: updateError } = await supabase
+        .from('user_sessions')
+        .update({ 
+          is_active: false,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', user.id)
+        .neq('id', currentSessionId)
+
+      if (updateError && updateError.code !== 'PGRST116') {
+        throw updateError
+      }
+
+      // Log pour audit de sécurité
+      supabase
+        .from('security_audit_log')
+        .insert({
+          user_id: user.id,
+          action_type: 'revoke_all_sessions',
+          details: { 
+            current_session_id: currentSessionId,
+            revoked_at: new Date().toISOString(),
+            user_agent: navigator.userAgent
+          },
+          ip_address: 'client_side',
+          success: true
+        })
+        .then(
+           () => console.log('Audit de sécurité enregistré'),
+           (err) => console.warn('Erreur audit:', err)
+            )
+
+      toast({
+        title: "Sessions marquées comme inactives",
+        description: "Toutes vos autres sessions ont été marquées comme inactives. Pour une sécurité maximale, changez également votre mot de passe.",
+        duration: 8000
+      })
+
+    } catch (error) {
+      console.error('Erreur lors de la révocation des sessions:', error)
+      const errorMessage = error instanceof Error ? error.message : "Erreur lors de la révocation des sessions"
+      
+      toast({
+        title: "Erreur",
+        description: errorMessage,
+        variant: "destructive"
+      })
+      throw error
+    }
+  }
+
+  // ========================================
+  // INITIALISATION COORDONNÉE 
   // ========================================
   
   useEffect(() => {
     const initLogger = createLogger('INITIALIZATION')
     
-    initLogger.info('🚀 Démarrage de l\'initialisation coordonnée de l\'authentification')
+    initLogger.info('Démarrage de l\'initialisation coordonnée de l\'authentification')
     
     let initializationCompleted = false
     
@@ -480,7 +746,7 @@ export const useAuth = (): AuthContextType => {
   }, [])
 
   // ========================================
-  // MÉTHODES D'AUTHENTIFICATION AVEC VÉRIFICATION DE SUSPENSION (CONSERVÉES ET MISES À JOUR)
+  // MÉTHODES D'AUTHENTIFICATION AVEC VÉRIFICATION DE SUSPENSION 
   // ========================================
 
   const signUp = async (email: string, password: string, fullName: string, phone?: string) => {
@@ -517,7 +783,6 @@ export const useAuth = (): AuthContextType => {
           full_name: fullName,
           phone: phone || null,
           role: 'merchant' as const,
-          // Champs de suspension initialisés
           suspended_until: null,
           suspension_reason: null,
           is_banned: false,
@@ -612,6 +877,11 @@ export const useAuth = (): AuthContextType => {
         }
         
         signinLogger.success('Utilisateur autorisé - finalisation de la connexion')
+        
+        // Troisième étape : Initialiser le tracking de session
+        setTimeout(() => {
+          initializeSessionTracking()
+        }, 1000)
       }
 
       signinLogger.success('Connexion complètement réussie', { userId: data.user?.id })
@@ -718,7 +988,7 @@ export const useAuth = (): AuthContextType => {
   }
 
   // ========================================
-  // MÉTHODES DE SÉCURITÉ AVANCÉES (RESTAURÉES DE L'ANCIEN CODE)
+  // MÉTHODES DE SÉCURITÉ AVANCÉES 
   // ========================================
 
   /**
@@ -730,7 +1000,7 @@ export const useAuth = (): AuthContextType => {
     }
 
     try {
-      console.log('🔒 Changement de mot de passe pour l\'utilisateur:', user.email)
+      console.log('Changement de mot de passe pour l\'utilisateur:', user.email)
 
       // Vérifier le mot de passe actuel
       const { error: verifyError } = await supabase.auth.signInWithPassword({
@@ -751,7 +1021,7 @@ export const useAuth = (): AuthContextType => {
         throw updateError
       }
 
-      console.log('✅ Mot de passe changé avec succès')
+      console.log('Mot de passe changé avec succès')
       
       toast({
         title: "Mot de passe modifié",
@@ -760,7 +1030,7 @@ export const useAuth = (): AuthContextType => {
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Erreur lors du changement de mot de passe"
-      console.error('❌ Erreur changement mot de passe:', error)
+      console.error('Erreur changement mot de passe:', error)
       
       toast({
         title: "Erreur",
@@ -776,7 +1046,7 @@ export const useAuth = (): AuthContextType => {
    */
   const resetPassword = async (email: string): Promise<void> => {
     try {
-      console.log('📧 Demande de réinitialisation de mot de passe pour:', email)
+      console.log('Demande de réinitialisation de mot de passe pour:', email)
       
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`
@@ -800,34 +1070,101 @@ export const useAuth = (): AuthContextType => {
     }
   }
 
-  /**
-   * Configuration initiale de l'authentification multi-facteurs (MFA)
-   */
-  const setupMFA = async (): Promise<{ qr_code: string; secret: string; backup_codes: string[] }> => {
-    if (!user) {
-      throw new Error("Aucun utilisateur connecté")
+ /**
+ * Configuration initiale de l'authentification multi-facteurs (MFA) - VERSION CORRIGÉE
+ */
+const setupMFA = async (): Promise<{ qr_code: string; secret: string; backup_codes: string[]; factorId: string }> => {
+  if (!user) {
+    throw new Error("Aucun utilisateur connecté")
+  }
+
+  try {
+    console.log('Configuration MFA pour l\'utilisateur:', user.email)
+
+    // ÉTAPE 1: Debug initial
+    await debugMFAState()
+
+    // ÉTAPE 2: Nettoyer les facteurs existants
+    console.log('Vérification des facteurs MFA existants...')
+    
+    const { data: existingFactors, error: listError } = await supabase.auth.mfa.listFactors()
+    
+    if (listError) {
+      console.warn('Erreur lors de la vérification des facteurs existants:', listError)
+    } else if (existingFactors?.totp && existingFactors.totp.length > 0) {
+      console.log(`${existingFactors.totp.length} facteur(s) TOTP existant(s) détecté(s)`)
+      
+      for (const factor of existingFactors.totp) {
+        console.log(`Suppression du facteur existant: ${factor.id} (status: ${factor.status})`)
+        
+        try {
+          const { error: unenrollError } = await supabase.auth.mfa.unenroll({
+            factorId: factor.id
+          })
+          
+          if (unenrollError) {
+            console.warn(`Erreur lors de la suppression du facteur ${factor.id}:`, unenrollError)
+          } else {
+            console.log(`Facteur ${factor.id} supprimé avec succès`)
+          }
+        } catch (factorError) {
+          console.warn(`Exception lors de la suppression du facteur ${factor.id}:`, factorError)
+        }
+      }
+      
+      // Délai pour s'assurer que les suppressions sont prises en compte
+      await new Promise(resolve => setTimeout(resolve, 1000))
+    } else {
+      console.log('Aucun facteur MFA existant trouvé')
     }
 
+    // ÉTAPE 3: Nettoyer les anciens codes de sauvegarde
     try {
-      console.log('🔐 Configuration MFA pour l\'utilisateur:', user.email)
+      const { error: deleteBackupError } = await supabase
+        .from('user_backup_codes')
+        .delete()
+        .eq('user_id', user.id)
 
-      // Enrôler un nouveau facteur TOTP
-      const { data: factor, error: enrollError } = await supabase.auth.mfa.enroll({
-        factorType: 'totp',
-      })
-
-      if (enrollError || !factor) {
-        throw enrollError || new Error("Erreur lors de l'enrôlement MFA")
+      if (deleteBackupError && deleteBackupError.code !== 'PGRST116') {
+        console.warn('Erreur lors de la suppression des anciens codes de sauvegarde:', deleteBackupError)
+      } else {
+        console.log('Anciens codes de sauvegarde nettoyés')
       }
+    } catch (backupCleanError) {
+      console.warn('Exception lors du nettoyage des codes de sauvegarde:', backupCleanError)
+    }
 
-      // Générer des codes de sauvegarde
-      const backupCodes = Array.from({ length: 8 }, () => {
-        const part1 = Math.random().toString(36).substring(2, 6).toUpperCase()
-        const part2 = Math.random().toString(36).substring(2, 6).toUpperCase()
-        return `${part1}-${part2}`
-      })
+    // ÉTAPE 4: Créer un nouveau facteur TOTP
+    console.log('Création d\'un nouveau facteur TOTP...')
+    
+    const { data: factor, error: enrollError } = await supabase.auth.mfa.enroll({
+      factorType: 'totp',
+      friendlyName: `Authenticator-${Date.now()}`
+    })
 
-      // Stocker les codes de sauvegarde dans la base de données
+    if (enrollError) {
+      console.error('Erreur lors de l\'enrôlement du nouveau facteur:', enrollError)
+      throw enrollError
+    }
+
+    if (!factor) {
+      throw new Error("Aucune donnée de facteur retournée lors de l'enrôlement")
+    }
+
+    console.log('Nouveau facteur TOTP créé avec succès:', factor.id)
+
+    // ÉTAPE 5: Vérifier immédiatement que le facteur existe
+    await debugMFAState()
+
+    // ÉTAPE 6: Générer de nouveaux codes de sauvegarde
+    const backupCodes = Array.from({ length: 8 }, () => {
+      const part1 = Math.random().toString(36).substring(2, 6).toUpperCase()
+      const part2 = Math.random().toString(36).substring(2, 6).toUpperCase()
+      return `${part1}-${part2}`
+    })
+
+    // ÉTAPE 7: Stocker les nouveaux codes de sauvegarde
+    try {
       const { error: backupError } = await supabase
         .from('user_backup_codes')
         .insert(
@@ -840,105 +1177,233 @@ export const useAuth = (): AuthContextType => {
         )
 
       if (backupError) {
-        console.error('⚠️ Erreur lors de la sauvegarde des codes de récupération:', backupError)
+        console.error('Erreur lors de la sauvegarde des codes de récupération:', backupError)
+      } else {
+        console.log('Codes de sauvegarde stockés avec succès')
       }
-
-      console.log('✅ Configuration MFA initialisée avec succès')
-
-      return {
-        qr_code: factor.totp.qr_code,
-        secret: factor.totp.secret,
-        backup_codes: backupCodes
-      }
-
-    } catch (error) {
-      console.error('❌ Erreur lors de la configuration MFA:', error)
-      const errorMessage = error instanceof Error ? error.message : "Erreur lors de la configuration 2FA"
-      
-      toast({
-        title: "Erreur 2FA",
-        description: errorMessage,
-        variant: "destructive"
-      })
-      throw error
+    } catch (backupSaveError) {
+      console.error('Exception lors de la sauvegarde des codes:', backupSaveError)
     }
+
+    console.log('Configuration MFA initialisée avec succès')
+
+    return {
+      qr_code: factor.totp.qr_code,
+      secret: factor.totp.secret,
+      backup_codes: backupCodes,
+      factorId: factor.id // NOUVEAU: Retourner l'ID du facteur
+    }
+
+  } catch (error) {
+    console.error('Erreur lors de la configuration MFA:', error)
+    
+    let errorMessage = "Erreur lors de la configuration 2FA"
+    
+    if (error instanceof Error) {
+      if (error.message.includes('already exists')) {
+        errorMessage = "Un facteur d'authentification existe déjà. Veuillez réessayer dans quelques instants."
+      } else if (error.message.includes('rate limit')) {
+        errorMessage = "Trop de tentatives. Veuillez patienter avant de réessayer."
+      } else if (error.message.includes('network')) {
+        errorMessage = "Problème de connexion. Vérifiez votre connexion internet."
+      } else {
+        errorMessage = error.message
+      }
+    }
+    
+    toast({
+      title: "Erreur 2FA",
+      description: errorMessage,
+      variant: "destructive"
+    })
+    throw error
+  }
+}
+
+ /**
+ * Fonction de diagnostic pour débugger les problèmes MFA
+ */
+const debugMFAState = async (): Promise<void> => {
+  if (!user) {
+    console.log('❌ Aucun utilisateur connecté')
+    return
   }
 
-  /**
-   * Vérification du code TOTP pour finaliser l'activation MFA
-   */
-  const verifyMFA = async (code: string): Promise<BackupCode[]> => {
-    if (!user) {
-      throw new Error("Aucun utilisateur connecté")
+  try {
+    console.log('🔍 === DIAGNOSTIC MFA COMPLET ===')
+    console.log('Utilisateur:', user.id, user.email)
+    
+    const { data: factors, error } = await supabase.auth.mfa.listFactors()
+    
+    if (error) {
+      console.error('❌ Erreur lors de la récupération des facteurs:', error)
+      return
+    }
+    
+    console.log('📋 Facteurs récupérés:', factors)
+    
+    // Analyser factors.all
+    if (factors?.all) {
+      console.log(`📊 Nombre total de facteurs: ${factors.all.length}`)
+      factors.all.forEach((factor, index) => {
+        console.log(`   [ALL-${index}] ID: ${factor.id}`)
+        console.log(`   [ALL-${index}] Type/Factor_type: ${factor.factor_type || factor.factor_type}`)
+        console.log(`   [ALL-${index}] Status: ${factor.status}`)
+        console.log(`   [ALL-${index}] Friendly name: ${factor.friendly_name}`)
+        console.log(`   [ALL-${index}] Créé: ${factor.created_at}`)
+      })
+    } else {
+      console.log('❌ Aucun facteur dans factors.all')
+    }
+    
+    // Analyser factors.totp
+    if (factors?.totp) {
+      console.log(`📊 Nombre de facteurs TOTP: ${factors.totp.length}`)
+      factors.totp.forEach((factor, index) => {
+        console.log(`   [TOTP-${index}] ID: ${factor.id}`)
+        console.log(`   [TOTP-${index}] Status: ${factor.status}`)
+        console.log(`   [TOTP-${index}] Créé: ${factor.created_at}`)
+      })
+    } else {
+      console.log('❌ Aucun facteur TOTP trouvé')
+    }
+    
+    console.log('🔍 === FIN DIAGNOSTIC ===')
+    
+  } catch (error) {
+    console.error('❌ Erreur lors du diagnostic:', error)
+  }
+}
+
+
+
+
+/**
+ * Vérification du code TOTP pour finaliser l'activation MFA - VERSION CORRIGÉE
+ */
+const verifyMFA = async (code: string): Promise<BackupCode[]> => {
+  if (!user) {
+    throw new Error("Aucun utilisateur connecté")
+  }
+
+  try {
+    console.log('Vérification du code MFA pour l\'utilisateur:', user.email)
+
+    // Récupérer les facteurs en attente de vérification
+    const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors()
+    
+    if (factorsError || !factors) {
+      throw factorsError || new Error("Erreur lors de la récupération des facteurs MFA")
     }
 
-    try {
-      console.log('🔍 Vérification du code MFA pour l\'utilisateur:', user.email)
+    console.log('Facteurs MFA récupérés:', factors)
+    console.log('Nombre total de facteurs:', factors.all?.length || 0)
+    console.log('Facteurs TOTP spécifiques:', factors.totp?.length || 0)
 
-      // Récupérer les facteurs en attente de vérification
-      const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors()
+    // Chercher dans tous les facteurs, pas seulement TOTP
+    let totpFactor = null
+
+    // Option 1: Chercher dans factors.totp d'abord
+    if (factors.totp && factors.totp.length > 0) {
+      totpFactor = factors.totp.find(factor => factor.status === 'unverified') || factors.totp[0]
+      console.log('Facteur trouvé dans factors.totp:', totpFactor?.id)
+    }
+
+    // Option 2: Si pas trouvé, chercher dans factors.all pour les facteurs TOTP
+    if (!totpFactor && factors.all && factors.all.length > 0) {
+      console.log('Recherche dans factors.all...')
       
-      if (factorsError || !factors) {
-        throw factorsError || new Error("Erreur lors de la récupération des facteurs MFA")
-      }
-
-      // Trouver le facteur TOTP non vérifié
-      const totpFactor = factors.totp.find(factor => factor.status === 'unverified')
+      // Filtrer les facteurs de type TOTP dans factors.all
+      const allTotpFactors = factors.all.filter(factor => 
+        factor.factor_type === 'totp' || 
+        factor.factor_type === 'totp' ||
+        factor.friendly_name?.includes('Authenticator')
+      )
       
-      if (!totpFactor) {
-        throw new Error("Aucun facteur TOTP en attente de vérification")
+      console.log('Facteurs TOTP trouvés dans all:', allTotpFactors)
+      
+      if (allTotpFactors.length > 0) {
+        // Prendre le facteur non vérifié ou le plus récent
+        totpFactor = allTotpFactors.find(factor => factor.status === 'unverified') || 
+                     allTotpFactors.sort((a, b) => 
+                       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+                     )[0]
+        console.log('Facteur sélectionné depuis all:', totpFactor?.id)
       }
+    }
+    
+    if (!totpFactor) {
+      console.error('Aucun facteur TOTP trouvé nulle part')
+      console.log('Structure complète des facteurs:', JSON.stringify(factors, null, 2))
+      throw new Error("Aucun facteur TOTP trouvé. Veuillez recommencer la configuration.")
+    }
 
-      // Vérifier le code TOTP
-      const { data: challenge, error: challengeError } = await supabase.auth.mfa.challenge({
-        factorId: totpFactor.id
-      })
+    console.log('Facteur TOTP sélectionné:', totpFactor.id, 'Status:', totpFactor.status)
 
-      if (challengeError || !challenge) {
-        throw challengeError || new Error("Erreur lors de la création du challenge MFA")
-      }
+    // Créer un challenge pour ce facteur
+    const { data: challenge, error: challengeError } = await supabase.auth.mfa.challenge({
+      factorId: totpFactor.id
+    })
 
-      const { error: verifyError } = await supabase.auth.mfa.verify({
-        factorId: totpFactor.id,
-        challengeId: challenge.id,
-        code: code
-      })
+    if (challengeError || !challenge) {
+      console.error('Erreur lors de la création du challenge:', challengeError)
+      throw challengeError || new Error("Erreur lors de la création du challenge MFA")
+    }
 
-      if (verifyError) {
+    console.log('Challenge MFA créé:', challenge.id)
+
+    // Vérifier le code TOTP
+    const { error: verifyError } = await supabase.auth.mfa.verify({
+      factorId: totpFactor.id,
+      challengeId: challenge.id,
+      code: code
+    })
+
+    if (verifyError) {
+      console.error('Erreur lors de la vérification:', verifyError)
+      
+      // Messages d'erreur plus spécifiques
+      if (verifyError.message.includes('invalid_code') || verifyError.message.includes('expired')) {
+        throw new Error("Code invalide ou expiré. Veuillez saisir le code actuel de votre application.")
+      } else if (verifyError.message.includes('too_many_requests')) {
+        throw new Error("Trop de tentatives. Veuillez patienter quelques minutes.")
+      } else {
         throw verifyError
       }
-
-      // Récupérer les codes de sauvegarde
-      const { data: backupCodesData, error: backupCodesError } = await supabase
-        .from('user_backup_codes')
-        .select('code, used')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: true })
-
-      const backupCodes: BackupCode[] = backupCodesData || []
-
-      console.log('✅ MFA activé avec succès')
-      
-      toast({
-        title: "2FA activé",
-        description: "L'authentification à deux facteurs a été activée avec succès.",
-      })
-
-      return backupCodes
-
-    } catch (error) {
-      console.error('❌ Erreur lors de la vérification MFA:', error)
-      const errorMessage = error instanceof Error ? error.message : "Code de vérification incorrect"
-      
-      toast({
-        title: "Erreur de vérification",
-        description: errorMessage,
-        variant: "destructive"
-      })
-      throw error
     }
-  }
 
+    console.log('Code MFA vérifié avec succès')
+
+    // Récupérer les codes de sauvegarde
+    const { data: backupCodesData, error: backupCodesError } = await supabase
+      .from('user_backup_codes')
+      .select('code, used')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: true })
+
+    const backupCodes: BackupCode[] = backupCodesData || []
+
+    console.log('MFA activé avec succès')
+    
+    toast({
+      title: "2FA activé",
+      description: "L'authentification à deux facteurs a été activée avec succès.",
+    })
+
+    return backupCodes
+
+  } catch (error) {
+    console.error('Erreur lors de la vérification MFA:', error)
+    const errorMessage = error instanceof Error ? error.message : "Code de vérification incorrect"
+    
+    toast({
+      title: "Erreur de vérification",
+      description: errorMessage,
+      variant: "destructive"
+    })
+    throw error
+  }
+}
   /**
    * Désactivation de l'authentification multi-facteurs
    */
@@ -948,7 +1413,7 @@ export const useAuth = (): AuthContextType => {
     }
 
     try {
-      console.log('🔓 Désactivation MFA pour l\'utilisateur:', user.email)
+      console.log('Désactivation MFA pour l\'utilisateur:', user.email)
 
       // Récupérer tous les facteurs actifs
       const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors()
@@ -980,7 +1445,7 @@ export const useAuth = (): AuthContextType => {
         console.error('Erreur lors de la suppression des codes de sauvegarde:', deleteBackupError)
       }
 
-      console.log('✅ MFA désactivé avec succès')
+      console.log('MFA désactivé avec succès')
       
       toast({
         title: "2FA désactivé",
@@ -988,7 +1453,7 @@ export const useAuth = (): AuthContextType => {
       })
 
     } catch (error) {
-      console.error('❌ Erreur lors de la désactivation MFA:', error)
+      console.error('Erreur lors de la désactivation MFA:', error)
       const errorMessage = error instanceof Error ? error.message : "Erreur lors de la désactivation 2FA"
       
       toast({
@@ -1028,136 +1493,56 @@ export const useAuth = (): AuthContextType => {
       return { enabled, factors: mfaFactors }
 
     } catch (error) {
-      console.error('❌ Erreur lors de la récupération du statut MFA:', error)
+      console.error('Erreur lors de la récupération du statut MFA:', error)
       return { enabled: false, factors: [] }
     }
   }
 
   /**
-   * Récupération de toutes les sessions actives de l'utilisateur
+   * Fonction utilitaire pour nettoyer complètement la configuration MFA
+   * Utile pour résoudre les états incohérents
    */
-  const getActiveSessions = async (): Promise<ActiveSession[]> => {
+  const cleanupAllMFA = async (): Promise<void> => {
     if (!user) {
       throw new Error("Aucun utilisateur connecté")
     }
 
     try {
-      console.log('📋 Récupération des sessions actives pour:', user.email)
-
-      // Tentative de récupération depuis une table personnalisée
-      const { data: sessionsData, error: sessionsError } = await supabase
-        .from('user_sessions')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('updated_at', { ascending: false })
-
-      if (sessionsError) {
-        console.error('Erreur lors de la récupération des sessions:', sessionsError)
-        // Fallback: retourner la session courante seulement
-        return [{
-          id: session?.access_token.substring(0, 8) || 'current',
-          user_id: user.id,
-          ip_address: 'Inconnue',
-          user_agent: navigator.userAgent,
-          created_at: user.created_at,
-          updated_at: new Date().toISOString(),
-          is_current: true
-        }]
-      }
-
-      // Marquer la session courante
-      const sessions: ActiveSession[] = (sessionsData || []).map(sessionData => ({
-        ...sessionData,
-        is_current: sessionData.id === session?.access_token.substring(0, 8)
-      }))
-
-      return sessions
-
-    } catch (error) {
-      console.error('❌ Erreur lors de la récupération des sessions:', error)
-      throw error
-    }
-  }
-
-  /**
-   * Révocation d'une session spécifique
-   */
-  const revokeSession = async (sessionId: string): Promise<void> => {
-    if (!user) {
-      throw new Error("Aucun utilisateur connecté")
-    }
-
-    try {
-      console.log('🗑️ Révocation de la session:', sessionId)
-
-      // Supprimer la session de notre table de tracking
-      const { error: deleteError } = await supabase
-        .from('user_sessions')
-        .delete()
-        .eq('id', sessionId)
-        .eq('user_id', user.id)
-
-      if (deleteError) {
-        throw deleteError
-      }
-
-      console.log('✅ Session révoquée avec succès')
+      console.log('Nettoyage complet de la configuration MFA pour:', user.email)
       
-      toast({
-        title: "Session déconnectée",
-        description: "La session a été déconnectée avec succès.",
-      })
-
-    } catch (error) {
-      console.error('❌ Erreur lors de la révocation de session:', error)
-      const errorMessage = error instanceof Error ? error.message : "Erreur lors de la déconnexion"
+      // 1. Supprimer tous les facteurs MFA
+      const { data: factors, error: listError } = await supabase.auth.mfa.listFactors()
       
-      toast({
-        title: "Erreur",
-        description: errorMessage,
-        variant: "destructive"
-      })
-      throw error
-    }
-  }
-
-  /**
-   * Révocation de toutes les autres sessions (sauf la courante)
-   */
-  const revokeAllOtherSessions = async (): Promise<void> => {
-    if (!user || !session) {
-      throw new Error("Aucun utilisateur connecté")
-    }
-
-    try {
-      console.log('🧹 Révocation de toutes les autres sessions pour:', user.email)
-
-      const currentSessionId = session.access_token.substring(0, 8)
-
-      // Supprimer toutes les autres sessions
-      const { error: deleteError } = await supabase
-        .from('user_sessions')
+      if (!listError && factors?.totp) {
+        for (const factor of factors.totp) {
+          try {
+            await supabase.auth.mfa.unenroll({ factorId: factor.id })
+            console.log(`Facteur ${factor.id} supprimé`)
+          } catch (error) {
+            console.warn(`Erreur suppression facteur ${factor.id}:`, error)
+          }
+        }
+      }
+      
+      // 2. Supprimer tous les codes de sauvegarde
+      await supabase
+        .from('user_backup_codes')
         .delete()
         .eq('user_id', user.id)
-        .neq('id', currentSessionId)
-
-      if (deleteError) {
-        throw deleteError
-      }
-
-      console.log('✅ Toutes les autres sessions ont été révoquées')
+      
+      console.log('Nettoyage MFA terminé')
       
       toast({
-        title: "Sessions déconnectées",
-        description: "Toutes les autres sessions ont été déconnectées.",
+        title: "Nettoyage effectué",
+        description: "La configuration 2FA a été nettoyée. Vous pouvez maintenant reconfigurer.",
       })
-
+      
     } catch (error) {
-      console.error('❌ Erreur lors de la révocation des sessions:', error)
-      const errorMessage = error instanceof Error ? error.message : "Erreur lors de la déconnexion des sessions"
+      console.error('Erreur lors du nettoyage MFA:', error)
+      const errorMessage = error instanceof Error ? error.message : "Erreur lors du nettoyage"
       
       toast({
-        title: "Erreur",
+        title: "Erreur de nettoyage",
         description: errorMessage,
         variant: "destructive"
       })
@@ -1189,6 +1574,8 @@ export const useAuth = (): AuthContextType => {
     verifyMFA,
     disableMFA,
     getMFAStatus,
+    debugMFAState,
+    cleanupAllMFA,
     getActiveSessions,
     revokeSession,
     revokeAllOtherSessions,

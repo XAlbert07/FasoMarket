@@ -1,5 +1,4 @@
 // components/OwnerListingDetail.tsx
-// Version Mobile-First complète avec navigation tactile optimisée
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { Header } from "@/components/Header";
@@ -40,7 +39,7 @@ import { formatPrice, formatRelativeTime } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { useAuthContext } from "@/contexts/AuthContext";
 
-// Interfaces conservées pour la compatibilité avec le système existant
+// Interfaces 
 interface RealListingStats {
   totalViews: number;
   todayViews: number;

@@ -1,4 +1,4 @@
-// components/Footer.tsx - VERSION MOBILE-FIRST REFACTORISÉE
+// components/Footer.tsx
 
 import { useState } from "react"
 import { Facebook, Instagram, Mail, Phone, MapPin, ChevronDown, ChevronUp, ExternalLink, Shield } from "lucide-react"

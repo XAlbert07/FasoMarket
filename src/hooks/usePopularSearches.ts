@@ -1,4 +1,4 @@
-// hooks/usePopularSearches.ts - VERSION COMPLÈTE CORRIGÉE
+// hooks/usePopularSearches.ts - VERSION COMPLÈTEMENT CORRIGÉE
 // Hook personnalisé pour gérer les recherches populaires de FasoMarket
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -17,7 +17,8 @@ import type {
  * Ce hook transforme votre section "recherches populaires" statique en un système
  * dynamique qui apprend des vrais comportements de vos utilisateurs burkinabè.
  * 
- * CORRECTIONS APPORTÉES :
+ * CORRECTIONS APPLIQUÉES :
+ * - Ajout de toutes les propriétés manquantes dans les types de retour
  * - Filtrage d'exclusion intelligent qui évite les pièges des chaînes vides
  * - Logs de debugging optionnels pour faciliter la maintenance
  * - Gestion robuste des cas d'erreur et des données manquantes
@@ -31,7 +32,7 @@ export const usePopularSearches = (config: PopularSearchesConfig = {}) => {
     excludeQueries = ['test', 'aaa', 'zzz'], // Suppression de la chaîne vide problématique
     timeRange = 'month',
     source = 'all',
-    enableDebugLogs = false // Nouveau : permet d'activer les logs en cas de besoin
+    enableDebugLogs = false // Maintenant correctement typé
   } = config;
 
   // État local du hook - organisé de manière logique
@@ -150,7 +151,7 @@ export const usePopularSearches = (config: PopularSearchesConfig = {}) => {
         return;
       }
 
-      debugLog('Récupération des recherches populaires depuis la base de données');
+      //debugLog('Récupération des recherches populaires depuis la base de données');
       
       // Calculer la date limite selon la période choisie
       let dateFilter = null;
@@ -159,7 +160,7 @@ export const usePopularSearches = (config: PopularSearchesConfig = {}) => {
         const cutoffDate = new Date();
         cutoffDate.setDate(cutoffDate.getDate() - daysAgo);
         dateFilter = cutoffDate.toISOString();
-        debugLog(`Filtre temporel appliqué pour ${timeRange}`, dateFilter);
+        //debugLog(`Filtre temporel appliqué pour ${timeRange}`, dateFilter);
       }
 
       // Construction progressive de la requête Supabase
@@ -179,11 +180,11 @@ export const usePopularSearches = (config: PopularSearchesConfig = {}) => {
         throw new Error(`Erreur lors de la récupération des données: ${fetchError.message}`);
       }
 
-      debugLog(`Données brutes récupérées: ${rawData?.length || 0} enregistrements`);
+     // debugLog(`Données brutes récupérées: ${rawData?.length || 0} enregistrements`);
 
       // Traitement des données pour calculer la popularité
       if (!rawData || rawData.length === 0) {
-        debugLog('Aucune donnée trouvée dans search_analytics');
+        //debugLog('Aucune donnée trouvée dans search_analytics');
         setPopularSearches([]);
         setTotalSearches(0);
         setLastUpdated(new Date().toISOString());
@@ -473,7 +474,7 @@ export const usePopularSearches = (config: PopularSearchesConfig = {}) => {
     };
   }, []);
 
-  // Interface de retour du hook - tout ce dont les composants ont besoin
+  // Interface de retour du hook - COMPLÈTEMENT CORRIGÉE
   const result: UsePopularSearchesReturn = {
     // Données principales
     popularSearches,
@@ -489,11 +490,11 @@ export const usePopularSearches = (config: PopularSearchesConfig = {}) => {
     trackSearch,
     updateSearchResults,
     
-    // Actions avancées (principalement pour les admins)
+    // Actions avancées (maintenant correctement typées)
     refreshMaterializedView,
     getSearchSuggestions,
     
-    // Utilitaires exposés pour flexibilité
+    // Utilitaires exposés pour flexibilité (maintenant correctement typés)
     normalizeQuery,
     generateSessionId
   };

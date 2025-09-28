@@ -1,4 +1,4 @@
-// pages/HowToPublish.tsx - VERSION MOBILE-FIRST REFACTORISÉE
+// pages/HowToPublish.tsx 
 
 import { useState } from "react";
 import { Link } from "react-router-dom";
@@ -20,7 +20,7 @@ const HowToPublish = () => {
   const [openStep, setOpenStep] = useState<number | null>(null);
   const [showQuickTips, setShowQuickTips] = useState(true);
 
-  // Configuration des étapes avec approche mobile-first
+  // Configuration des étapes 
   const steps = [
     {
       icon: <Camera className="h-6 w-6 text-primary" />,
@@ -461,7 +461,7 @@ const HowToPublish = () => {
             <CardContent className="space-y-3">
               {[
                 { q: "Combien coûte la publication ?", a: "C'est gratuit !" },
-                { q: "Combien de photos puis-je ajouter ?", a: "Jusqu'à 10 photos" },
+                { q: "Combien de photos puis-je ajouter ?", a: "Jusqu'à 08 photos" },
                 { q: "Ma localisation est-elle publique ?", a: "Seule votre ville est visible" },
                 { q: "Comment modifier mon annonce ?", a: "Via 'Mes annonces' dans votre profil" }
               ].map((faq, index) => (

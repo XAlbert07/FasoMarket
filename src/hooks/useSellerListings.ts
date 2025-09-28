@@ -1,4 +1,4 @@
-// hooks/useSellerListings.ts - VERSION CORRIGÉE
+// hooks/useSellerListings.ts
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 
@@ -75,7 +75,7 @@ export const useSellerListings = (sellerId: string, initialFilters?: ListingsFil
       setLoading(true);
       setError(null);
 
-      // CORRECTION : Requête simplifiée sans jointure problématique
+      // Requête simplifiée sans jointure problématique
       // Nous récupérons d'abord les annonces, puis nous enrichirons avec les catégories
       let query = supabase
         .from('listings')
@@ -128,7 +128,7 @@ export const useSellerListings = (sellerId: string, initialFilters?: ListingsFil
         throw new Error(`Erreur lors de la récupération des annonces: ${listingsError.message}`);
       }
 
-      // CORRECTION : Récupération séparée des noms de catégories
+      // Récupération séparée des noms de catégories
       // Cette approche évite les problèmes de jointure complexe
       let categoriesMap: Record<string, string> = {};
       
@@ -174,10 +174,10 @@ export const useSellerListings = (sellerId: string, initialFilters?: ListingsFil
         category_id: item.category_id || '',
         // Utilisation de notre map pour récupérer le nom de la catégorie
         category_name: item.category_id ? (categoriesMap[item.category_id] || 'Non catégorisé') : 'Non catégorisé',
-        favorites_count: 0 // À implémenter si vous avez un système de favoris
+        favorites_count: 0 
       }));
 
-      // Calcul des métadonnées de pagination (inchangé)
+      // Calcul des métadonnées de pagination 
       const total = count || 0;
       const currentPage = Math.floor((offset / limit)) + 1;
       const totalPages = Math.ceil(total / limit);
@@ -210,7 +210,7 @@ export const useSellerListings = (sellerId: string, initialFilters?: ListingsFil
     }
   }, [sellerId]);
 
-  // Le reste du code reste identique à votre version originale
+  
   useEffect(() => {
     fetchListings(filters);
   }, [fetchListings, filters]);
@@ -291,7 +291,7 @@ export const useSellerListings = (sellerId: string, initialFilters?: ListingsFil
   };
 };
 
-// Hook spécialisé pour obtenir seulement les annonces actives - ÉGALEMENT CORRIGÉ
+// Hook spécialisé pour obtenir seulement les annonces actives 
 export const useSellerActiveListings = (sellerId: string, limit: number = 6) => {
   const [activeListings, setActiveListings] = useState<SellerListing[]>([]);
   const [loading, setLoading] = useState(true);
@@ -307,7 +307,7 @@ export const useSellerActiveListings = (sellerId: string, limit: number = 6) => 
       try {
         setLoading(true);
         
-        // CORRECTION : Requête simplifiée sans jointure problématique
+        // Requête simplifiée sans jointure problématique
         const { data: listingsData, error: listingsError } = await supabase
           .from('listings')
           .select(`

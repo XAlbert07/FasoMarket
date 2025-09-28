@@ -1,5 +1,4 @@
 // pages/admin/components/AnalyticsTab.tsx
-// Version mobile-first avec toutes les données synchronisées préservées
 
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";

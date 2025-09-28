@@ -1,5 +1,4 @@
 // pages/admin/components/HealthIndicators.tsx
-// Version mobile-first épurée synchronisée avec useAdminDashboard
 
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,7 +16,7 @@ import {
   Wifi
 } from "lucide-react";
 
-// Interface simplifiée focalisée sur les données essentielles
+// Interface 
 interface HealthIndicatorsProps {
   // Données principales du dashboard
   dashboardStats: any;
@@ -25,7 +24,7 @@ interface HealthIndicatorsProps {
   totalElements: number;
   isLoading: boolean;
   
-  // Nouvelles propriétés du hook centralisé
+  //  propriétés du hook useAdminDashboard
   diagnostics?: {
     dataFreshness: Record<string, number | null>;
     systemHealth: {
@@ -56,7 +55,7 @@ const HealthIndicators: React.FC<HealthIndicatorsProps> = ({
   errors = []
 }) => {
   
-  // Calcul intelligent de la santé système basé sur les vraies données
+  // Calcul de la santé système basé sur les vraies données
   const calculateSystemHealth = () => {
     if (!dashboardStats) return { status: 'loading', score: 0, level: 'unknown' };
     
@@ -64,7 +63,7 @@ const HealthIndicators: React.FC<HealthIndicatorsProps> = ({
     let criticalIssues = 0;
     let warnings = 0;
     
-    // Facteurs de santé basés sur les vraies métriques
+    // Facteurs de santé basés sur les métriques
     const activeReports = dashboardStats.activeReports || 0;
     const averageRating = dashboardStats.averageRating || 0;
     const resolutionRate = dashboardStats.qualityMetrics?.reportResolutionRate || 100;

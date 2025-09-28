@@ -1,9 +1,7 @@
-// hooks/useSellerProfile.ts
+// hooks/useSellerProfile.ts 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 
-// Interface complète pour le profil vendeur
-// Cette interface définit exactement ce que nous attendons de la base de données
 export interface SellerProfile {
   id: string;
   full_name: string;
@@ -19,29 +17,25 @@ export interface SellerProfile {
   average_rating: number;
   total_reviews: number;
   phone?: string;
-  email?: string; // Optionnel, selon les paramètres de confidentialité
+  email?: string;
 }
 
-// Interface pour les statistiques calculées dynamiquement
 export interface SellerStats {
   totalListings: number;
   activeListings: number;
   soldListings: number;
-  averageResponseTime: number; // en heures
+  averageResponseTime: number;
   joinDate: string;
   lastActive: string;
 }
 
-// Hook principal pour récupérer le profil complet d'un vendeur
 export const useSellerProfile = (sellerId: string) => {
-  // États pour gérer les données, le chargement et les erreurs
   const [profile, setProfile] = useState<SellerProfile | null>(null);
   const [stats, setStats] = useState<SellerStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Cette fonction orchestre le chargement complet du profil vendeur
     const fetchSellerProfile = async () => {
       if (!sellerId) {
         setError('ID de vendeur requis');
@@ -53,8 +47,7 @@ export const useSellerProfile = (sellerId: string) => {
         setLoading(true);
         setError(null);
 
-        // Étape 1: Récupération du profil de base depuis la table profiles
-        // Cette requête utilise les capacités relationnelles de Supabase
+        // Étape 1: Récupération du profil de base
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .select(`
@@ -66,12 +59,10 @@ export const useSellerProfile = (sellerId: string) => {
             created_at,
             is_verified,
             response_rate,
-            average_rating,
-            total_reviews,
             phone
           `)
           .eq('id', sellerId)
-          .single(); // single() garantit qu'on récupère un seul enregistrement
+          .single();
 
         if (profileError) {
           throw new Error(`Erreur lors de la récupération du profil: ${profileError.message}`);
@@ -81,23 +72,41 @@ export const useSellerProfile = (sellerId: string) => {
           throw new Error('Profil vendeur introuvable');
         }
 
-        // Étape 2: Calcul des statistiques d'annonces du vendeur
-        // Cette approche sépare les préoccupations et optimise les performances
+        // Récupération et calcul des notes depuis la table reviews
+        const { data: reviewsData, error: reviewsError } = await supabase
+          .from('reviews')
+          .select('rating')
+          .eq('seller_id', sellerId); 
+
+        let averageRating = 0;
+        let totalReviews = 0;
+
+        if (!reviewsError && reviewsData && reviewsData.length > 0) {
+          totalReviews = reviewsData.length;
+          const totalRating = reviewsData.reduce((sum, review) => sum + (review.rating || 0), 0);
+          averageRating = Math.round((totalRating / totalReviews) * 10) / 10;
+          
+          console.log('📊 Notes calculées:', {
+            sellerId,
+            totalReviews,
+            averageRating,
+            allRatings: reviewsData.map(r => r.rating)
+          });
+        }
+
+        // Étape 2: Calcul des statistiques d'annonces
         const [activeListingsCount, totalListingsCount, soldListingsCount] = await Promise.all([
-          // Comptage des annonces actives (non vendues, non supprimées)
           supabase
             .from('listings')
             .select('id', { count: 'exact', head: true })
             .eq('user_id', sellerId)
-            .eq('status', 'active'), // Supposant que vous avez un champ status
+            .eq('status', 'active'),
 
-          // Comptage total des annonces publiées par ce vendeur
           supabase
             .from('listings')
             .select('id', { count: 'exact', head: true })
             .eq('user_id', sellerId),
 
-          // Comptage des annonces vendues (pour calculer le taux de conversion)
           supabase
             .from('listings')
             .select('id', { count: 'exact', head: true })
@@ -105,7 +114,6 @@ export const useSellerProfile = (sellerId: string) => {
             .eq('status', 'sold')
         ]);
 
-        // Vérification des erreurs dans les requêtes de statistiques
         if (activeListingsCount.error || totalListingsCount.error || soldListingsCount.error) {
           console.warn('Erreur lors du calcul des statistiques:', {
             activeError: activeListingsCount.error,
@@ -114,30 +122,29 @@ export const useSellerProfile = (sellerId: string) => {
           });
         }
 
-        // Étape 3: Construction des objets de données finaux
-        // Cette structure sépare les données de profil des statistiques calculées
+        // Étape 3: Construction du profil complet avec les notes calculées
         const completeProfile: SellerProfile = {
           ...profileData,
           total_listings: totalListingsCount.count || 0,
           active_listings: activeListingsCount.count || 0,
           total_sales: soldListingsCount.count || 0,
+          average_rating: averageRating, 
+          total_reviews: totalReviews,   
         };
 
         const calculatedStats: SellerStats = {
           totalListings: totalListingsCount.count || 0,
           activeListings: activeListingsCount.count || 0,
           soldListings: soldListingsCount.count || 0,
-          averageResponseTime: calculateAverageResponseTime(profileData.response_rate),
+          averageResponseTime: calculateAverageResponseTime(profileData.response_rate || 0),
           joinDate: profileData.created_at,
           lastActive: await getLastActiveDate(sellerId)
         };
 
-        // Mise à jour des états avec les données récupérées
         setProfile(completeProfile);
         setStats(calculatedStats);
 
       } catch (err) {
-        // Gestion d'erreur robuste avec logging pour le débogage
         console.error('Erreur dans useSellerProfile:', err);
         setError(err instanceof Error ? err.message : 'Erreur inconnue');
         setProfile(null);
@@ -148,21 +155,15 @@ export const useSellerProfile = (sellerId: string) => {
     };
 
     fetchSellerProfile();
-  }, [sellerId]); // Le hook se re-déclenche quand l'ID du vendeur change
+  }, [sellerId]);
 
-  // Fonction utilitaire pour calculer le temps de réponse moyen
-  // Cette logique métier est encapsulée dans le hook pour la réutilisabilité
   const calculateAverageResponseTime = (responseRate: number): number => {
-    // Formule approximative: plus le taux de réponse est élevé, plus le temps est court
-    // Vous pouvez ajuster cette logique selon vos besoins métier
-    if (responseRate >= 95) return 2; // 2 heures pour les très réactifs
-    if (responseRate >= 90) return 4; // 4 heures pour les réactifs
-    if (responseRate >= 80) return 8; // 8 heures pour les moyens
-    return 24; // 24 heures pour les moins réactifs
+    if (responseRate >= 95) return 2;
+    if (responseRate >= 90) return 4;
+    if (responseRate >= 80) return 8;
+    return 24;
   };
 
-  // Fonction pour récupérer la dernière activité du vendeur
-  // Cette information aide les acheteurs à savoir si le vendeur est actif récemment
   const getLastActiveDate = async (sellerId: string): Promise<string> => {
     try {
       const { data, error } = await supabase
@@ -174,7 +175,7 @@ export const useSellerProfile = (sellerId: string) => {
         .single();
 
       if (error || !data) {
-        return new Date().toISOString(); // Fallback à aujourd'hui si pas de données
+        return new Date().toISOString();
       }
 
       return data.created_at;
@@ -183,31 +184,24 @@ export const useSellerProfile = (sellerId: string) => {
     }
   };
 
-  // Fonction pour rafraîchir les données du profil
-  // Utile quand des données ont pu changer (nouvelle annonce, nouvel avis, etc.)
   const refreshProfile = async () => {
     setLoading(true);
-    // Re-déclencher le useEffect en forçant un nouveau rendu
-    // Cette approche maintient la cohérence avec la logique existante
     const event = new CustomEvent('refreshSellerProfile');
     window.dispatchEvent(event);
   };
 
-  // Interface de retour du hook - API publique claire et stable
   return {
     profile,
     stats,
     loading,
     error,
     refreshProfile,
-    // Fonctions utilitaires exposées pour une utilisation avancée
     isVerified: profile?.is_verified || false,
     hasGoodRating: (profile?.average_rating || 0) >= 4.0,
     isResponsive: (profile?.response_rate || 0) >= 90
   };
 };
 
-// Hook spécialisé pour une utilisation légère (quand on n'a besoin que des infos de base)
 export const useSellerBasicInfo = (sellerId: string) => {
   const [basicInfo, setBasicInfo] = useState<{
     id: string;

@@ -15,8 +15,8 @@ interface FormattedCategory {
   name: string;
   slug: string;
   icon: string;
-  count: string; // Formaté pour l'affichage (ex: "2,341")
-  listing_count: number; // Nombre brut pour les calculs
+  count: string; 
+  listing_count: number; 
   color: string;
   href: string;
 }

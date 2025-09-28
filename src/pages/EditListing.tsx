@@ -1,5 +1,4 @@
-// pages/EditListing.tsx
-// Page complète pour éditer une annonce existante, optimisée pour le mobile-first.
+// pages/EditListing.tsx 
 
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -7,6 +6,7 @@ import { useAuthContext } from "@/contexts/AuthContext";
 import { useListing } from "@/hooks/useListings";
 import { useCategories } from "@/hooks/useCategories";
 import { useCreateListing } from "@/hooks/useListings";
+import { useImageUpload } from "@/hooks/useImageUpload"; 
 import { useToast } from "@/hooks/use-toast";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -19,6 +19,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
+import { 
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { 
   ArrowLeft, 
   Save, 
@@ -34,14 +43,63 @@ import {
   Image as ImageIcon
 } from "lucide-react";
 
-// Liste des emplacements (inchangée)
+// Liste des emplacements
 const BURKINA_LOCATIONS = [
   "Ouagadougou", "Bobo-Dioulasso", "Koudougou", "Ouahigouya", "Banfora", 
   "Dédougou", "Kaya", "Tenkodogo", "Fada N'Gourma", "Ziniaré",
   "Réo", "Gaoua", "Dori", "Manga", "Boulsa"
 ];
 
-// Le composant principal reste le même, seule la partie JSX a été refactorisée
+// Composant de confirmation de sortie
+const ConfirmationDialog = ({ 
+  open, 
+  onOpenChange, 
+  onConfirm, 
+  onCancel,
+  hasChanges 
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+  hasChanges: boolean;
+}) => (
+  <Dialog open={open} onOpenChange={onOpenChange}>
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle className="flex items-center gap-2">
+          <AlertTriangle className="h-5 w-5 text-amber-500" />
+          Modifications non sauvegardées
+        </DialogTitle>
+        <DialogDescription className="space-y-2">
+          <p>
+            Vous avez des modifications non sauvegardées qui seront perdues si vous quittez cette page.
+          </p>
+          <p className="font-medium text-foreground">
+            Que souhaitez-vous faire ?
+          </p>
+        </DialogDescription>
+      </DialogHeader>
+      <DialogFooter className="flex-col gap-2 sm:flex-row">
+        <Button 
+          variant="outline" 
+          onClick={onCancel}
+          className="w-full sm:w-auto"
+        >
+          Continuer l'édition
+        </Button>
+        <Button 
+          variant="destructive" 
+          onClick={onConfirm}
+          className="w-full sm:w-auto"
+        >
+          Quitter sans sauvegarder
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+);
+
 const EditListing = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -51,6 +109,7 @@ const EditListing = () => {
   const { listing, loading: listingLoading, error } = useListing(id!);
   const { categories, loading: categoriesLoading } = useCategories();
   const { updateListing, loading: updateLoading } = useCreateListing();
+  const { uploadImages, deleteImage, uploading: uploadingImages } = useImageUpload(); // Utilisation du hook
 
   // Référence pour l'input file caché
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -71,8 +130,11 @@ const EditListing = () => {
 
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [hasChanges, setHasChanges] = useState(false);
-  const [imageToRemove, setImageToRemove] = useState<string[]>([]);
-  const [uploadingImages, setUploadingImages] = useState(false);
+  const [imagesToRemove, setImagesToRemove] = useState<string[]>([]);
+  
+  // États pour la confirmation de sortie
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
 
   // Charger les données de l'annonce dans le formulaire
   useEffect(() => {
@@ -88,7 +150,7 @@ const EditListing = () => {
         return;
       }
 
-      // Remplir le formulaire avec les données existantes (sans la devise)
+      // Remplir le formulaire avec les données existantes
       setFormData({
         title: listing.title || '',
         description: listing.description || '',
@@ -104,7 +166,7 @@ const EditListing = () => {
     }
   }, [listing, user, navigate, toast]);
 
-  // Détecter les changements dans le formulaire (sans la devise)
+  // Détecter les changements dans le formulaire
   useEffect(() => {
     if (listing) {
       const hasFormChanges = 
@@ -118,11 +180,28 @@ const EditListing = () => {
         formData.contact_email !== (listing.contact_email || '') ||
         formData.contact_whatsapp !== (listing.contact_whatsapp || '') ||
         JSON.stringify(formData.images) !== JSON.stringify(listing.images || []) ||
-        imageToRemove.length > 0;
+        imagesToRemove.length > 0;
       
       setHasChanges(hasFormChanges);
     }
-  }, [formData, listing, imageToRemove]);
+  }, [formData, listing, imagesToRemove]);
+
+  // Protection contre la fermeture accidentelle du navigateur
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasChanges) {
+        e.preventDefault();
+        e.returnValue = '';
+        return 'Vous avez des modifications non sauvegardées. Êtes-vous sûr de vouloir quitter ?';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [hasChanges]);
 
   const handleInputChange = (field: string, value: string | number) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -137,74 +216,61 @@ const EditListing = () => {
     }
   };
 
-  // Fonction pour gérer l'upload d'images
+  // Fonction pour gérer l'upload d'images 
   const handleImageUpload = async (files: FileList) => {
     if (!files || files.length === 0) return;
 
     // Vérifier que l'on ne dépasse pas 5 images au total
-    if (formData.images.length + files.length > 5) {
+    if (formData.images.length + files.length > 8) {
       toast({
         title: "Trop d'images",
-        description: "Vous ne pouvez pas avoir plus de 5 images par annonce",
+        description: "Vous ne pouvez pas avoir plus de 8 images par annonce",
         variant: "destructive"
       });
       return;
     }
 
-    setUploadingImages(true);
-    const newImages: string[] = [];
+    const fileArray = Array.from(files);
+    
+    // Vérifications de base
+    for (const file of fileArray) {
+      if (!file.type.startsWith('image/')) {
+        toast({
+          title: "Format non supporté",
+          description: `Le fichier ${file.name} n'est pas une image`,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (file.size > 5 * 1024 * 1024) { // 5MB max
+        toast({
+          title: "Fichier trop volumineux",
+          description: `L'image ${file.name} dépasse 5MB`,
+          variant: "destructive"
+        });
+        return;
+      }
+    }
 
     try {
-      // Simuler l'upload - en réalité vous devriez utiliser votre service d'upload
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        
-        // Vérifications de base
-        if (!file.type.startsWith('image/')) {
-          toast({
-            title: "Format non supporté",
-            description: `Le fichier ${file.name} n'est pas une image`,
-            variant: "destructive"
-          });
-          continue;
-        }
+      // Utiliser le hook pour uploader les images vers Supabase
+      const uploadedUrls = await uploadImages(fileArray);
 
-        if (file.size > 5 * 1024 * 1024) { // 5MB max
-          toast({
-            title: "Fichier trop volumineux",
-            description: `L'image ${file.name} dépasse 5MB`,
-            variant: "destructive"
-          });
-          continue;
-        }
-
-        // Créer un URL temporaire pour la prévisualisation
-        // En production, vous devriez uploader vers votre serveur/cloud
-        const imageUrl = URL.createObjectURL(file);
-        newImages.push(imageUrl);
-      }
-
-      // Ajouter les nouvelles images
+      // Ajouter les nouvelles images au formulaire
       setFormData(prev => ({
         ...prev,
-        images: [...prev.images, ...newImages]
+        images: [...prev.images, ...uploadedUrls]
       }));
 
-      if (newImages.length > 0) {
-        toast({
-          title: "Images ajoutées",
-          description: `${newImages.length} image(s) ajoutée(s) avec succès`,
-        });
-      }
+      toast({
+        title: "Images ajoutées",
+        description: `${uploadedUrls.length} image(s) ajoutée(s) avec succès`,
+      });
+
     } catch (error) {
       console.error('Erreur lors de l\'upload:', error);
-      toast({
-        title: "Erreur d'upload",
-        description: "Impossible d'ajouter les images",
-        variant: "destructive"
-      });
-    } finally {
-      setUploadingImages(false);
+      // Le hook useImageUpload affiche déjà un toast d'erreur
     }
   };
 
@@ -213,6 +279,37 @@ const EditListing = () => {
     fileInputRef.current?.click();
   };
 
+  // Navigation avec confirmation
+  const handleNavigateWithConfirmation = (path: string) => {
+    if (hasChanges) {
+      setPendingNavigation(path);
+      setShowConfirmation(true);
+    } else {
+      navigate(path);
+    }
+  };
+
+  // Confirmer la sortie sans sauvegarder
+  const confirmNavigation = () => {
+    if (pendingNavigation) {
+      navigate(pendingNavigation);
+    }
+    setShowConfirmation(false);
+    setPendingNavigation(null);
+  };
+
+  // Annuler la sortie (continuer l'édition)
+  const cancelNavigation = () => {
+    setShowConfirmation(false);
+    setPendingNavigation(null);
+  };
+
+  // Gestionnaire du bouton Annuler/Retour
+  const handleCancel = () => {
+    handleNavigateWithConfirmation(`/listing/${id}`);
+  };
+
+  // Validation du formulaire
   const validateForm = () => {
     const errors: Record<string, string> = {};
 
@@ -265,6 +362,7 @@ const EditListing = () => {
     return Object.keys(errors).length === 0;
   };
 
+  // Soumission du formulaire
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -287,19 +385,26 @@ const EditListing = () => {
     }
 
     try {
+      // Supprimer les images marquées pour suppression
+      if (imagesToRemove.length > 0) {
+        for (const imageUrl of imagesToRemove) {
+          await deleteImage(imageUrl);
+        }
+      }
+
       // Préparer les données pour la mise à jour
       const updateData = {
         title: formData.title.trim(),
         description: formData.description.trim(),
         price: parseFloat(formData.price),
-        currency: 'FCFA', // Devise fixe pour le marché local burkinabé
+        currency: 'FCFA', 
         category_id: formData.category_id,
         location: formData.location.trim(),
         condition: formData.condition,
         contact_phone: formData.contact_phone.trim() || null,
         contact_email: formData.contact_email.trim() || null,
         contact_whatsapp: formData.contact_whatsapp.trim() || null,
-        images: formData.images.filter(img => !imageToRemove.includes(img)),
+        images: formData.images,
         updated_at: new Date().toISOString()
       };
 
@@ -311,6 +416,10 @@ const EditListing = () => {
           description: "Vos modifications ont été sauvegardées avec succès",
           duration: 4000
         });
+
+        // Réinitialiser les changements
+        setHasChanges(false);
+        setImagesToRemove([]);
 
         // Rediriger vers la page de gestion de l'annonce
         navigate(`/listing/${id}`);
@@ -325,25 +434,21 @@ const EditListing = () => {
     }
   };
 
+  // Fonction pour marquer une image pour suppression
   const handleRemoveImage = (imageUrl: string) => {
-    setImageToRemove(prev => [...prev, imageUrl]);
+    // Si c'est une image existante (URL Supabase), la marquer pour suppression
+    if (listing?.images?.includes(imageUrl)) {
+      setImagesToRemove(prev => [...prev, imageUrl]);
+    }
+    
+    // Retirer l'image du formulaire
     setFormData(prev => ({
       ...prev,
       images: prev.images.filter(img => img !== imageUrl)
     }));
   };
 
-  const handleCancel = () => {
-    // Remplacer window.confirm par une modale custom pour éviter les problèmes d'iframe
-    // Ici, nous allons simplement naviguer en arrière pour l'exemple
-    if (hasChanges) {
-       console.log("Des modifications non sauvegardées ont été détectées. Redirection annulée.");
-       // En production, il faudrait afficher un composant de confirmation
-    }
-    navigate(`/listing/${id}`);
-  };
-
-  // États de chargement et d'erreur (pas de changements)
+  // États de chargement et d'erreur
   if (listingLoading || categoriesLoading) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
@@ -393,6 +498,15 @@ const EditListing = () => {
     <div className="min-h-screen bg-background flex flex-col">
       <Header />
       
+      {/* Modale de confirmation */}
+      <ConfirmationDialog
+        open={showConfirmation}
+        onOpenChange={setShowConfirmation}
+        onConfirm={confirmNavigation}
+        onCancel={cancelNavigation}
+        hasChanges={hasChanges}
+      />
+      
       {/* Container principal adapté pour le mobile-first */}
       <main className="flex-grow container mx-auto px-4 py-8 md:px-6 lg:px-8">
         <div className="max-w-4xl mx-auto">
@@ -406,9 +520,8 @@ const EditListing = () => {
             className="hidden"
           />
 
-          {/* En-tête - Simplifié pour mobile, aligné pour le desktop */}
+          {/* En-tête */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 space-y-4 sm:space-y-0">
-            {/* Colonne de gauche avec le bouton de retour et le titre */}
             <div>
               <Button
                 variant="ghost"
@@ -424,7 +537,6 @@ const EditListing = () => {
               </p>
             </div>
             
-            {/* Bouton de prévisualisation à droite sur desktop */}
             <div className="flex gap-2">
               <Button variant="outline" asChild>
                 <a href={`/listing/${id}`} target="_blank">
@@ -498,7 +610,7 @@ const EditListing = () => {
                   </CardContent>
                 </Card>
 
-                {/* Prix et catégorie - Section modifiée */}
+                {/* Prix et catégorie */}
                 <Card className="rounded-lg shadow-sm">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-xl">
@@ -507,7 +619,6 @@ const EditListing = () => {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-6">
-                    {/* Les deux sélecteurs sont maintenant empilés sur mobile, puis côte à côte sur desktop */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <Label htmlFor="category" className="mb-1">Catégorie *</Label>
@@ -660,9 +771,9 @@ const EditListing = () => {
                 </Card>
               </div>
 
-              {/* Sidebar - Images et actions - S'affiche en deuxième sur mobile, à droite sur desktop */}
+              {/* Sidebar - Images et actions */}
               <div className="space-y-6">
-                {/* Gestion des images améliorée */}
+                {/* Gestion des images */}
                 <Card className="rounded-lg shadow-sm">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-xl">
@@ -671,7 +782,7 @@ const EditListing = () => {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    {/* Grille des images existantes, plus espacée sur mobile */}
+                    {/* Grille des images existantes */}
                     {formData.images.length > 0 && (
                       <div className="grid grid-cols-2 gap-3 mb-4">
                         {formData.images.map((image, index) => (
@@ -681,7 +792,6 @@ const EditListing = () => {
                               alt={`Image ${index + 1}`}
                               className="w-full h-24 object-cover"
                             />
-                            {/* Bouton de suppression d'image stylisé et animé */}
                             <Button
                               type="button"
                               variant="destructive"

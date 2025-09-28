@@ -1,4 +1,4 @@
-// pages/admin/components/UsersTab.tsx - VERSION CORRIGÉE SYNCHRONISÉE
+// pages/admin/components/UsersTab.tsx 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,7 +19,7 @@ import AdminChatModal from './AdminChatModal';
 import { useAdminDashboard, UserAction } from '@/hooks/useAdminDashboard';
 
 // ==========================================
-// INTERFACES CORRIGÉES
+// INTERFACES
 // ==========================================
 
 interface UsersTabProps {
@@ -55,7 +55,7 @@ const UsersTab: React.FC<UsersTabProps> = ({
   refreshUsers,
   error
 }) => {
-  // États préservés
+  // États 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [roleFilter, setRoleFilter] = useState("all");
@@ -91,12 +91,11 @@ const UsersTab: React.FC<UsersTabProps> = ({
   };
 
   // ==========================================
-  // FONCTION CORRIGÉE POUR DÉTERMINER LE STATUT RÉEL
+  // FONCTION POUR DÉTERMINER LE STATUT RÉEL
   // ==========================================
   
   /**
-   * Détermine le vrai statut d'un utilisateur basé sur les données de la base
-   * plutôt que sur des calculs heuristiques
+   * Détermine le vrai statut d'un utilisateur 
    */
   const getUserRealStatus = (user: any): 'active' | 'suspended' | 'banned' | 'pending_verification' => {
     // Priorité 1: Vérifier les bannissements permanents
@@ -132,7 +131,7 @@ const UsersTab: React.FC<UsersTabProps> = ({
   };
 
   // ==========================================
-  // LOGIQUE DE FILTRAGE CORRIGÉE
+  // LOGIQUE DE FILTRAGE 
   // ==========================================
   
   const filteredUsers = users.filter(user => {
@@ -150,7 +149,7 @@ const UsersTab: React.FC<UsersTabProps> = ({
   });
 
   // ==========================================
-  // FONCTIONS D'ACTION CORRIGÉES
+  // FONCTIONS D'ACTION 
   // ==========================================
   
   const handleSelectUser = (userId: string) => {
@@ -167,7 +166,6 @@ const UsersTab: React.FC<UsersTabProps> = ({
 
   const handleBulkAction = async (action: string) => {
     for (const userId of selectedUsers) {
-      // Corriger le type d'action pour correspondre au hook
       let correctedAction;
       switch (action) {
         case 'verify':
@@ -196,8 +194,8 @@ const UsersTab: React.FC<UsersTabProps> = ({
   };
 
   /**
-   * FONCTION CORRIGÉE : Gestion des actions suspension/réactivation
-   * Cette fonction utilise maintenant les bons types d'actions du hook
+   * Gestion des actions suspension/réactivation
+   * Cette fonction utilise  les types d'actions du hook
    */
   const handleUserStatusAction = async (user: any, actionType: 'suspend' | 'activate') => {
     const userId = user.id;
@@ -272,7 +270,7 @@ const UsersTab: React.FC<UsersTabProps> = ({
   };
 
   // ==========================================
-  // STATISTIQUES CORRIGÉES
+  // STATISTIQUES
   // ==========================================
   
   const stats = {
@@ -287,7 +285,7 @@ const UsersTab: React.FC<UsersTabProps> = ({
   // Utilisateurs à risque élevé
   const highRiskUsers = users.filter(u => getUserRiskLevel(u) === 'Élevé');
 
-  // Gestion des erreurs préservée
+  // Gestion des erreurs 
   if (error) {
     return (
       <div className="flex items-center justify-center min-h-64 p-4">
@@ -784,7 +782,7 @@ const UsersTab: React.FC<UsersTabProps> = ({
                             <Mail className="h-3 w-3" />
                           </Button>
                           
-                          {/* LOGIQUE CORRIGÉE POUR LES BOUTONS DE SUSPENSION/RÉACTIVATION */}
+                          {/* LOGIQUE POUR LES BOUTONS DE SUSPENSION/RÉACTIVATION */}
                           {!isSuspended ? (
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
@@ -1069,7 +1067,7 @@ const UsersTab: React.FC<UsersTabProps> = ({
                                     <Mail className="h-4 w-4 text-green-600" />
                                   </Button>
                                   
-                                  {/* LOGIQUE CORRIGÉE POUR LES BOUTONS DE SUSPENSION/RÉACTIVATION */}
+                                  {/* LOGIQUE POUR LES BOUTONS DE SUSPENSION/RÉACTIVATION */}
                                   {!isSuspended ? (
                                     <AlertDialog>
                                       <AlertDialogTrigger asChild>

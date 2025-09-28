@@ -1,4 +1,4 @@
-// components/CategoriesGrid.tsx - VERSION MOBILE-FIRST REFACTORISÉE
+// components/CategoriesGrid.tsx 
 
 import { useState } from "react"
 import { Link } from "react-router-dom"

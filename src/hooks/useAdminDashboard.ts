@@ -1,5 +1,4 @@
 // hooks/useAdminDashboard.ts
-// Hook centralisé consolidant tous les hooks administratifs - VERSION AMÉLIORÉE AVEC SYNCHRONISATION
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
@@ -68,7 +67,7 @@ interface CentralState {
   }
 }
 
-// Interfaces des hooks originaux (préservées)
+// Interfaces 
 export interface DashboardStats {
   totalUsers: number
   totalListings: number
@@ -169,7 +168,7 @@ export interface AdminListing {
   suspended_by?: string | null
   moderation_notes?: string | null
   
-  // NOUVELLES PROPRIÉTÉS POUR LA DÉTECTION D'INCOHÉRENCES
+  // PROPRIÉTÉS POUR LA DÉTECTION D'INCOHÉRENCES
   owner_suspended: boolean
   has_inconsistency: boolean
   inconsistency_type: 'user_suspended_listing_active' | null
@@ -276,7 +275,7 @@ export interface CategoryData {
 }
 
 // ========================================
-// HOOK PRINCIPAL CENTRALISÉ
+// HOOK PRINCIPAL 
 // ========================================
 
 export const useAdminDashboard = () => {
@@ -740,7 +739,7 @@ export const useAdminDashboard = () => {
   }, [user, toast]);
 
   // ========================================
-  // COUCHE 2: LOGIQUES MÉTIER PRÉSERVÉES
+  // COUCHE 2: LOGIQUES MÉTIER 
   // ========================================
 
   // Calcul des statistiques dashboard
@@ -2299,7 +2298,7 @@ export const useAdminDashboard = () => {
       sanctions: centralState.userSanctions.error
     },
 
-    // ===== COMPATIBILITÉ AVEC LES HOOKS ORIGINAUX =====
+    // ===== LES HOOKS POUR DIFFERENT SECTION =====
     
     // Pour useAdminStats
     isDataFresh: computedDashboardStats !== null && !globalLoading,
@@ -2308,7 +2307,7 @@ export const useAdminDashboard = () => {
        computedDashboardStats.activeReports > 5 ? 'warning' : 'good') : 'loading',
     lastUpdated: lastGlobalRefresh ? new Date(lastGlobalRefresh).toLocaleString('fr-BF') : null,
 
-    // Fonctions utilitaires préservées
+    // Fonctions utilitaires 
     getTrustScoreColor: (score: number) => {
       if (score >= 80) return 'text-green-600 bg-green-50'
       if (score >= 60) return 'text-yellow-600 bg-yellow-50'

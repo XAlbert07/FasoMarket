@@ -1,4 +1,4 @@
-// components/Header.tsx - VERSION MOBILE-FIRST REFACTORISÉE
+// components/Header.tsx 
 
 import { useState, useEffect } from "react"
 import { Link, useNavigate, useLocation } from "react-router-dom"

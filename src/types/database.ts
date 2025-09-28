@@ -260,6 +260,12 @@ export interface UsePopularSearchesReturn {
   refreshPopularSearches: () => Promise<void>;
   trackSearch: (data: SearchTrackingData) => Promise<void>;
   updateSearchResults: (data: SearchResultsData) => Promise<void>;
+
+  // ← AJOUTER CES LIGNES
+  refreshMaterializedView: () => Promise<boolean>;
+  getSearchSuggestions: (partialQuery: string, limit?: number) => PopularSearch[];
+  normalizeQuery: (query: string) => string;
+  generateSessionId: () => string;
 }
 
 /**
@@ -271,6 +277,7 @@ export interface PopularSearchesConfig {
   excludeQueries?: string[]; // Termes à exclure de l'affichage
   timeRange?: 'week' | 'month' | 'all'; // Période d'analyse
   source?: 'hero' | 'all'; // Source des recherches à considérer
+  enableDebugLogs?: boolean; // ← AJOUTER CETTE LIGNE
 }
 
 /**

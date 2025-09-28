@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Send, Phone, Video, MoreVertical, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRealtimeChat } from '@/hooks/useRealtimeChat';
-import { useNavigate } from 'react-router-dom'; // ⚡ Import ajouté pour la navigation
+import { useNavigate } from 'react-router-dom'; 
 
 interface ChatModalProps {
   isOpen: boolean;
@@ -31,7 +31,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
 }) => {
   const [message, setMessage] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const navigate = useNavigate(); // ⚡ Hook de navigation ajouté
+  const navigate = useNavigate(); 
   
   const {
     messages,
@@ -64,7 +64,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
     setMessage('');
   };
 
-  // ⚡ Nouvelle fonction pour gérer la navigation vers le profil
+  // ⚡ Fonction pour gérer la navigation vers le profil
   const handleNavigateToProfile = () => {
     // Fermer le modal d'abord pour éviter les conflits d'interface
     onClose();
@@ -79,7 +79,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md h-[600px] flex flex-col p-0">
-        {/* Header modifié avec nom cliquable */}
+        {/* Header avec nom cliquable */}
         <DialogHeader className="flex flex-row items-center justify-between p-4 border-b">
           <div className="flex items-center space-x-3">
             <div className="relative">
@@ -140,7 +140,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
           </div>
         </DialogHeader>
 
-        {/* Messages - aucun changement nécessaire */}
+        {/* Messages */}
         <ScrollArea className="flex-1 p-4">
           <div className="space-y-4">
             {messages.map((msg) => (
@@ -184,7 +184,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
           </div>
         </ScrollArea>
 
-        {/* Input - aucun changement nécessaire */}
+        {/* Input */}
         <div className="p-4 border-t">
           <form onSubmit={handleSendMessage} className="flex space-x-2">
             <Input

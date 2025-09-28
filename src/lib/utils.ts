@@ -5,11 +5,6 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-
-
-// Ajoutez SEULEMENT ces fonctions à la fin de votre fichier /lib/utils.ts existant
-// N'ajoutez PAS d'importations si elles existent déjà
-
 /**
  * Formate le prix en remplaçant XOF par F CFA
  * @param price - Le prix en nombre

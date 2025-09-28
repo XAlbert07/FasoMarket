@@ -1,4 +1,4 @@
-// pages/MyProfile.tsx - VERSION MOBILE-FIRST REFACTORISÉE
+// pages/MyProfile.tsx 
 
 import { useState, useEffect } from "react";
 import { Header } from "@/components/Header";
@@ -20,7 +20,7 @@ import {
   Lock, Smartphone, Monitor, TrendingUp, MessageCircle, Heart
 } from "lucide-react";
 
-// Imports des composants spécialisés - architecture modulaire maintenue
+// Imports des composants spécialisés 
 import { ChangePasswordModal } from "@/components/security/ChangePasswordModal";
 import { TwoFactorAuthModal } from "@/components/security/TwoFactorAuthModal";
 import { ActiveSessionsModal } from "@/components/security/ActiveSessionsModal";

@@ -1,5 +1,4 @@
-// components/HeroSection.tsx - VERSION SIMPLE CORRIGÉE
-// Garde ton design original, corrige juste le problème des recherches populaires
+// components/HeroSection.tsx 
 
 import { useState, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
@@ -16,7 +15,7 @@ export const HeroSection = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [location, setLocation] = useState("");
 
-  // Hook pour les recherches populaires - CORRECTION: suppression de la chaîne vide
+  // Hook pour les recherches populaires
   const {
     popularSearches,
     loading: searchesLoading,
@@ -27,7 +26,7 @@ export const HeroSection = () => {
     maxItems: 6,
     timeRange: 'all',
     minSearches: 2, // Réduit à 2 pour plus de flexibilité
-    excludeQueries: ['test', 'aaa', 'zzz'] // CORRECTION: plus de chaîne vide
+    excludeQueries: ['test', 'aaa', 'zzz'] 
   });
 
   /**
@@ -132,7 +131,7 @@ export const HeroSection = () => {
       );
     }
 
-    // Affichage des vraies recherches populaires - SIMPLE ET PROPRE
+    // Affichage des vraies recherches populaires
     if (popularSearches.length > 0) {
       return (
         <div className="mt-6">
@@ -234,7 +233,7 @@ export const HeroSection = () => {
             </div>
           </form>
 
-          {/* Section des recherches populaires - SIMPLE ET PROPRE */}
+          {/* Section des recherches populaires*/}
           {renderPopularSearches()}
         </div>
       </div>

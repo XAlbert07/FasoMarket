@@ -1,6 +1,4 @@
 // pages/admin/components/StatsCards.tsx
-// Composant synchronisé avec le hook centralisé useAdminDashboard
-// Mobile-first et compatible avec toutes les données enrichies
 
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +10,7 @@ import {
 } from "lucide-react";
 import { DashboardStats } from '@/hooks/useAdminDashboard';
 
-// Interface synchronisée avec AdminDashboard
+// Interface 
 interface StatsCardsProps {
   dashboardStats: DashboardStats | null;
   sanctionsStats: {
@@ -44,7 +42,7 @@ const StatsCards: React.FC<StatsCardsProps> = ({
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Configuration des cartes principales - synchronisée avec le hook centralisé
+  // Configuration des cartes principales 
   const mainStatsConfig = [
     {
       title: "Utilisateurs Totaux",
@@ -100,7 +98,7 @@ const StatsCards: React.FC<StatsCardsProps> = ({
     }
   ];
 
-  // Métriques de performance (synchronisées avec le hook)
+  // Métriques de performance 
   const performanceMetrics = [
     {
       label: "Taux d'Engagement",
@@ -235,7 +233,7 @@ const StatsCards: React.FC<StatsCardsProps> = ({
                     </p>
                   </div>
 
-                  {/* Barres de progression basées sur les vraies données du hook */}
+                  {/* Barres de progression */}
                   {stat.title === "Utilisateurs Totaux" && dashboardStats && dashboardStats.dailyActiveUsers > 0 && (
                     <div className="mt-2 pt-2 border-t border-gray-100">
                       <div className={`flex justify-between text-gray-500 mb-1 ${isMobile ? 'text-xs' : 'text-sm'}`}>
@@ -282,7 +280,7 @@ const StatsCards: React.FC<StatsCardsProps> = ({
             Métriques de Performance
           </CardTitle>
           <p className={`text-gray-500 ${isMobile ? 'text-xs' : 'text-sm'}`}>
-            Indicateurs calculés en temps réel depuis votre hook centralisé
+            Indicateurs calculés en temps réel 
           </p>
         </CardHeader>
         <CardContent className={isMobile ? 'px-3 pb-3' : 'px-4 pb-4'}>

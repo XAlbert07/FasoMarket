@@ -62,7 +62,7 @@ const About = () => {
     }
   ];
 
-  // Avantages réorganisés pour présentation mobile
+  // Avantages 
   const benefits = {
     sellers: [
       { feature: 'Publication gratuite d\'annonces', priority: 'high' },

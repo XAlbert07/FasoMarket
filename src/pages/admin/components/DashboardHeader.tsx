@@ -1,7 +1,4 @@
 // pages/admin/components/DashboardHeader.tsx
-// Header adaptatif pour dashboard admin - Version mobile-responsive complète
-// CONSERVE: Toute la logique métier et les fonctionnalités existantes
-// AJOUTE: Adaptation intelligente pour mobile et tablette
 
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
@@ -34,7 +31,7 @@ const useResponsiveBreakpoint = () => {
   };
 };
 
-// Interface conservée intégralement pour compatibilité
+// Interface 
 interface DashboardHeaderProps {
   refreshing: boolean;
   onRefresh: () => Promise<void>;
@@ -241,7 +238,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
       }
     } catch (error) {
       console.error('Erreur lors de l\'actualisation:', error);
-      // Ici vous pourriez ajouter une notification d'erreur
+      
     }
   };
 

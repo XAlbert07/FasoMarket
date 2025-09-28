@@ -1,7 +1,4 @@
 // pages/admin/components/OverviewTab.tsx
-// Version complète adaptative mobile-responsive
-// CONSERVE: Toutes les données et fonctionnalités existantes
-// AJOUTE: Adaptation mobile intelligente avec composants spécialisés
 
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,10 +48,9 @@ const useResponsiveBreakpoint = () => {
   };
 };
 
-// =================== INTERFACES (CONSERVÉES) ===================
+// =================== INTERFACES ===================
 
 interface OverviewTabProps {
-  // Propriétés existantes préservées intégralement
   weeklyData: WeeklyData[];
   categoryData: CategoryData[];
   dashboardStats: DashboardStats | null;
@@ -62,7 +58,6 @@ interface OverviewTabProps {
   needsReviewCount: number;
   onTabChange: (tab: string) => void;
   
-  // Nouvelles propriétés du hook centralisé (conservées)
   crossStats: {
     totalElements: number;
     healthScore: number;
@@ -93,7 +88,7 @@ const MobileAlertSummary: React.FC<{
   onActionClick: (tab: string) => void;
 }> = ({ urgentActions, healthScore, moderationWorkload, onActionClick }) => {
   
-  // Logique de calcul de santé identique à l'original
+  // Logique de calcul de santé 
   const getAlertStatus = () => {
     if (urgentActions > 5 || healthScore < 30) {
       return { 
@@ -190,7 +185,7 @@ const MobileEssentialMetrics: React.FC<{
   onTabChange: (tab: string) => void;
 }> = ({ crossStats, dashboardStats, onTabChange }) => {
   
-  // Métriques prioritaires avec logique de couleur préservée
+  // Métriques prioritaires avec logique de couleur
   const metrics = [
     {
       label: "Croissance",
@@ -269,7 +264,6 @@ const MobileEssentialMetrics: React.FC<{
 
 /**
  * Composant de tendances simplifiées pour mobile
- * Remplace les graphiques complexes par une représentation synthétique
  */
 const MobileTrendChart: React.FC<{ 
   weeklyData: WeeklyData[];
@@ -287,7 +281,7 @@ const MobileTrendChart: React.FC<{
     );
   }
 
-  // Calculs de tendances préservés de la logique originale
+  // Calculs de tendances 
   const latestData = weeklyData[weeklyData.length - 1];
   const previousData = weeklyData[weeklyData.length - 2];
   
@@ -375,7 +369,7 @@ const reportTrend = (previousData && latestData.reports && previousData.reports 
             </div>
           </div>
 
-          {/* Métriques qualité additionnelles si disponibles */}
+          {/* Métriques qualité additionnelles */}
           {dashboardStats?.qualityMetrics && (
             <div className="pt-2 border-t border-gray-100 text-xs text-gray-500">
               Temps de réponse: {dashboardStats.qualityMetrics.averageResponseTime?.toFixed(1) || 0}h
@@ -389,7 +383,6 @@ const reportTrend = (previousData && latestData.reports && previousData.reports 
 
 /**
  * Composant de recherche mobile optimisé
- * Version condensée de la recherche globale originale
  */
 const MobileSearchBar: React.FC<{
   globalSearch: (term: string) => any;
@@ -552,12 +545,12 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
   const { isMobile, isTablet, isDesktop, breakpoint } = useResponsiveBreakpoint();
   const [mobileView, setMobileView] = useState<'overview' | 'detailed'>('overview');
   
-  // État pour la recherche globale (CONSERVÉ de l'original)
+  // État pour la recherche globale 
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<any>(null);
   const [searchActive, setSearchActive] = useState(false);
 
-  // Configuration des couleurs cohérente (CONSERVÉE)
+  // Configuration des couleurs cohérente 
   const chartColors = {
     users: "#3B82F6",
     listings: "#10B981",
@@ -566,7 +559,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
     health: "#EF4444"
   };
 
-  // Fonction de calcul de santé (CONSERVÉE intégralement)
+  // Fonction de calcul de santé 
   const getPlatformHealthStatus = () => {
     if (!dashboardStats) return { status: 'loading', color: 'gray', message: 'Chargement...', score: 0 };
     
@@ -607,7 +600,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
 
   const healthStatus = getPlatformHealthStatus();
 
-  // Gestionnaire de recherche globale (CONSERVÉ)
+  // Gestionnaire de recherche globale 
   const handleSearch = (term: string) => {
     setSearchTerm(term);
     if (term.length >= 2) {
@@ -620,7 +613,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
     }
   };
 
-  // Actions prioritaires (CONSERVÉES avec logique enrichie)
+  // Actions prioritaires 
   const priorityActions = [
     {
       title: "Actions urgentes",
@@ -992,12 +985,12 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
     );
   }
 
-  // =================== RENDU DESKTOP/TABLETTE (CODE ORIGINAL COMPLET) ===================
+  // =================== RENDU DESKTOP/TABLETTE ===================
   
   return (
     <div className="space-y-4 sm:space-y-6">
       
-      {/* Barre de recherche globale ORIGINALE CONSERVÉE */}
+      {/* Barre de recherche globale */}
       <Card className="border-dashed">
         <CardContent className="p-4">
           <div className="flex items-center space-x-3">
@@ -1024,7 +1017,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
             )}
           </div>
           
-          {/* Résultats de recherche ORIGINAUX CONSERVÉS */}
+          {/* Résultats de recherche */}
           {searchResults && (
             <div className="mt-4 space-y-3">
               <div className="text-sm text-gray-600">
@@ -1136,7 +1129,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
         </CardContent>
       </Card>
 
-      {/* Indicateur de santé ORIGINAL CONSERVÉ */}
+      {/* Indicateur de santé */}
       <Card className={`border-l-4 ${
         healthStatus.color === 'red' ? 'border-l-red-500 bg-red-50' :
         healthStatus.color === 'orange' ? 'border-l-orange-500 bg-orange-50' :
@@ -1194,7 +1187,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
         </CardContent>
       </Card>
 
-      {/* Actions prioritaires ORIGINALES CONSERVÉES */}
+      {/* Actions prioritaires */}
       {priorityActions.length > 0 && (
         <Card>
           <CardHeader className="pb-3">
@@ -1241,7 +1234,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
         </Card>
       )}
 
-      {/* Métriques clés ORIGINALES CONSERVÉES */}
+      {/* Métriques clés */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <Card className="hover:shadow-md transition-shadow">
           <CardContent className="p-3 sm:p-4">
@@ -1304,7 +1297,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
         </Card>
       </div>
 
-      {/* Graphiques principaux ORIGINAUX CONSERVÉS */}
+      {/* Graphiques principaux */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         
         <Card className="hover:shadow-lg transition-shadow">
@@ -1455,7 +1448,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
         </Card>
       </div>
 
-      {/* Métriques transversales ORIGINALES CONSERVÉES */}
+      {/* Métriques transversales */}
       <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
         <CardHeader className="pb-3">
           <CardTitle className="text-base sm:text-lg flex items-center">
@@ -1500,7 +1493,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
         </CardContent>
       </Card>
 
-      {/* Résumé régional ORIGINAL CONSERVÉ */}
+      {/* Résumé régional */}
       {dashboardStats?.topRegions && dashboardStats.topRegions.length > 0 && (
         <Card>
           <CardHeader className="pb-2 sm:pb-3">

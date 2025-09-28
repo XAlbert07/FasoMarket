@@ -15,7 +15,7 @@ interface ReviewFormProps {
   listingId: string;
   listingTitle: string;
   onReviewSubmitted: () => void;
-  canReview: boolean; // Détermine si l'utilisateur peut laisser un avis
+  canReview: boolean; 
 }
 
 // Composant pour laisser un avis - s'affiche conditionnellement

@@ -1,5 +1,4 @@
 // pages/admin/components/ReportsTab.tsx
-// VERSION CORRIGÉE - Flux logique cohérent et traductions complètes
 
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,27 +18,27 @@ import {
 
 import ReportActionModal from './ReportActionModal';
 
-// Interface mise à jour pour correspondre aux props du hook centralisé
+// Interface 
 interface ReportsTabProps {
-  // Données principales du hook centralisé
+  // Données principales du hook useAdminDashboard
   reports: any[];
   loading: boolean;
   error: string | null;
   
-  // Actions du hook centralisé
+  // Actions du hook 
   handleReportAction: (id: string, action: any) => Promise<boolean>;
   refreshReports: () => Promise<void>;
   
-  // Statistiques calculées par le hook centralisé
+  // Statistiques calculées par le hook 
   pendingCount: number;
   
-  // Fonctions utilitaires du hook centralisé
+  // Fonctions utilitaires du hook 
   getPriorityColor: (priority: string) => string;
   formatResponseTime: (hours: number) => string;
   formatDate: (date: string) => string;
   getStatusColor: (status: string) => string;
   
-  // Nouvelles propriétés disponibles dans le hook centralisé
+  // Nouvelles propriétés disponibles dans le hook 
   totalReports?: number;
   averageResponseTime?: number;
 }
@@ -194,8 +193,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({
     }
   };
 
-  // CORRECTION MAJEURE: Logique des actions selon le statut
-  // CORRECTION MAJEURE: Logique des actions selon le statut
+  // Logique des actions selon le statut
 const handleQuickAction = async (reportId: string, actionType: string, reason: string) => {
   try {
     console.log(`🔧 [REPORTS] Action rapide: ${actionType} sur ${reportId}`, { reason });
@@ -253,13 +251,13 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
     setFilterPriority("all");
   };
 
-  // NOUVELLE FONCTION: Logique pour déterminer quels boutons afficher
+  // Logique pour déterminer quels boutons afficher
   const getAvailableActions = (report: any) => {
     const actions = {
       canView: true, // Toujours visible
       canApprove: report.status === 'pending',
       canDismiss: report.status === 'pending', 
-      canAdvancedActions: report.status === 'resolved' // Seulement après approbation
+      canAdvancedActions: report.status === 'resolved' 
     };
     return actions;
   };
@@ -337,7 +335,7 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
         </div>
       </div>
 
-      {/* Indicateurs de performance avec traductions */}
+      {/* Indicateurs de performance */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
         <Card>
           <CardContent className="p-3 sm:p-4">
@@ -394,7 +392,7 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
         </Card>
       </div>
 
-      {/* Filtres avec traductions */}
+      {/* Filtres */}
       <Card>
         <CardContent className="p-3 sm:p-4">
           <div className="space-y-3">
@@ -409,7 +407,7 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
               />
             </div>
             
-            {/* Filtres avec traductions */}
+            {/* Filtres */}
             <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
               <div className="flex-1">
                 <Select value={filterStatus} onValueChange={setFilterStatus}>
@@ -441,7 +439,7 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
               </div>
             </div>
 
-            {/* Résumé des filtres actifs avec traductions */}
+            {/* Résumé des filtres actifs */}
             {(searchTerm || filterStatus !== "all" || filterPriority !== "all") && (
               <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
                 <span>Filtres:</span>
@@ -455,7 +453,7 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
         </CardContent>
       </Card>
 
-      {/* Liste des signalements avec logique de boutons corrigée */}
+      {/* Liste des signalements */}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
@@ -488,7 +486,7 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
             </div>
           ) : (
             <>
-              {/* Vue mobile - Cards avec logique corrigée */}
+              {/* Vue mobile - Cards */}
               <div className="sm:hidden space-y-3 p-4">
                 {filteredReports.map((report) => {
                   const urgency = getUrgencyLevel(report);
@@ -528,7 +526,7 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
                             </p>
                           </div>
 
-                          {/* Badges de statut avec traductions */}
+                          {/* Badges de statut */}
                           <div className="flex flex-wrap items-center gap-2">
                             <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(report.priority)}`}>
                               {priorityTranslations[report.priority as keyof typeof priorityTranslations]}
@@ -541,7 +539,7 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
                             </span>
                           </div>
 
-                          {/* CORRECTION: Actions mobiles selon la logique */}
+                          {/* Actions mobiles */}
                           <div className="flex items-center justify-between pt-2 border-t border-gray-100">
                             <Button 
                               variant="ghost" 
@@ -598,7 +596,7 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
                 })}
               </div>
 
-              {/* Vue desktop - Tableau avec logique corrigée */}
+              {/* Vue desktop */}
               <div className="hidden sm:block">
                 <ScrollArea className="h-[500px]">
                   <Table>
@@ -686,7 +684,7 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
                               {formatResponseTime(report.response_time_hours || 0)}
                             </TableCell>
                             
-                            {/* CORRECTION MAJEURE: Actions selon la logique métier */}
+                            {/* Actions selon la logique métier */}
                             <TableCell>
                               <div className="flex items-center space-x-1">
                                 {/* Bouton de détail - toujours visible */}
@@ -764,7 +762,7 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
         </CardContent>
       </Card>
 
-      {/* Modal de détail avec traductions */}
+      {/* Modal de détail */}
       <AlertDialog open={showDetailModal} onOpenChange={setShowDetailModal}>
         <AlertDialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <AlertDialogHeader>
@@ -776,7 +774,7 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
           
           {selectedReport && (
             <div className="space-y-4">
-              {/* Informations principales avec traductions */}
+              {/* Informations principales */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label className="text-sm font-medium">Cible</Label>
@@ -860,7 +858,7 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
                 </div>
               </div>
 
-              {/* CORRECTION: Actions dans le modal selon le statut */}
+              {/* Actions dans le modal selon le statut */}
               {(() => {
                 const modalActions = getAvailableActions(selectedReport);
                 

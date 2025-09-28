@@ -1,4 +1,3 @@
-
 // pages/admin/components/AdminChatModal.tsx
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -15,7 +14,7 @@ import { useAuthContext } from "@/contexts/AuthContext";
 interface AdminChatModalProps {
   isOpen: boolean;
   onClose: () => void;
-  targetUser: any; // L'utilisateur à qui l'admin veut envoyer un message
+  targetUser: any; 
 }
 
 // Types de messages administrateur avec templates prédéfinis
@@ -65,9 +64,34 @@ const AdminChatModal: React.FC<AdminChatModalProps> = ({
   const [messageType, setMessageType] = useState<MessageType>('info');
   const [subject, setSubject] = useState('');
   const [sending, setSending] = useState(false);
+  const [userProfile, setUserProfile] = useState<any>(null); // Pour stocker le profil complet
   
-  const { user } = useAuthContext(); // Admin connecté
+  const { user } = useAuthContext(); // Admin connecté (objet User de Supabase)
   const { toast } = useToast();
+
+  // Fonction pour récupérer le profil complet de l'admin
+  const fetchAdminProfile = async () => {
+    if (!user?.id || userProfile) return userProfile;
+
+    try {
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      if (error) {
+        console.warn('⚠️ Impossible de récupérer le profil admin:', error);
+        return null;
+      }
+
+      setUserProfile(profile);
+      return profile;
+    } catch (error) {
+      console.warn('⚠️ Erreur lors de la récupération du profil:', error);
+      return null;
+    }
+  };
 
   // Mise à jour du contenu quand le template change
   const handleTemplateChange = (templateKey: keyof typeof MESSAGE_TEMPLATES) => {
@@ -103,6 +127,10 @@ const AdminChatModal: React.FC<AdminChatModalProps> = ({
     try {
       console.log('📧 [ADMIN_CHAT] Envoi message admin vers:', targetUser.email);
       
+      // Récupérer le profil complet de l'admin pour les métadonnées
+      const adminProfile = await fetchAdminProfile();
+      const adminName = adminProfile?.full_name || user.email || 'Administration';
+
       // Structure spéciale pour un message administrateur
       const adminMessageData = {
         receiver_id: targetUser.id,
@@ -115,7 +143,7 @@ const AdminChatModal: React.FC<AdminChatModalProps> = ({
         admin_metadata: {
           message_category: selectedTemplate,
           sent_from: 'admin_dashboard',
-          admin_name: user.full_name || user.email,
+          admin_name: adminName, // ✅ Utilisation sécurisée du nom
           timestamp: new Date().toISOString()
         },
         read: false // Le message n'est pas lu par défaut
@@ -401,6 +429,3 @@ const AdminChatModal: React.FC<AdminChatModalProps> = ({
 };
 
 export default AdminChatModal;
-
-
-

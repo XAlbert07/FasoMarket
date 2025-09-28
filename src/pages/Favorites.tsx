@@ -4,22 +4,24 @@ import { useAuthContext } from '@/contexts/AuthContext';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Heart, MapPin, Eye, Calendar } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { Heart, MapPin, Eye, User, Clock } from 'lucide-react';
+import { formatPrice, formatRelativeTime, isListingNew, formatViewsCount } from '@/lib/utils';
 
 const Favorites = () => {
   const { user } = useAuthContext();
-  const { favorites, loading, toggleFavorite } = useFavorites();
+  const { favorites, loading, toggleFavorite, isFavorite } = useFavorites();
 
-  // ✅ Suppression du useEffect redondant qui causait le double chargement
-  // Le hook useFavorites gère déjà le chargement automatique
+  // Cette fonction extrait le nom du vendeur depuis les données enrichies du profil
+  const getSellerName = (listing: any) => {
+    return listing.profiles?.full_name || "Vendeur anonyme";
+  };
 
+  // Page de connexion requise 
   if (!user) {
     return (
-      <div className="min-h-screen">
+      <div className="min-h-screen bg-background">
         <Header />
         <main className="container mx-auto px-4 py-8">
           <Card className="max-w-md mx-auto">
@@ -41,128 +43,237 @@ const Favorites = () => {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-background">
       <Header />
-      <main className="container mx-auto px-4 py-6">
-        <div className="mb-6">
-          <h1 className="text-3xl font-heading font-bold mb-2">Mes Favoris</h1>
-          <p className="text-muted-foreground">
-            Retrouvez toutes les annonces que vous avez ajoutées à vos favoris
+      
+      <main className="container mx-auto px-4 py-4 md:py-8">
+        {/* En-tête exactement comme dans Listings avec adaptation pour les favoris */}
+        <div className="mb-4 md:mb-6">
+          <h1 className="text-xl md:text-2xl font-heading font-bold text-foreground mb-1 md:mb-2">
+            Mes Favoris
+          </h1>
+          <p className="text-sm md:text-base text-muted-foreground">
+            {loading ? "Chargement..." : `${favorites.length} ${favorites.length <= 1 ? 'annonce trouvée' : 'annonces trouvées'}`}
           </p>
         </div>
 
         {loading ? (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-            <p className="mt-4 text-muted-foreground">Chargement de vos favoris...</p>
+          <div className="text-center py-8">
+            <p className="text-muted-foreground">Chargement des annonces...</p>
           </div>
         ) : favorites.length === 0 ? (
-          <Card className="max-w-md mx-auto">
-            <CardContent className="pt-6 text-center">
-              <Heart className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <h2 className="text-xl font-semibold mb-2">Aucun favori</h2>
-              <p className="text-muted-foreground mb-4">
-                Vous n'avez pas encore ajouté d'annonces à vos favoris.
-              </p>
-              <Button asChild>
-                <Link to="/listings">Explorer les annonces</Link>
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {favorites.map((favorite) => {
-              const listing = favorite.listing;
-              if (!listing) return null;
-
-              return (
-                <Card key={favorite.id} className="group hover:shadow-lg transition-shadow">
-                  <div className="relative">
-                    {listing.images && listing.images.length > 0 ? (
-                      <img
-                        src={listing.images[0]}
-                        alt={listing.title}
-                        className="w-full h-48 object-cover rounded-t-lg"
-                      />
-                    ) : (
-                      <div className="w-full h-48 bg-muted rounded-t-lg flex items-center justify-center">
-                        <span className="text-muted-foreground">Aucune image</span>
-                      </div>
-                    )}
-                    
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute top-2 right-2 bg-background/80 hover:bg-background"
-                      onClick={() => toggleFavorite(listing.id)}
-                    >
-                      <Heart className="h-4 w-4 fill-red-500 text-red-500" />
-                    </Button>
-
-                    {listing.featured_until && new Date(listing.featured_until) > new Date() && (
-                      <Badge className="absolute top-2 left-2 bg-yellow-500 text-yellow-900">
-                        En vedette
-                      </Badge>
-                    )}
-                  </div>
-
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <CardTitle className="text-lg line-clamp-2 group-hover:text-primary transition-colors">
-                        <Link to={`/listing/${listing.id}`}>
-                          {listing.title}
-                        </Link>
-                      </CardTitle>
-                    </div>
-                    <div className="text-2xl font-bold text-primary">
-                      {listing.price.toLocaleString()} FCFA
-                    </div>
-                  </CardHeader>
-
-                  <CardContent className="pt-0">
-                    <div className="space-y-2">
-                      <div className="flex items-center text-sm text-muted-foreground">
-                        <MapPin className="h-4 w-4 mr-1" />
-                        {listing.location}
-                      </div>
-
-                      <div className="flex items-center text-sm text-muted-foreground">
-                        <Calendar className="h-4 w-4 mr-1" />
-                        {formatDistanceToNow(new Date(listing.created_at), {
-                          addSuffix: true,
-                          locale: fr
-                        })}
-                      </div>
-
-                      <div className="flex items-center text-sm text-muted-foreground">
-                        <Eye className="h-4 w-4 mr-1" />
-                        {listing.views} vues
-                      </div>
-
-                      <div className="flex items-center justify-between pt-2">
-                        <Badge variant={listing.condition === 'new' ? 'default' : 'secondary'}>
-                          {listing.condition === 'new' ? 'Neuf' : 'Occasion'}
-                        </Badge>
-                        <Badge variant="outline">
-                          {listing.category}
-                        </Badge>
-                      </div>
-                    </div>
-
-                    <div className="mt-4">
-                      <Button asChild className="w-full">
-                        <Link to={`/listing/${listing.id}`}>
-                          Voir les détails
-                        </Link>
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+          <div className="text-center py-8">
+            <p className="text-muted-foreground">Aucune annonce trouvée avec ces critères.</p>
+            <Button 
+              variant="outline" 
+              onClick={() => window.location.href = '/listings'}
+              className="mt-4"
+            >
+              Réinitialiser les filtres
+            </Button>
           </div>
+        ) : (
+          <>
+            {/* AFFICHAGE MOBILE : Structure EXACTE de votre page Listings */}
+            <div className="block md:hidden space-y-3">
+              {favorites.map((favorite) => {
+                const listing = favorite.listing;
+                if (!listing) return null;
+
+                return (
+                  <Link
+                    key={favorite.id}
+                    to={`/listing/${listing.id}`}
+                    className="group block bg-card border border-card-border rounded-lg overflow-hidden hover:shadow-md transition-all duration-300 active:scale-[0.98]"
+                  >
+                    <div className="flex">
+                      {/* Image à gauche */}
+                      <div className="relative w-32 flex-shrink-0">
+                        <div className="relative aspect-square overflow-hidden">
+                          <img
+                            src={listing.images?.[0] || "/placeholder.svg"}
+                            alt={listing.title}
+                            className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          />
+                          
+                          {/* Badge "Nouveau" */}
+                          {isListingNew(listing.created_at) && (
+                            <div className="absolute top-1 left-1">
+                              <span className="bg-accent text-accent-foreground px-1.5 py-0.5 rounded-full text-xs font-medium">
+                                Nouveau
+                              </span>
+                            </div>
+                          )}
+                          
+                          {/* Bouton favori */}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="absolute top-1 right-1 bg-white/80 hover:bg-white text-muted-foreground hover:text-primary backdrop-blur-sm h-7 w-7"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              toggleFavorite(listing.id);
+                            }}
+                          >
+                            <Heart className={`h-3 w-3 ${isFavorite(listing.id) ? "fill-destructive text-destructive" : ""}`} />
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Contenu à droite  */}
+                      <div className="flex-1 p-3 flex flex-col justify-between min-h-32">
+                        <div className="flex-1">
+                          {/* Titre  */}
+                          <h3 className="font-semibold text-sm leading-tight text-card-foreground mb-1 line-clamp-2 group-hover:text-primary transition-colors">
+                            {listing.title}
+                          </h3>
+                          
+                          {/* Prix  */}
+                          <div className="text-lg font-bold text-primary mb-2">
+                            {formatPrice(listing.price, listing.currency || 'XOF')}
+                          </div>
+
+                          {/* Catégorie  */}
+                          <Badge variant="secondary" className="text-xs mb-2">
+                            {listing.category || 'Non spécifiée'}
+                          </Badge>
+                        </div>
+
+                        <div className="space-y-1">
+                          {/* Vendeur */}
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+                            <User className="h-3 w-3 flex-shrink-0" />
+                            <span className="truncate font-medium">
+                              {getSellerName(listing)}
+                            </span>
+                          </div>
+                          
+                          {/* Localisation et vues */}
+                          <div className="flex items-center justify-between text-xs text-muted-foreground">
+                            <div className="flex items-center gap-1">
+                              <MapPin className="h-3 w-3 flex-shrink-0" />
+                              <span className="truncate">{listing.location}</span>
+                            </div>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <Eye className="h-3 w-3" />
+                              <span>{formatViewsCount(listing.views_count || 0)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+
+            {/* AFFICHAGE DESKTOP */}
+            <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {favorites.map((favorite) => {
+                const listing = favorite.listing;
+                if (!listing) return null;
+
+                return (
+                  <Link
+                    key={favorite.id}
+                    to={`/listing/${listing.id}`}
+                    className="group block bg-card border border-card-border rounded-xl overflow-hidden hover:shadow-lg transition-all duration-300 hover:scale-[1.02]"
+                  >
+                    <div className="relative">
+                      <div className="aspect-[4/3] overflow-hidden">
+                        <img
+                          src={listing.images?.[0] || "/placeholder.svg"}
+                          alt={listing.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                      </div>
+                      
+                      {/* Overlays desktop */}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute top-3 right-3 bg-white/80 hover:bg-white text-muted-foreground hover:text-primary backdrop-blur-sm"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          toggleFavorite(listing.id);
+                        }}
+                      >
+                        <Heart
+                          className={`h-4 w-4 ${
+                            isFavorite(listing.id)
+                              ? "fill-destructive text-destructive"
+                              : ""
+                          }`}
+                        />
+                      </Button>
+                      
+                      {/* Badge "Nouveau"  */}
+                      {isListingNew(listing.created_at) && (
+                        <Badge className="absolute top-3 left-3 bg-accent text-accent-foreground">
+                          Nouveau
+                        </Badge>
+                      )}
+
+                      {/* Stats de vues */}
+                      <div className="absolute bottom-3 left-3 flex items-center gap-1 bg-black/50 text-white px-2 py-1 rounded text-sm">
+                        <Eye className="h-3 w-3" />
+                        <span>{formatViewsCount(listing.views_count || 0)}</span>
+                      </div>
+                    </div>
+
+                    {/* Contenu de la carte desktop */}
+                    <div className="p-4">
+                      <h3 className="font-semibold text-lg text-card-foreground mb-2 line-clamp-2 group-hover:text-primary transition-colors">
+                        {listing.title}
+                      </h3>
+                      
+                      {/* Prix et catégorie */}
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="text-2xl font-bold text-primary">
+                          {formatPrice(listing.price, listing.currency || 'XOF')}
+                        </div>
+                        <Badge variant="secondary">{listing.category || 'Non spécifiée'}</Badge>
+                      </div>
+
+                      {/* Informations vendeur */}
+                      <div className="flex items-center gap-1 text-sm text-muted-foreground mb-2">
+                        <User className="h-3 w-3 flex-shrink-0" />
+                        <span className="truncate font-medium">
+                          {getSellerName(listing)}
+                        </span>
+                      </div>
+                      
+                      {/* Localisation et temps */}
+                      <div className="flex items-center justify-between text-sm text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                          <MapPin className="h-3 w-3" />
+                          <span className="truncate">{listing.location}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          <span>{formatRelativeTime(listing.created_at)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </>
         )}
+
+        {/* Bouton d'action mobile */}
+        <div className="mt-6 md:hidden">
+          <Button variant="cta" className="w-full" asChild>
+            <Link to="/publish">
+              Publier votre annonce gratuitement
+            </Link>
+          </Button>
+        </div>
       </main>
+
       <Footer />
     </div>
   );

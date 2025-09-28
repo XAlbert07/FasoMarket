@@ -1,5 +1,4 @@
 // pages/admin/components/ReportActionModal.tsx
-// Modal de sanctions avancées - Mobile First avec toutes les fonctionnalités
 
 import React, { useState, useEffect } from 'react';
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle, AlertDialogFooter, AlertDialogCancel } from '@/components/ui/alert-dialog';
@@ -20,8 +19,18 @@ import {
   CheckCircle2, XCircle, Info, Zap, Target
 } from 'lucide-react';
 
-
-
+// Interface pour typer les actions disponibles
+interface ActionConfig {
+  id: string;
+  label: string;
+  icon: React.ComponentType<any>;
+  color: string;
+  severity: string;
+  description: string;
+  requiresDuration: boolean;
+  supportsDuration?: boolean;
+  allowPermanent?: boolean;
+}
 
 interface ReportActionModalProps {
   report: any;
@@ -65,122 +74,125 @@ const ReportActionModal: React.FC<ReportActionModalProps> = ({
   }, [isOpen]);
 
   // Configuration des actions disponibles selon le type de signalement
-  const getAvailableActions = () => {
-  const baseActions = [
-    { 
-      id: 'approve', 
-      label: 'Approuver le signalement', 
-      icon: CheckCircle2, 
-      color: 'green',
-      severity: 'low',
-      description: 'Confirmer que le signalement est fondé sans appliquer de sanction immédiate',
-      requiresDuration: false
-    },
-    { 
-      id: 'dismiss', 
-      label: 'Rejeter le signalement', 
-      icon: XCircle, 
-      color: 'gray',
-      severity: 'low',
-      description: 'Considérer le signalement comme non fondé et le fermer',
-      requiresDuration: false
-    }
-  ];
+  const getAvailableActions = (): ActionConfig[] => {
+    const baseActions: ActionConfig[] = [
+      { 
+        id: 'approve', 
+        label: 'Approuver le signalement', 
+        icon: CheckCircle2, 
+        color: 'green',
+        severity: 'low',
+        description: 'Confirmer que le signalement est fondé sans appliquer de sanction immédiate',
+        requiresDuration: false,
+        allowPermanent: false
+      },
+      { 
+        id: 'dismiss', 
+        label: 'Rejeter le signalement', 
+        icon: XCircle, 
+        color: 'gray',
+        severity: 'low',
+        description: 'Considérer le signalement comme non fondé et le fermer',
+        requiresDuration: false,
+        allowPermanent: false
+      }
+    ];
 
-  if (report.report_type === 'listing') {
-    return [
-      ...baseActions,
-      { 
-        id: 'warn_user', 
-        label: 'Avertir le propriétaire', 
-        icon: AlertTriangle, 
-        color: 'yellow',
-        severity: 'low',
-        description: 'Envoyer un avertissement au propriétaire de l\'annonce',
-        requiresDuration: false
-      },
-      { 
-        id: 'suspend_listing', 
-        label: 'Suspendre l\'annonce temporairement', 
-        icon: Timer, 
-        color: 'orange',
-        severity: 'medium',
-        description: 'Rendre l\'annonce invisible pendant une durée déterminée',
-        requiresDuration: true,
-        supportsDuration: true,
-        allowPermanent: false
-      },
-      { 
-        id: 'remove_listing', 
-        label: 'Supprimer l\'annonce définitivement', 
-        icon: Trash2, 
-        color: 'red',
-        severity: 'high',
-        description: 'Supprimer définitivement l\'annonce (action irréversible)',
-        requiresDuration: false,
-        allowPermanent: false
-      },
-      { 
-        id: 'suspend_user', 
-        label: 'Suspendre le propriétaire temporairement', 
-        icon: UserX, 
-        color: 'orange',
-        severity: 'high',
-        description: 'Suspendre temporairement le compte du propriétaire',
-        requiresDuration: true,
-        supportsDuration: true,
-        allowPermanent: false
-      },
-      { 
-        id: 'ban_user', 
-        label: 'Bannir le propriétaire', 
-        icon: Ban, 
-        color: 'red',
-        severity: 'critical',
-        description: 'Bannir définitivement ou temporairement le propriétaire',
-        requiresDuration: true,
-        supportsDuration: true,
-        allowPermanent: true
-      }
-    ];
-  } else {
-    return [
-      ...baseActions,
-      { 
-        id: 'warn_user', 
-        label: 'Avertir l\'utilisateur', 
-        icon: AlertTriangle, 
-        color: 'yellow',
-        severity: 'low',
-        description: 'Envoyer un avertissement à l\'utilisateur',
-        requiresDuration: false,
-        allowPermanent: false
-      },
-      { 
-        id: 'suspend_user', 
-        label: 'Suspendre l\'utilisateur temporairement', 
-        icon: UserX, 
-        color: 'orange',
-        severity: 'high',
-        description: 'Suspendre temporairement le compte de l\'utilisateur',
-        requiresDuration: true,
-        supportsDuration: true,
-        allowPermanent: false
-      },
-      { 
-        id: 'ban_user', 
-        label: 'Bannir l\'utilisateur', 
-        icon: Ban, 
-        color: 'red',
-        severity: 'critical',
-        description: 'Bannir définitivement ou temporairement l\'utilisateur',
-        requiresDuration: true,
-        supportsDuration: true,
-        allowPermanent: true
-      }
-    ];
-  }
-};
+    if (report.report_type === 'listing') {
+      return [
+        ...baseActions,
+        { 
+          id: 'warn_user', 
+          label: 'Avertir le propriétaire', 
+          icon: AlertTriangle, 
+          color: 'yellow',
+          severity: 'low',
+          description: 'Envoyer un avertissement au propriétaire de l\'annonce',
+          requiresDuration: false,
+          allowPermanent: false
+        },
+        { 
+          id: 'suspend_listing', 
+          label: 'Suspendre l\'annonce temporairement', 
+          icon: Timer, 
+          color: 'orange',
+          severity: 'medium',
+          description: 'Rendre l\'annonce invisible pendant une durée déterminée',
+          requiresDuration: true,
+          supportsDuration: true,
+          allowPermanent: false
+        },
+        { 
+          id: 'remove_listing', 
+          label: 'Supprimer l\'annonce définitivement', 
+          icon: Trash2, 
+          color: 'red',
+          severity: 'high',
+          description: 'Supprimer définitivement l\'annonce (action irréversible)',
+          requiresDuration: false,
+          allowPermanent: false
+        },
+        { 
+          id: 'suspend_user', 
+          label: 'Suspendre le propriétaire temporairement', 
+          icon: UserX, 
+          color: 'orange',
+          severity: 'high',
+          description: 'Suspendre temporairement le compte du propriétaire',
+          requiresDuration: true,
+          supportsDuration: true,
+          allowPermanent: false
+        },
+        { 
+          id: 'ban_user', 
+          label: 'Bannir le propriétaire', 
+          icon: Ban, 
+          color: 'red',
+          severity: 'critical',
+          description: 'Bannir définitivement ou temporairement le propriétaire',
+          requiresDuration: true,
+          supportsDuration: true,
+          allowPermanent: true
+        }
+      ];
+    } else {
+      return [
+        ...baseActions,
+        { 
+          id: 'warn_user', 
+          label: 'Avertir l\'utilisateur', 
+          icon: AlertTriangle, 
+          color: 'yellow',
+          severity: 'low',
+          description: 'Envoyer un avertissement à l\'utilisateur',
+          requiresDuration: false,
+          allowPermanent: false
+        },
+        { 
+          id: 'suspend_user', 
+          label: 'Suspendre l\'utilisateur temporairement', 
+          icon: UserX, 
+          color: 'orange',
+          severity: 'high',
+          description: 'Suspendre temporairement le compte de l\'utilisateur',
+          requiresDuration: true,
+          supportsDuration: true,
+          allowPermanent: false
+        },
+        { 
+          id: 'ban_user', 
+          label: 'Bannir l\'utilisateur', 
+          icon: Ban, 
+          color: 'red',
+          severity: 'critical',
+          description: 'Bannir définitivement ou temporairement l\'utilisateur',
+          requiresDuration: true,
+          supportsDuration: true,
+          allowPermanent: true
+        }
+      ];
+    }
+  };
 
   const availableActions = getAvailableActions();
   const selectedActionConfig = availableActions.find(a => a.id === selectedAction);
@@ -317,19 +329,19 @@ const ReportActionModal: React.FC<ReportActionModalProps> = ({
       }
 
       const actionData = {
-  type: selectedAction,
-  reason: reason === 'custom' ? customReason : reason,
-  notes: notes.trim() || undefined,
-  duration: selectedActionConfig?.requiresDuration ? finalDuration : undefined,
-  notifyUser: notifyUser
-};
+        type: selectedAction,
+        reason: reason === 'custom' ? customReason : reason,
+        notes: notes.trim() || undefined,
+        duration: selectedActionConfig?.requiresDuration ? finalDuration : undefined,
+        notifyUser: notifyUser
+      };
 
-// Ajout de logs pour déboguer
-console.log('📋 [MODAL] Données envoyées:', {
-  reportId: report.id,
-  actionData: actionData,
-  selectedActionConfig: selectedActionConfig
-});
+      // Ajout de logs pour déboguer
+      console.log('📋 [MODAL] Données envoyées:', {
+        reportId: report.id,
+        actionData: actionData,
+        selectedActionConfig: selectedActionConfig
+      });
 
       console.log('🔧 Exécution de l\'action avancée:', actionData);
 
@@ -739,7 +751,7 @@ console.log('📋 [MODAL] Données envoyées:', {
                       <AlertTriangle className="h-6 w-6 text-orange-600 mt-0.5 flex-shrink-0" />
                       <div>
                         <h4 className="font-bold text-orange-900 text-base mb-2">
-                          ⚠️ Action à impact majeur
+                          Action à impact majeur
                         </h4>
                         <div className="text-sm text-orange-800 space-y-1">
                           <p>• Cette action aura un <strong>impact significatif</strong> sur l'utilisateur</p>

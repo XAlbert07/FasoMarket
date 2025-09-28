@@ -1,4 +1,4 @@
-// hooks/useCanUserReview.ts - Version améliorée avec vérifications multiples
+// hooks/useCanUserReview.ts 
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';

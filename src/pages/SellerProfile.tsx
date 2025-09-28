@@ -1,5 +1,4 @@
 // pages/SellerProfile.tsx
-// Version complète avec affichage des annonces et avis
 
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useState, useRef, useEffect } from "react";
@@ -61,6 +60,11 @@ const SellerProfile = () => {
   const { toast } = useToast();
   const { user } = useAuthContext();
   
+  //  Gestion intelligente de la navigation de retour
+  const searchParams = new URLSearchParams(window.location.search);
+  const returnTo = searchParams.get('returnTo');
+  const returnUrl = searchParams.get('returnUrl');
+  
   // États pour l'interface mobile optimisée
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [showFullBio, setShowFullBio] = useState(false);
@@ -101,6 +105,30 @@ const SellerProfile = () => {
 
   const { favorites, addToFavorites, removeFromFavorites, loading: favLoading } = useFavorites();
 
+  /**
+   * Fonction pour gérer le retour intelligent
+   * Utilise les paramètres de retour pour revenir au bon endroit
+   */
+  const handleSmartBack = () => {
+    if (returnTo === 'messages' && returnUrl) {
+      try {
+        const decodedReturnUrl = decodeURIComponent(returnUrl);
+        console.log('Retour intelligent vers:', decodedReturnUrl);
+        navigate(decodedReturnUrl);
+        return;
+      } catch (error) {
+        console.error('Erreur lors du décodage de l\'URL de retour:', error);
+      }
+    }
+    
+    // Fallback: retour classique
+    if (window.history.length > 1) {
+      window.history.back();
+    } else {
+      navigate('/listings');
+    }
+  };
+
   // Détection du scroll pour animations
   useEffect(() => {
     const handleScroll = () => {
@@ -132,7 +160,7 @@ const SellerProfile = () => {
     setShowContactOptions(true);
   };
 
-  // Fonction pour rediriger vers la conversation directe dans Messages.tsx
+  // Fonction pour rediriger vers la conversation directe 
   const handleDirectMessage = () => {
     if (!user) {
       toast({
@@ -359,8 +387,8 @@ const SellerProfile = () => {
                 <Button onClick={() => navigate('/listings')} className="w-full">
                   Voir toutes les annonces
                 </Button>
-                <Button onClick={() => window.history.back()} variant="outline" className="w-full">
-                  Retour
+                <Button onClick={handleSmartBack} variant="outline" className="w-full">
+                  {returnTo === 'messages' ? 'Retour aux messages' : 'Retour'}
                 </Button>
               </div>
             </CardContent>
@@ -380,15 +408,18 @@ const SellerProfile = () => {
       {/* Section Hero mobile-first */}
       <div ref={heroRef} className="bg-gradient-to-br from-blue-50 to-white border-b">
         <div className="container mx-auto px-3 py-6">
-          {/* Navigation mobile */}
+          {/* Navigation mobile - NOUVEAU: Bouton de retour intelligent */}
           <div className="flex items-center justify-between mb-6">
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => window.history.back()}
-              className="p-2"
+              onClick={handleSmartBack}
+              className="p-2 flex items-center gap-2"
             >
               <ArrowLeft className="h-5 w-5" />
+              {returnTo === 'messages' && (
+                <span className="text-sm hidden sm:inline">Messages</span>
+              )}
             </Button>
             
             <div className="flex items-center gap-2">

@@ -17,7 +17,7 @@ import { useAuthContext } from "@/contexts/AuthContext";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 
-// Import de tous les hooks nécessaires - CONSERVÉS INTACTS
+// Import de tous les hooks nécessaires 
 import { useSellerListings } from "@/hooks/useSellerListings";
 import { useSellerProfile } from "@/hooks/useSellerProfile";
 import { useSellerReviews } from "@/hooks/useSellerReviews";
@@ -29,15 +29,15 @@ const MerchantDashboard = () => {
   const { toast } = useToast();
   const { user, loading: authLoading } = useAuthContext();
   
-  // États locaux pour la gestion de l'interface - CONSERVÉS
+  // États locaux pour la gestion de l'interface 
   const [selectedTab, setSelectedTab] = useState("overview");
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState("");
   
-  // NOUVEAU : État pour la navigation mobile
+  // État pour la navigation mobile
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Utilisation de tous les hooks avec gestion d'erreur appropriée - CONSERVÉS INTACTS
+  // Utilisation de tous les hooks avec gestion d'erreur appropriée 
   const { 
     listings, 
     loading: listingsLoading, 
@@ -63,10 +63,10 @@ const MerchantDashboard = () => {
     error: reviewsError
   } = useSellerReviews(user?.id || '');
 
-  // Hook pour les opérations CRUD sur les annonces - CONSERVÉ
+  // Hook pour les opérations CRUD sur les annonces 
   const { deleteListing } = useCreateListing();
 
-  // Hook pour la messagerie unifiée - CONSERVÉ
+  // Hook pour la messagerie unifiée 
   const {
     conversations,
     messages,
@@ -76,7 +76,7 @@ const MerchantDashboard = () => {
     markConversationAsRead
   } = useMessages();
 
-  // Vérification d'authentification - CONSERVÉE INTACTE
+  // Vérification d'authentification 
   useEffect(() => {
     if (!authLoading && !user) {
       toast({
@@ -88,7 +88,7 @@ const MerchantDashboard = () => {
     }
   }, [user, authLoading, navigate, toast]);
 
-  // Fonction pour supprimer une annonce avec confirmation - CONSERVÉE INTACTE
+  // Fonction pour supprimer une annonce avec confirmation 
   const handleDeleteListing = async (listingId: string, title: string) => {
     const confirmed = window.confirm(
       `Êtes-vous sûr de vouloir supprimer l'annonce "${title}" ?\n\nCette action est irréversible.`
@@ -112,7 +112,7 @@ const MerchantDashboard = () => {
     }
   };
 
-  // Fonction pour obtenir le badge de statut approprié - CONSERVÉE INTACTE
+  // Fonction pour obtenir le badge de statut approprié 
   const getStatusBadge = (status: string) => {
     const statusConfig = {
       active: { 
@@ -164,7 +164,7 @@ const MerchantDashboard = () => {
     );
   };
 
-  // Fonction pour formater les dates - CONSERVÉE INTACTE
+  // Fonction pour formater les dates 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('fr-FR', {
       day: '2-digit',
@@ -173,7 +173,7 @@ const MerchantDashboard = () => {
     });
   };
 
-  // Calcul des métriques du tableau de bord - CONSERVÉ INTACT
+  // Calcul des métriques du tableau de bord 
   const getDashboardMetrics = () => {
     const totalListings = listings.length;
     const activeListings = listings.filter(l => l.status === 'active').length;
@@ -193,7 +193,7 @@ const MerchantDashboard = () => {
 
   const metrics = getDashboardMetrics();
 
-  // Fonctions pour la gestion des conversations - CONSERVÉES INTACTES
+  // Fonctions pour la gestion des conversations 
   const handleSelectConversation = async (conversationId: string) => {
     setSelectedConversation(conversationId);
     const conversation = conversations.find(c => c.id === conversationId);
@@ -243,7 +243,7 @@ const MerchantDashboard = () => {
     }
   };
 
-  // Gestion des états de chargement - CONSERVÉE INTACTE
+  // Gestion des états de chargement 
   if (authLoading || profileLoading) {
     return (
       <div className="min-h-screen bg-background">
@@ -259,9 +259,9 @@ const MerchantDashboard = () => {
     );
   }
 
-  // Gestion des erreurs d'authentification - CONSERVÉE
+  // Gestion des erreurs d'authentification
   if (!user) {
-    return null; // Le useEffect redirige déjà
+    return null; 
   }
 
   return (
@@ -326,7 +326,7 @@ const MerchantDashboard = () => {
           )}
         </div>
 
-        {/* Alertes d'erreur - CONSERVÉES */}
+        {/* Alertes d'erreur */}
         {(listingsError || profileError || reviewsError) && (
           <Alert className="mb-6">
             <AlertCircle className="h-4 w-4" />
@@ -337,7 +337,7 @@ const MerchantDashboard = () => {
           </Alert>
         )}
 
-        {/* Métriques principales - ADAPTÉES POUR MOBILE */}
+        {/* Métriques principales */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6 mb-6 md:mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -1164,7 +1164,7 @@ const MerchantDashboard = () => {
             </div>
           </TabsContent>
 
-          {/* Onglet Paramètres - CONSERVÉ AVEC ADAPTATIONS MOBILE */}
+          {/* Onglet Paramètres  */}
           <TabsContent value="settings">
             <div className="space-y-4 md:space-y-6">
               <Card>

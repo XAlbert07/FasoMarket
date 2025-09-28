@@ -1,5 +1,4 @@
-// Login.tsx - Version Mobile-First Professionnelle
-// Design épuré, fonctionnel, et optimisé pour la conversion
+// Login.tsx 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
@@ -17,7 +16,7 @@ const Login = () => {
   const navigate = useNavigate();
   const { signIn, signUp, loading } = useAuth();
   
-  // États de logique métier conservés identiques
+  // États de logique métier conservés 
   const [showPassword, setShowPassword] = useState(false);
   const [loginData, setLoginData] = useState({ email: "", password: "" });
   const [registerData, setRegisterData] = useState({
@@ -47,7 +46,7 @@ const Login = () => {
     return password.length >= 6;
   };
 
-  // Logique métier conservée identique
+  // Logique métier 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     

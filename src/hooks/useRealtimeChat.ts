@@ -1,4 +1,4 @@
-// hooks/useRealtimeChat.ts - VERSION AMÉLIORÉE avec support des messages administrateurs
+// hooks/useRealtimeChat.ts
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -57,7 +57,7 @@ export const useRealtimeChat = (listingId?: string, participantId?: string) => {
           )
         `)
         .eq('listing_id', listingId)
-        .eq('message_type', 'user') // Seulement les messages utilisateurs normaux
+        .eq('message_type', 'user') 
         .or(`and(sender_id.eq.${user.id},receiver_id.eq.${participantId}),and(sender_id.eq.${participantId},receiver_id.eq.${user.id})`)
         .order('created_at', { ascending: true });
 
@@ -93,10 +93,10 @@ export const useRealtimeChat = (listingId?: string, participantId?: string) => {
           )
         `)
         .eq('receiver_id', user.id)
-        .eq('message_type', 'admin') // Seulement les messages administrateurs
-        .is('listing_id', null) // Messages admin ne sont pas liés à une annonce
+        .eq('message_type', 'admin') 
+        .is('listing_id', null) 
         .order('created_at', { ascending: false })
-        .limit(50); // Limiter pour les performances
+        .limit(50); 
 
       if (error) throw error;
       setAdminMessages(data || []);
@@ -120,7 +120,7 @@ export const useRealtimeChat = (listingId?: string, participantId?: string) => {
           sender_id: user.id,
           receiver_id: participantId,
           content: content.trim(),
-          message_type: 'user', // Message utilisateur normal
+          message_type: 'user', 
           priority: 'low',
           read: false
         });

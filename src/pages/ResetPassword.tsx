@@ -1,4 +1,4 @@
-// ResetPassword.tsx - Version synchronisée pour éviter les problèmes de timing
+// ResetPassword.tsx 
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Header } from "@/components/Header";

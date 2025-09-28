@@ -1,6 +1,4 @@
 // pages/AdminDashboard.tsx
-// VERSION INTÉGRÉE COMPLÈTE - Tous les composants dans un seul fichier
-// Cette approche évite les problèmes d'importation et vous permet de tester immédiatement
 
 import React, { useState, useEffect, useCallback } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -29,10 +27,10 @@ import {
 } from "lucide-react";
 import { useNavigate } from 'react-router-dom';
 
-// Hook existant (inchangé)
+// Hook principal
 import { useAdminDashboard } from '@/hooks/useAdminDashboard';
 
-// Composants modulaires existants (préservés intégralement)
+// Composants modulaires existants 
 import DashboardHeader from '@/pages/admin/components/DashboardHeader';
 import StatsCards from '@/pages/admin/components/StatsCards';
 import OverviewTab from '@/pages/admin/components/ OverviewTab';
@@ -615,7 +613,7 @@ const AdaptiveHeader: React.FC<AdaptiveHeaderProps> = ({
     );
   }
 
-  // Version desktop (original préservé)
+  // Version desktop 
   return (
     <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-8">
       <div>
@@ -706,14 +704,13 @@ const AdaptiveHeader: React.FC<AdaptiveHeaderProps> = ({
 };
 
 // =============================================================================
-// COMPOSANT PRINCIPAL ADMINDASHBOARD - VERSION INTÉGRÉE COMPLÈTE
+// COMPOSANT PRINCIPAL ADMINDASHBOARD 
 // =============================================================================
 
 /**
  * AdminDashboard avec approche hybride adaptative
  * 
  * TOUS LES COMPOSANTS SONT INTÉGRÉS dans ce fichier pour éviter les problèmes d'importation.
- * Cette version est prête à être utilisée immédiatement sans créer de fichiers séparés.
  * 
  * ARCHITECTURE HYBRIDE :
  * - Desktop : Interface complète originale préservée
@@ -724,12 +721,12 @@ const AdminDashboard = () => {
   const navigate = useNavigate();
   const { isMobile, isTablet, isDesktop, screenType } = useScreenSize();
 
-  // États locaux (inchangés)
+  // États locaux 
   const [activeTab, setActiveTab] = useState("overview");
   const [refreshing, setRefreshing] = useState(false);
   const [showScrollToTop, setShowScrollToTop] = useState(false);
 
-  // Hook centralisé (inchangé)
+  // Hook 
   const dashboard = useAdminDashboard();
 
   // Gestion du scroll pour mobile
@@ -744,7 +741,7 @@ const AdminDashboard = () => {
     }
   }, [isMobile]);
 
-  // Fonctions (inchangées)
+  // Fonctions 
   const refreshAllData = useCallback(async () => {
     setRefreshing(true);
     try {
@@ -821,7 +818,7 @@ const AdminDashboard = () => {
     }
   }, [dashboard.users]);
 
-  // États de chargement (inchangés)
+  // États de chargement 
   const isInitialLoading = dashboard.globalLoading && !dashboard.dashboardStats;
   const hasCriticalErrors = [
     dashboard.errors.profiles,
@@ -1131,7 +1128,7 @@ const AdminDashboard = () => {
         </div>
       ) : (
         // ========================================
-        // VERSION DESKTOP/TABLET : Interface originale préservée
+        // VERSION DESKTOP/TABLET 
         // ========================================
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className={`grid w-full grid-cols-5 ${

@@ -25,7 +25,7 @@ const PublishListing = () => {
   const { createListing, loading: creatingListing } = useCreateListing();
   const { uploadImages, uploading } = useImageUpload();
   
-  // CONSERVATION INTÉGRALE : États identiques pour maintenir la compatibilité
+  
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [showPreview, setShowPreview] = useState(false);
@@ -40,12 +40,12 @@ const PublishListing = () => {
     phone: ""
   });
 
-  // NOUVEAUX ÉTATS : Spécifiques à l'interface mobile pour la navigation par étapes
+  // ÉTATS : Spécifiques à l'interface mobile pour la navigation par étapes
   const [currentStep, setCurrentStep] = useState(0);
   const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
   const [completedSteps, setCompletedSteps] = useState<boolean[]>([false, false, false, false]);
 
-  // CONSERVATION INTÉGRALE : Configuration des catégories identique
+  // Configuration des catégories identique
   const categories = [
     { name: "Véhicules", id: "c47e7448-5f79-4aea-8b72-9cf24f52b280" },
     { name: "Immobilier", id: "bec5720d-20cf-47e2-8b06-e0ae8f0b9ef8" },
@@ -63,7 +63,7 @@ const PublishListing = () => {
     "Fada N'Gourma", "Tenkodogo", "Réo", "Gaoua"
   ];
 
-  // CONSERVATION INTÉGRALE : Toutes les fonctions métier inchangées
+  // Toutes les fonctions métier 
   const getCategoryIdByName = (name: string) => {
     const category = categories.find(cat => cat.name === name);
     return category ? category.id : null;
@@ -109,7 +109,7 @@ const PublishListing = () => {
       setImageFiles(prev => [...prev, ...newFiles]);
       setImagePreviews(prev => [...prev, ...newPreviews]);
       
-      // NOUVEAU : Marquer l'étape images comme complétée
+      // Marquer l'étape images comme complétée
       updateStepCompletion(0, newFiles.length > 0);
     }
   };
@@ -122,7 +122,7 @@ const PublishListing = () => {
     setImageFiles(newFiles);
     setImagePreviews(newPreviews);
     
-    // NOUVEAU : Mise à jour du statut de l'étape
+    //  Mise à jour du statut de l'étape
     updateStepCompletion(0, newFiles.length > 0);
   };
 
@@ -130,7 +130,7 @@ const PublishListing = () => {
     setFormData(prev => ({ ...prev, location: value }));
     setShowLocationSuggestions(value.length > 0);
     
-    // NOUVEAU : Validation temps réel pour la navigation mobile
+    // Validation temps réel pour la navigation mobile
     updateStepCompletion(2, value.trim() !== "");
   };
 
@@ -213,7 +213,7 @@ const PublishListing = () => {
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     
-    // NOUVEAU : Validation temps réel pour le parcours mobile
+    // Validation temps réel pour le parcours mobile
     switch (field) {
       case 'title':
       case 'description':
@@ -227,7 +227,7 @@ const PublishListing = () => {
     }
   };
 
-  // NOUVELLE FONCTION : Gestion des étapes pour l'interface mobile
+  // Gestion des étapes pour l'interface mobile
   const updateStepCompletion = (stepIndex: number, isCompleted: boolean) => {
     setCompletedSteps(prev => {
       const newSteps = [...prev];
@@ -236,7 +236,7 @@ const PublishListing = () => {
     });
   };
 
-  // NOUVELLE FONCTION : Validation de chaque étape pour la navigation
+  // Validation de chaque étape pour la navigation
   const getStepValidation = () => {
     return [
       imageFiles.length > 0, // Étape 1: Images
@@ -459,7 +459,7 @@ const PublishListing = () => {
                   </div>
 
                   <div>
-                    <Label htmlFor="mobile-price">Prix (XOF) *</Label>
+                    <Label htmlFor="mobile-price">Prix (F CFA) *</Label>
                     <Input
                       id="mobile-price"
                       type="number"
@@ -750,7 +750,7 @@ const PublishListing = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="price">Prix de vente (XOF) *</Label>
+                    <Label htmlFor="price">Prix de vente (F CFA) *</Label>
                     <Input
                       id="price"
                       type="number"
@@ -762,7 +762,7 @@ const PublishListing = () => {
                       required
                     />
                     <p className="text-xs text-muted-foreground mt-1">
-                      Prix en Francs CFA (XOF)
+                      Prix en Francs CFA (F CFA)
                     </p>
                   </div>
 
@@ -951,7 +951,7 @@ const PublishListing = () => {
         </form>
       </main>
 
-      {/* CONSERVATION INTÉGRALE : Modal d'aperçu identique */}
+      {/* Modal d'aperçu identique */}
       {showPreview && (
         <ListingPreview
           formData={{

@@ -25,7 +25,7 @@ export const CTASection = () => {
   const navigate = useNavigate();
 
   const handleListings = () => {
-    navigate("/listings"); // redirige vers la page /listings
+    navigate("/listings"); 
   };
 };
 
@@ -34,7 +34,7 @@ export const CTASection = () => {
     const navigate = useNavigate();
 
     const handlePublish = () => {
-      navigate("/publish"); // redirige vers le formulaire de pubblication
+      navigate("/publish"); 
     };
   };
 
@@ -59,7 +59,7 @@ export const CTASection = () => {
           </p>
         </div>
 
-        {/* Avantages d'être pionnier - Remplace les fausses stats */}
+        {/* Avantages d'être pionnier  */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8 mb-8 sm:mb-12 lg:mb-16">
           <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 sm:p-6 text-center">
             <div className="text-2xl sm:text-3xl font-bold text-white mb-2">

@@ -20,7 +20,7 @@ const Listings = () => {
   const { toggleFavorite, isFavorite } = useFavorites();
   
   const [revealedPhones, setRevealedPhones] = useState<string[]>([]);
-  const [showFilters, setShowFilters] = useState(false); // État pour mobile filter toggle
+  const [showFilters, setShowFilters] = useState(false); 
   const [filters, setFilters] = useState<SearchFilters>({
     query: searchParams.get("q") || "",
     category: searchParams.get("category") || "",
@@ -67,7 +67,7 @@ const Listings = () => {
     setSearchParams(newParams);
   };
 
-  // Fonction modifiée pour gérer les valeurs spéciales
+  // Fonction pour gérer les valeurs spéciales
   const updateFilter = (key: keyof SearchFilters, value: any) => {
     // Convertir les valeurs spéciales en chaînes vides pour le filtrage
     const processedValue = (value === "all" || value === "none") ? "" : value;

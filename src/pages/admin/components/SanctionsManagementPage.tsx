@@ -1,5 +1,4 @@
 // pages/admin/components/SanctionsManagementPage.tsx
-// VERSION REPENSÉE - Interface épurée et fonctionnelle
 
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,7 +34,7 @@ const SanctionsManagementPage = () => {
     getSanctionPriority,
   } = useAdminDashboard();
 
-  // États simplifiés
+  // États 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('active');
   const [filterType, setFilterType] = useState('all');

@@ -1,5 +1,4 @@
 // pages/admin/components/AlertsSection.tsx
-// Version mobile-first complètement refactorisée et synchronisée
 
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,9 +16,9 @@ import {
   Clock
 } from "lucide-react";
 
-// Interface simplifiée et focalisée sur les données essentielles
+// Interface 
 interface AlertsSectionProps {
-  // Données principales synchronisées avec useAdminDashboard
+  // Données principales 
   pendingReportsCount: number;
   needsReviewCount: number;
   suspendedUsersCount: number;
@@ -53,7 +52,7 @@ const AlertsSection: React.FC<AlertsSectionProps> = ({
   isLoading = false
 }) => {
   
-  // Configuration des alertes avec logique simplifiée et mobile-first
+  // Configuration des alertes 
   const alertsConfig = [
     {
       id: 'pending-reports',
@@ -164,7 +163,7 @@ const AlertsSection: React.FC<AlertsSectionProps> = ({
     );
   }
 
-  // Interface principale des alertes - Design mobile-first
+  // Interface principale des alertes 
   return (
     <div className="w-full mt-4">
       <Card className={`border-2 ${
@@ -173,7 +172,7 @@ const AlertsSection: React.FC<AlertsSectionProps> = ({
         'border-gray-300 bg-gray-50'
       }`}>
         
-        {/* Header avec indicateur de criticité - Mobile optimisé */}
+        {/* Header avec indicateur de criticité */}
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">

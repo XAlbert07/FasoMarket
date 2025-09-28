@@ -1,4 +1,4 @@
-// hooks/useSellerReviews.ts - VERSION CORRIGÉE SELON VOTRE SCHÉMA DB
+// hooks/useSellerReviews.ts 
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -96,7 +96,6 @@ export const useSellerReviews = (sellerId: string, initialFilters?: ReviewsFilte
     };
   }, []);
 
-  // CORRECTION PRINCIPALE : Requête adaptée à votre vraie structure DB
   const fetchReviews = useCallback(async (currentFilters: ReviewsFilters) => {
     if (!sellerId) {
       setError('ID de vendeur requis');
@@ -110,7 +109,6 @@ export const useSellerReviews = (sellerId: string, initialFilters?: ReviewsFilte
 
       console.log('🔍 Récupération des avis pour le vendeur:', sellerId);
 
-      // REQUÊTE CORRIGÉE selon votre schéma exact
       let query = supabase
         .from('reviews')
         .select(`
@@ -172,7 +170,6 @@ export const useSellerReviews = (sellerId: string, initialFilters?: ReviewsFilte
       console.log('✅ Données reçues:', reviewsData?.length, 'avis');
       console.log('📋 Premier avis exemple:', reviewsData?.[0]);
 
-      // TRANSFORMATION DES DONNÉES CORRIGÉE - CORRECTION PRINCIPALE
       const transformedReviews: SellerReview[] = (reviewsData || []).map(item => {
         // Gestion des données relationnelles avec vérification des types
         const reviewerData = Array.isArray(item.reviewer) ? item.reviewer[0] : item.reviewer;
@@ -260,7 +257,6 @@ export const useSellerReviews = (sellerId: string, initialFilters?: ReviewsFilte
   };
 };
 
-// Version simplifiée pour débugger si nécessaire
 export const useSellerReviewsSimple = (sellerId: string) => {
   const [reviews, setReviews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);

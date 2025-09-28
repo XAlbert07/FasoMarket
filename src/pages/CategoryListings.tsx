@@ -249,7 +249,8 @@ const CategoryListings = () => {
                     }`} />
                   </Button>
 
-                  {listing.featured_until && new Date(listing.featured_until) > new Date() && (
+                  {/* ✅ Vérification sécurisée de featured */}
+                  {listing.featured && (
                     <Badge className="absolute top-2 left-2 bg-yellow-500 text-yellow-900">
                       En vedette
                     </Badge>
@@ -285,9 +286,10 @@ const CategoryListings = () => {
                         })}
                       </div>
 
+                      {/* ✅ Utilisation de views_count avec fallback */}
                       <div className="flex items-center text-sm text-muted-foreground">
                         <Eye className="h-4 w-4 mr-1" />
-                        {listing.views} vues
+                        {listing.views_count || 0} vues
                       </div>
 
                       <div className="flex items-center justify-between pt-2">
@@ -295,7 +297,7 @@ const CategoryListings = () => {
                           {listing.condition === 'new' ? 'Neuf' : 'Occasion'}
                         </Badge>
                         <Badge variant="outline">
-                          {listing.category}
+                          {listing.category || 'Non classé'}
                         </Badge>
                       </div>
                     </div>

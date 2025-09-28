@@ -38,6 +38,7 @@ interface MFASetupData {
   qr_code: string;
   secret: string;
   backup_codes: string[];
+  factorId: string;
 }
 
 export const TwoFactorAuthModal = ({ 
@@ -48,7 +49,7 @@ export const TwoFactorAuthModal = ({
 }: TwoFactorAuthModalProps) => {
   
   // Utilisation du hook d'authentification étendu
-  const { setupMFA, verifyMFA, disableMFA, getMFAStatus } = useAuthContext();
+  const { setupMFA, verifyMFA, disableMFA, getMFAStatus, debugMFAState } = useAuthContext();
   
   const [currentStep, setCurrentStep] = useState<TwoFAStep>(TwoFAStep.STATUS_CHECK);
   const [verificationCode, setVerificationCode] = useState("");
@@ -133,35 +134,54 @@ export const TwoFactorAuthModal = ({
   };
 
   // FONCTION MISE À JOUR - Vérification du code TOTP
-  const handleVerifyCode = async () => {
-    if (!validateVerificationCode(verificationCode)) {
-      setLocalError("Le code de vérification doit contenir exactement 6 chiffres");
-      return;
-    }
+  // FONCTION MISE À JOUR - Vérification du code TOTP
+const handleVerifyCode = async () => {
+  if (!validateVerificationCode(verificationCode)) {
+    setLocalError("Le code de vérification doit contenir exactement 6 chiffres");
+    return;
+  }
 
-    setIsLoading(true);
-    setLocalError("");
+  setIsLoading(true);
+  setLocalError("");
+  
+  try {
+    console.log('Vérification du code TOTP...');
     
-    try {
-      console.log('🔍 Vérification du code TOTP...');
-      
-      // Appel à la vraie méthode du hook
-      const receivedBackupCodes = await verifyMFA(verificationCode);
-      
-      // Conversion des codes de sauvegarde au format attendu
-      setBackupCodes(receivedBackupCodes.map(bc => bc.code));
-      setCurrentStep(TwoFAStep.BACKUP_CODES);
-      setIsMfaEnabled(true);
-      
-      console.log('✅ Code TOTP vérifié avec succès');
-      
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Code de vérification incorrect";
-      setLocalError(errorMessage);
-    } finally {
-      setIsLoading(false);
+    // Appel à la vraie méthode du hook
+    const receivedBackupCodes = await verifyMFA(verificationCode);
+    
+    // Conversion des codes de sauvegarde au format attendu
+    setBackupCodes(receivedBackupCodes.map(bc => bc.code));
+    setCurrentStep(TwoFAStep.BACKUP_CODES);
+    setIsMfaEnabled(true);
+    
+    console.log('Code TOTP vérifié avec succès');
+    
+  } catch (error) {
+    console.error('Erreur de vérification:', error);
+    
+    let errorMessage = "Code de vérification incorrect";
+    
+    if (error instanceof Error) {
+      if (error.message.includes("Aucun facteur TOTP")) {
+        errorMessage = "Configuration invalide. Veuillez recommencer la procédure.";
+        // Retourner à l'étape de setup
+        setCurrentStep(TwoFAStep.SETUP);
+        setMfaSetupData(null);
+      } else if (error.message.includes("invalide ou expiré")) {
+        errorMessage = "Code invalide ou expiré. Vérifiez le code dans votre application.";
+      } else if (error.message.includes("Trop de tentatives")) {
+        errorMessage = "Trop de tentatives. Patientez quelques minutes avant de réessayer.";
+      } else {
+        errorMessage = error.message;
+      }
     }
-  };
+    
+    setLocalError(errorMessage);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   // NOUVELLE FONCTION - Désactivation de la 2FA
   const handleDisableMFA = async () => {
@@ -456,23 +476,26 @@ export const TwoFactorAuthModal = ({
         return null;
         
       case TwoFAStep.SETUP:
-        return (
-          <>
-            {backButton}
-            <Button onClick={handleSetupMFA} disabled={isLoading || !!mfaSetupData}>
-              {isLoading ? (
-                <div className="flex items-center gap-2">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  Configuration...
-                </div>
-              ) : mfaSetupData ? (
-                "J'ai scanné le QR code"
-              ) : (
-                "Générer le QR code"
-              )}
-            </Button>
-          </>
-        );
+  return (
+    <>
+      {backButton}
+      <Button 
+        onClick={mfaSetupData ? () => setCurrentStep(TwoFAStep.VERIFICATION) : handleSetupMFA} 
+        disabled={isLoading}
+      >
+        {isLoading ? (
+          <div className="flex items-center gap-2">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+            Configuration...
+          </div>
+        ) : mfaSetupData ? (
+          "J'ai scanné le QR code"
+        ) : (
+          "Générer le QR code"
+        )}
+      </Button>
+    </>
+  );
       
       case TwoFAStep.VERIFICATION:
         return (

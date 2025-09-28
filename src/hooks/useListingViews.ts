@@ -2,7 +2,6 @@
 // HOOK USELISTINGVIEWS - GESTION CENTRALISÉE DES VUES
 // ===============================================
 // Ce hook centralise toute la logique de comptage et d'affichage des vues
-// Il peut être utilisé dans n'importe quel composant qui a besoin de gérer les vues
 
 import { useState, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';

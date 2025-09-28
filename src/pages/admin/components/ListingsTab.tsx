@@ -1,5 +1,4 @@
 // pages/admin/components/ListingsTab.tsx
-// Version mobile-first optimisée - Design adhérent et propre
 
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,7 +18,7 @@ import {
   Menu, X, MoreVertical
 } from "lucide-react";
 import ReportActionModal from './ReportActionModal';
-// Interface préservée - aucun changement aux données
+// Interface 
 interface ListingsTabProps {
   listings: any[];
   loading: boolean;
@@ -51,7 +50,7 @@ const ListingsTab: React.FC<ListingsTabProps> = ({
   totalViews = 0,
   totalEngagement = 0
 }) => {
-  // États préservés - logique métier inchangée
+  // États 
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterRisk, setFilterRisk] = useState("all");
@@ -76,7 +75,7 @@ const [selectedListingForReport, setSelectedListingForReport] = useState<any>(nu
   const [showFilters, setShowFilters] = useState(false);
   const [mobileViewMode, setMobileViewMode] = useState<'cards' | 'table'>('cards');
 
-  // Toutes les fonctions métier préservées
+  // Toutes les fonctions métier 
   const formatSuspensionStatus = (listing: any): string => {
     if (!listing.is_temporarily_suspended || !listing.suspended_until) {
       return 'Suspension permanente';
@@ -93,7 +92,7 @@ const [selectedListingForReport, setSelectedListingForReport] = useState<any>(nu
     return `Expire dans ${daysRemaining} jour${daysRemaining > 1 ? 's' : ''}`;
   };
 
-  // Statistiques préservées
+  // Statistiques 
   const stats = useMemo(() => {
     const safeListings = Array.isArray(listings) ? listings : [];
     
@@ -112,7 +111,7 @@ const [selectedListingForReport, setSelectedListingForReport] = useState<any>(nu
     };
   }, [listings, needsReviewCount, averageQualityScore, totalViews, totalEngagement]);
 
-  // Filtrage et tri préservés
+  // Filtrage et tri 
   const filteredAndSortedListings = useMemo(() => {
     const safeListings = Array.isArray(listings) ? listings : [];
     
@@ -175,14 +174,14 @@ const [selectedListingForReport, setSelectedListingForReport] = useState<any>(nu
     return filtered;
   }, [listings, filterStatus, filterCategory, filterRisk, filterSuspension, searchTerm, sortBy, sortOrder]);
 
-  // Catégories uniques préservées
+  // Catégories uniques 
   const uniqueCategories = useMemo(() => {
     const safeListings = Array.isArray(listings) ? listings : [];
     const categories = [...new Set(safeListings.map(l => l.category_name).filter(Boolean))];
     return categories.sort();
   }, [listings]);
 
-  // Toutes les fonctions de gestion préservées
+  // Toutes les fonctions de gestion 
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
@@ -235,9 +234,9 @@ const [selectedListingForReport, setSelectedListingForReport] = useState<any>(nu
   // Mapping des actions vers les types reconnus par le hook
   let mappedActionType = actionType;
   if (actionType === 'suspend') {
-    mappedActionType = 'suspend_listing'; // Utilise le type admin
+    mappedActionType = 'suspend_listing'; 
   } else if (actionType === 'delete') {
-    mappedActionType = 'remove_listing'; // Utilise le type admin
+    mappedActionType = 'remove_listing'; 
   }
 
   const actionData = {
@@ -1265,27 +1264,27 @@ const handleReportBasedAction = async (reportId: string, actionData: any): Promi
               className="w-full sm:w-auto"
             >
               {/* Modal d'action basé sur signalement */}
-<ReportActionModal
-  report={{
-    id: `listing-action-${selectedListingForReport?.id}`,
-    report_type: 'listing',
-    listing_title: selectedListingForReport?.title,
-    listing_price: selectedListingForReport?.price,
-    reason: 'Action administrative directe',
-    created_at: new Date().toISOString(),
-    status: 'pending',
-    priority: 'medium',
-    reported_user_name: selectedListingForReport?.merchant_name,
-    reporter_name: 'Administrateur',
-    reporter_type: 'registered'
-  }}
-  isOpen={showReportActionModal}
-  onClose={() => {
-    setShowReportActionModal(false);
-    setSelectedListingForReport(null);
-  }}
-  onAction={handleReportBasedAction}
-/>
+         <ReportActionModal
+           report={{
+              id: `listing-action-${selectedListingForReport?.id}`,
+              report_type: 'listing',
+              listing_title: selectedListingForReport?.title,
+              listing_price: selectedListingForReport?.price,
+              reason: 'Action administrative directe',
+              created_at: new Date().toISOString(),
+              status: 'pending',
+              priority: 'medium',
+              reported_user_name: selectedListingForReport?.merchant_name,
+              reporter_name: 'Administrateur',
+              reporter_type: 'registered'
+              }}
+         isOpen={showReportActionModal}
+         onClose={() => {
+         setShowReportActionModal(false);
+         setSelectedListingForReport(null);
+       }}
+       onAction={handleReportBasedAction}
+     />
               Appliquer l'action
             </AlertDialogAction>
           </AlertDialogFooter>
