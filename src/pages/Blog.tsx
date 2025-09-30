@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar, User, ArrowRight, TrendingUp, Shield, Smartphone } from "lucide-react";
-import AnimatedCard from "@/components/ui/animated-card";
+//import AnimatedCard from "@/components/ui/animated-card";
 import FadeIn from "@/components/ui/fade-in";
 
 const Blog = () => {
@@ -103,7 +103,7 @@ const Blog = () => {
             <div className="grid md:grid-cols-2 gap-6">
               {posts.map((post, index) => (
                 <FadeIn key={post.id} delay={0.3 + index * 0.1}>
-                  <AnimatedCard>
+                  <div>
                     <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer group">
                       <div className="relative overflow-hidden">
                         <img src={post.image} alt={post.title} className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300" />
@@ -121,7 +121,7 @@ const Blog = () => {
                         </div>
                       </CardContent>
                     </Card>
-                  </AnimatedCard>
+                  </div>
                 </FadeIn>
               ))}
             </div>

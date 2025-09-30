@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useGuestMessages } from '@/hooks/useGuestMessages';
+import { SmartImage } from "@/components/ui/SmartImage"; 
 import { 
   MapPin, 
   Calendar, 
@@ -70,6 +71,7 @@ const SellerProfile = () => {
   const [showFullBio, setShowFullBio] = useState(false);
   const [activeTab, setActiveTab] = useState('listings');
   const [showContactOptions, setShowContactOptions] = useState(false);
+  const [showAvatarModal, setShowAvatarModal] = useState(false);
   const heroRef = useRef<HTMLDivElement>(null);
   
   // Récupération des données avec gestion d'erreur
@@ -443,21 +445,39 @@ const SellerProfile = () => {
           <div className="space-y-4">
             <div className="flex items-start gap-4">
               <div className="relative">
-                <Avatar className="h-20 w-20 ring-4 ring-white shadow-lg">
-                  <AvatarImage 
-                    src={profile.avatar_url} 
-                    alt={`Photo de ${profile.full_name}`}
-                    className="object-cover"
-                  />
-                  <AvatarFallback className="text-2xl font-bold bg-gradient-to-br from-blue-500 to-purple-600 text-white">
-                    {profile.full_name.charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                
-                {new Date().getTime() - new Date(profile.created_at).getTime() < 3600000 && (
-                  <div className="absolute bottom-0 right-0 h-5 w-5 bg-green-500 rounded-full border-3 border-white"></div>
-                )}
-              </div>
+       {/* Avatar cliquable pour affichage en grand */}
+  <button
+    onClick={() => profile.avatar_url && setShowAvatarModal(true)}
+    className={`focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-full transition-transform active:scale-95 ${
+      profile.avatar_url ? 'cursor-pointer hover:opacity-90' : 'cursor-default'
+    }`}
+    disabled={!profile.avatar_url}
+    aria-label="Voir la photo de profil en grand"
+  >
+    <Avatar className="h-20 w-20 ring-4 ring-white shadow-lg">
+      <AvatarImage 
+        src={profile.avatar_url} 
+        alt={`Photo de ${profile.full_name}`}
+        className="object-cover"
+      />
+      <AvatarFallback className="text-2xl font-bold bg-gradient-to-br from-blue-500 to-purple-600 text-white">
+        {profile.full_name.charAt(0).toUpperCase()}
+      </AvatarFallback>
+    </Avatar>
+  </button>
+  
+  {/* Indicateur de présence en ligne */}
+  {new Date().getTime() - new Date(profile.created_at).getTime() < 3600000 && (
+    <div className="absolute bottom-0 right-0 h-5 w-5 bg-green-500 rounded-full border-3 border-white pointer-events-none"></div>
+  )}
+  
+  {/* Indicateur visuel que l'avatar est cliquable */}
+  {profile.avatar_url && (
+    <div className="absolute inset-0 rounded-full bg-black bg-opacity-0 hover:bg-opacity-10 transition-all duration-200 flex items-center justify-center pointer-events-none">
+      <Eye className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+    </div>
+  )}
+</div>
               
               <div className="flex-1 min-w-0 space-y-3">
                 <div>
@@ -600,7 +620,7 @@ const SellerProfile = () => {
               </TabsTrigger>
             </TabsList>
 
-            {/* Contenu des annonces - MOBILE-FIRST comme dans Listings.tsx */}
+            {/* Contenu des annonces avec SmartImage intégré */}
             <TabsContent value="listings" className="mt-4 space-y-3">
               {loading ? (
                 <div className="space-y-3 md:grid md:grid-cols-2 md:gap-3 md:space-y-0">
@@ -648,7 +668,7 @@ const SellerProfile = () => {
                 </Card>
               ) : (
                 <>
-                  {/* AFFICHAGE MOBILE : Liste horizontale comme dans Listings.tsx SANS nom du vendeur */}
+                  {/* AFFICHAGE MOBILE : Liste horizontale avec SmartImage */}
                   <div className="block md:hidden space-y-3">
                     {listings.map((listing) => {
                       const isFavorite = favorites.some(fav => fav.listing_id === listing.id);
@@ -660,21 +680,17 @@ const SellerProfile = () => {
                           className="group block bg-white border rounded-lg overflow-hidden hover:shadow-md transition-all duration-300 active:scale-[0.98]"
                         >
                           <div className="flex">
-                            {/* Image à gauche - 35% de la largeur */}
+                            {/* Image à gauche avec SmartImage - 35% de la largeur */}
                             <div className="relative w-32 flex-shrink-0">
                               <div className="relative aspect-square overflow-hidden">
-                                {listing.images && listing.images.length > 0 ? (
-                                  <img
-                                    src={listing.images[0]}
-                                    alt={listing.title}
-                                    className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                    loading="lazy"
-                                  />
-                                ) : (
-                                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
-                                    <Package className="w-8 h-8 text-slate-400" />
-                                  </div>
-                                )}
+                                <SmartImage
+                                  src={listing.images && listing.images.length > 0 ? listing.images[0] : '/placeholder.svg'}
+                                  alt={listing.title}
+                                  context="thumbnail"
+                                  className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                  fallbackSrc="/placeholder.svg"
+                                  showLoadingState={true}
+                                />
                                 
                                 {/* Badge "Nouveau" */}
                                 {isListingNew(listing.created_at) && (
@@ -759,7 +775,7 @@ const SellerProfile = () => {
                     })}
                   </div>
 
-                  {/* AFFICHAGE DESKTOP : Grid classique avec annonces cliquables */}
+                  {/* AFFICHAGE DESKTOP : Grid classique avec SmartImage */}
                   <div className="hidden md:grid md:grid-cols-2 gap-3">
                     {listings.map((listing) => {
                       const isFavorite = favorites.some(fav => fav.listing_id === listing.id);
@@ -772,18 +788,15 @@ const SellerProfile = () => {
                         >
                           <div className="relative">
                             <div className="aspect-[4/3] overflow-hidden">
-                              {listing.images && listing.images.length > 0 ? (
-                                <img
-                                  src={listing.images[0]}
-                                  alt={listing.title}
-                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                  loading="lazy"
-                                />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
-                                  <Package className="w-8 h-8 text-slate-400" />
-                                </div>
-                              )}
+                              <SmartImage
+                                src={listing.images && listing.images.length > 0 ? listing.images[0] : '/placeholder.svg'}
+                                alt={listing.title}
+                                context="card"
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                fallbackSrc="/placeholder.svg"
+                                showLoadingState={true}
+                                lazy={true}
+                              />
                             </div>
                             
                             {isListingNew(listing.created_at) && (
@@ -874,7 +887,7 @@ const SellerProfile = () => {
               )}
             </TabsContent>
 
-            {/* Contenu des avis - VERSION MOBILE-FIRST SANS "0% achat vérifié" */}
+            {/* Contenu des avis - VERSION MOBILE-FIRST avec avatars SmartImage */}
             <TabsContent value="reviews" className="mt-4 space-y-4">
               {reviewsLoading ? (
                 <div className="space-y-3 md:space-y-4">
@@ -917,7 +930,7 @@ const SellerProfile = () => {
                 </Card>
               ) : (
                 <>
-                  {/* Statistiques des avis - MOBILE-FIRST SANS pourcentage d'achats vérifiés */}
+                  {/* Statistiques des avis */}
                   {reviewsStats && reviewsStats.totalReviews > 0 && (
                     <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-3 md:p-4 rounded-xl border border-blue-100 mb-4">
                       <div className="text-center mb-3 md:mb-4">
@@ -932,7 +945,7 @@ const SellerProfile = () => {
                         </p>
                       </div>
                       
-                      {/* Distribution des notes - MOBILE optimisée */}
+                      {/* Distribution des notes */}
                       <div className="space-y-1">
                         {[5, 4, 3, 2, 1].map((rating) => {
                           const count = reviewsStats.ratingDistribution[rating as keyof typeof reviewsStats.ratingDistribution];
@@ -955,12 +968,12 @@ const SellerProfile = () => {
                     </div>
                   )}
 
-                  {/* Liste des avis - MOBILE-FIRST */}
+                  {/* Liste des avis avec avatars SmartImage */}
                   <div className="space-y-3">
                     {reviews.map((review) => (
                       <Card key={review.id} className="border-0 shadow-sm hover:shadow-md transition-shadow">
                         <CardContent className="p-3 md:p-4 space-y-2 md:space-y-3">
-                          {/* En-tête de l'avis - MOBILE optimisé */}
+                          {/* En-tête de l'avis */}
                           <div className="flex items-start justify-between">
                             <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0">
                               <Avatar className="h-8 w-8 md:h-10 md:w-10 flex-shrink-0">
@@ -998,7 +1011,7 @@ const SellerProfile = () => {
                             </div>
                           </div>
 
-                          {/* Produit concerné - MOBILE optimisé */}
+                          {/* Produit concerné */}
                           <div className="bg-slate-50 p-2 md:p-3 rounded-lg">
                             <p className="text-xs text-muted-foreground mb-1">Produit :</p>
                             <p className="text-xs md:text-sm font-medium line-clamp-1">
@@ -1006,7 +1019,7 @@ const SellerProfile = () => {
                             </p>
                           </div>
 
-                          {/* Commentaire - MOBILE optimisé */}
+                          {/* Commentaire */}
                           {review.comment && review.comment.trim() !== '' && (
                             <div className="pt-1">
                               <p className="text-sm text-slate-700 leading-relaxed">
@@ -1015,7 +1028,7 @@ const SellerProfile = () => {
                             </div>
                           )}
 
-                          {/* Réponse du vendeur - MOBILE optimisé */}
+                          {/* Réponse du vendeur avec avatar SmartImage */}
                           {review.response && (
                             <div className="bg-blue-50 border-l-4 border-blue-200 p-2 md:p-3 rounded-r-lg mt-2">
                               <div className="flex items-center gap-1 md:gap-2 mb-1 md:mb-2">
@@ -1038,7 +1051,7 @@ const SellerProfile = () => {
                             </div>
                           )}
 
-                          {/* Actions sur l'avis - MOBILE simplifié */}
+                          {/* Actions sur l'avis */}
                           <div className="flex items-center justify-between pt-2 border-t border-slate-100">
                             <div className="flex items-center gap-2">
                               {review.helpful_votes > 0 && (
@@ -1063,7 +1076,7 @@ const SellerProfile = () => {
                     ))}
                   </div>
 
-                  {/* Bouton "Voir plus d'avis" - MOBILE optimisé */}
+                  {/* Bouton "Voir plus d'avis" */}
                   {reviewsStats && reviews.length < reviewsStats.totalReviews && (
                     <div className="text-center pt-4">
                       <Button
@@ -1085,7 +1098,7 @@ const SellerProfile = () => {
         </div>
       </main>
 
-      {/* STICKY BAR OPTIMISÉE avec redirection vers Messages.tsx */}
+      {/* STICKY BAR OPTIMISÉE */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-3 lg:hidden z-20 shadow-lg">
         <div className="flex gap-2">
           <Button 
@@ -1230,10 +1243,82 @@ const SellerProfile = () => {
           </div>
         </DialogContent>
       </Dialog>
+      {/* Modal de visualisation de l'avatar en grand */}
+      <Dialog open={showAvatarModal} onOpenChange={setShowAvatarModal}>
+        <DialogContent className="max-w-4xl w-[95vw] h-[95vh] sm:h-auto p-0 bg-black/95 border-0">
+          <div className="relative w-full h-full flex flex-col">
+            {/* Header avec nom et bouton de fermeture */}
+            <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/80 to-transparent p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <h3 className="text-white font-semibold text-lg">
+                  {profile.full_name}
+                </h3>
+                {profile.is_verified && (
+                  <Badge className="bg-green-500/20 text-green-300 border-green-500/30">
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                    Vérifié
+                  </Badge>
+                )}
+              </div>
+              
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAvatarModal(false)}
+                className="text-white hover:bg-white/20 rounded-full h-10 w-10 p-0"
+              >
+                <span className="sr-only">Fermer</span>
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </Button>
+            </div>
+
+            {/* Image en grand format */}
+            <div className="flex-1 flex items-center justify-center p-4 sm:p-8">
+              <div className="relative max-w-full max-h-full">
+                {profile.avatar_url ? (
+                  <SmartImage
+                    src={profile.avatar_url}
+                    alt={`Photo de profil de ${profile.full_name}`}
+                    context="detail"
+                    className="max-w-full max-h-[80vh] w-auto h-auto object-contain rounded-lg shadow-2xl"
+                    fallbackSrc="/placeholder.svg"
+                    showLoadingState={true}
+                  />
+                ) : (
+                  <div className="w-64 h-64 sm:w-96 sm:h-96 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-2xl">
+                    <span className="text-white text-8xl sm:text-9xl font-bold">
+                      {profile.full_name.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer avec informations supplémentaires (optionnel) */}
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 text-center">
+              <div className="flex items-center justify-center gap-4 text-white/80 text-sm">
+                {profile.city && (
+                  <div className="flex items-center gap-1">
+                    <MapPin className="h-4 w-4" />
+                    <span>{profile.city}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-1">
+                  <Calendar className="h-4 w-4" />
+                  <span>Membre depuis {new Date(profile.created_at).getFullYear()}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Footer />
     </div>
   );
 };
+      
 
 export default SellerProfile;

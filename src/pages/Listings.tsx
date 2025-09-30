@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SmartImage } from "@/components/ui/SmartImage";
 import { MapPin, Eye, Heart, Phone, Search, Filter, User, Clock } from "lucide-react";
 import { useListings } from "@/hooks/useListings";
 import { useFavorites } from "@/hooks/useFavorites";
@@ -69,7 +70,6 @@ const Listings = () => {
 
   // Fonction pour gérer les valeurs spéciales
   const updateFilter = (key: keyof SearchFilters, value: any) => {
-    // Convertir les valeurs spéciales en chaînes vides pour le filtrage
     const processedValue = (value === "all" || value === "none") ? "" : value;
     setFilters(prev => ({ ...prev, [key]: processedValue }));
   };
@@ -235,7 +235,7 @@ const Listings = () => {
           </div>
         ) : (
           <>
-            {/* AFFICHAGE MOBILE : Liste horizontale avec image à gauche */}
+            {/* AFFICHAGE MOBILE : Liste horizontale avec image à gauche optimisée */}
             <div className="block md:hidden space-y-3">
               {listings.map((listing) => (
                 <Link
@@ -244,38 +244,42 @@ const Listings = () => {
                   className="group block bg-card border border-card-border rounded-lg overflow-hidden hover:shadow-md transition-all duration-300 active:scale-[0.98]"
                 >
                   <div className="flex">
-                    {/* Image à gauche - 35% de la largeur */}
+                    {/* Image à gauche optimisée avec SmartImage */}
                     <div className="relative w-32 flex-shrink-0">
-                      <div className="relative aspect-square overflow-hidden">
-                        <img
-                          src={listing.images?.[0] || "/placeholder.svg"}
-                          alt={listing.title}
-                          className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
-                        
-                        {/* Badge "Nouveau" */}
-                        {isListingNew(listing.created_at) && (
-                          <div className="absolute top-1 left-1">
-                            <span className="bg-accent text-accent-foreground px-1.5 py-0.5 rounded-full text-xs font-medium">
-                              Nouveau
-                            </span>
-                          </div>
-                        )}
-                        
-                        {/* Bouton favori */}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="absolute top-1 right-1 bg-white/80 hover:bg-white text-muted-foreground hover:text-primary backdrop-blur-sm h-7 w-7"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            toggleFavorite(listing.id);
-                          }}
-                        >
-                          <Heart className={`h-3 w-3 ${isFavorite(listing.id) ? "fill-destructive text-destructive" : ""}`} />
-                        </Button>
-                      </div>
+                      <SmartImage
+                        src={listing.images?.[0] || "/placeholder.svg"}
+                        alt={listing.title}
+                        context="thumbnail"
+                        className="aspect-square w-full group-hover:scale-105 transition-transform duration-300"
+                        objectFit="cover"
+                        lazy={true}
+                        quality="medium"
+                        showLoadingState={true}
+                        onError={() => console.log(`Erreur de chargement pour l'annonce ${listing.id}`)}
+                      />
+                      
+                      {/* Badge "Nouveau" */}
+                      {isListingNew(listing.created_at) && (
+                        <div className="absolute top-1 left-1">
+                          <span className="bg-accent text-accent-foreground px-1.5 py-0.5 rounded-full text-xs font-medium">
+                            Nouveau
+                          </span>
+                        </div>
+                      )}
+                      
+                      {/* Bouton favori */}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute top-1 right-1 bg-white/80 hover:bg-white text-muted-foreground hover:text-primary backdrop-blur-sm h-7 w-7"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          toggleFavorite(listing.id);
+                        }}
+                      >
+                        <Heart className={`h-3 w-3 ${isFavorite(listing.id) ? "fill-destructive text-destructive" : ""}`} />
+                      </Button>
                     </div>
 
                     {/* Contenu à droite - 65% de la largeur */}
@@ -298,7 +302,7 @@ const Listings = () => {
                       </div>
 
                       <div className="space-y-1">
-                        {/* Vendeur avec nom plus visible - CORRECTION APPLIQUÉE */}
+                        {/* Vendeur avec nom plus visible */}
                         <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
                           <User className="h-3 w-3 flex-shrink-0" />
                           <span className="truncate font-medium">
@@ -317,8 +321,6 @@ const Listings = () => {
                             <span>{formatViewsCount(listing.views_count || 0)}</span>
                           </div>
                         </div>
-                        
-                        {/* Actions mobiles supprimées - annonce entièrement cliquable */}
                       </div>
                     </div>
                   </div>
@@ -326,7 +328,7 @@ const Listings = () => {
               ))}
             </div>
 
-            {/* AFFICHAGE DESKTOP : Grid classique avec annonces cliquables */}
+            {/* AFFICHAGE DESKTOP : Grid classique avec annonces cliquables et SmartImage */}
             <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {listings.map((listing) => (
                 <Link
@@ -335,20 +337,29 @@ const Listings = () => {
                   className="group block bg-card border border-card-border rounded-xl overflow-hidden hover:shadow-lg transition-all duration-300 hover:scale-[1.02]"
                 >
                   <div className="relative">
-                    <div className="aspect-[4/3] overflow-hidden">
-                      <img
-                        src={listing.images?.[0] || "/placeholder.svg"}
-                        alt={listing.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                    </div>
+                    <SmartImage
+                      src={listing.images?.[0] || "/placeholder.svg"}
+                      alt={listing.title}
+                      context="card"
+                      className="aspect-[4/3] w-full group-hover:scale-105 transition-transform duration-300"
+                      objectFit="cover"
+                      lazy={true}
+                      quality="high"
+                      showLoadingState={true}
+                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                      onLoad={() => console.log(`Image chargée pour l'annonce ${listing.id}`)}
+                    />
                     
                     {/* Overlays desktop */}
                     <Button
                       variant="ghost"
                       size="icon"
                       className="absolute top-3 right-3 bg-white/80 hover:bg-white text-muted-foreground hover:text-primary backdrop-blur-sm"
-                      onClick={() => toggleFavorite(listing.id)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        toggleFavorite(listing.id);
+                      }}
                     >
                       <Heart
                         className={`h-4 w-4 ${
@@ -386,7 +397,7 @@ const Listings = () => {
                       <Badge variant="secondary">{listing.category}</Badge>
                     </div>
 
-                    {/* Informations vendeur - CORRECTION APPLIQUÉE */}
+                    {/* Informations vendeur */}
                     <div className="flex items-center gap-1 text-sm text-muted-foreground mb-2">
                       <User className="h-3 w-3 flex-shrink-0" />
                       <span className="truncate font-medium">

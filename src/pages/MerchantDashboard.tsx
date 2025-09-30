@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { SmartImage } from "@/components/ui/SmartImage"; 
 import { formatPrice } from "@/lib/utils";
 import { 
   Plus, Eye, Edit, Trash2, Package, MessageCircle, Settings, 
@@ -462,10 +463,10 @@ const MerchantDashboard = () => {
             </div>
           </div>
 
-          {/* Onglet Vue d'ensemble - ADAPTÉ POUR MOBILE */}
+          {/* Onglet Vue d'ensemble avec SmartImage */}
           <TabsContent value="overview" className="space-y-4 md:space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-              {/* Dernières annonces */}
+              {/* Dernières annonces avec SmartImage optimisé */}
               <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
@@ -496,10 +497,14 @@ const MerchantDashboard = () => {
                       {listings.slice(0, 5).map((listing) => (
                         <div key={listing.id} className="flex items-center justify-between p-3 border rounded-lg">
                           <div className="flex items-center space-x-3 min-w-0 flex-1">
-                            <img 
-                              src={listing.images?.[0] || '/placeholder.svg'} 
+                            <SmartImage 
+                              src={listing.images?.[0] || '/placeholder.svg'}
                               alt={listing.title}
+                              context="thumbnail"
                               className="w-10 h-10 md:w-12 md:h-12 object-cover rounded flex-shrink-0"
+                              fallbackSrc="/placeholder.svg"
+                              lazy={false} // Pas de lazy loading pour les 5 premières images visibles
+                              showLoadingState={false} // Pas de loading state pour les petites images
                             />
                             <div className="min-w-0 flex-1">
                               <p className="font-medium text-sm line-clamp-1">{listing.title}</p>
@@ -560,7 +565,7 @@ const MerchantDashboard = () => {
             </div>
           </TabsContent>
 
-          {/* Onglet Mes Annonces - ADAPTÉ POUR MOBILE */}
+          {/* Onglet Mes Annonces avec SmartImage optimisé */}
           <TabsContent value="listings" className="space-y-4 md:space-y-6">
             <div className="flex flex-col gap-4 md:flex-row md:justify-between md:items-center">
               <div>
@@ -595,16 +600,20 @@ const MerchantDashboard = () => {
               </Card>
             ) : (
               <div className="grid gap-4">
-                {listings.map((listing) => (
+                {listings.map((listing, index) => (
                   <Card key={listing.id} className="overflow-hidden">
                     <CardContent className="p-4 md:p-6">
-                      {/* Version mobile - Layout vertical */}
+                      {/* Version mobile - Layout vertical avec SmartImage */}
                       <div className="block md:hidden">
                         <div className="flex items-start gap-3 mb-3">
-                          <img 
-                            src={listing.images?.[0] || '/placeholder.svg'} 
+                          <SmartImage 
+                            src={listing.images?.[0] || '/placeholder.svg'}
                             alt={listing.title}
+                            context="thumbnail"
                             className="w-16 h-16 object-cover rounded-lg flex-shrink-0"
+                            fallbackSrc="/placeholder.svg"
+                            lazy={index > 2} // Lazy loading après les 3 premières annonces
+                            showLoadingState={true}
                           />
                           <div className="min-w-0 flex-1">
                             <div className="flex items-start justify-between gap-2 mb-2">
@@ -647,14 +656,18 @@ const MerchantDashboard = () => {
                         </div>
                       </div>
 
-                      {/* Version desktop - Layout horizontal original */}
+                      {/* Version desktop - Layout horizontal avec SmartImage */}
                       <div className="hidden md:block">
                         <div className="flex justify-between items-start">
                           <div className="flex space-x-4">
-                            <img 
-                              src={listing.images?.[0] || '/placeholder.svg'} 
+                            <SmartImage 
+                              src={listing.images?.[0] || '/placeholder.svg'}
                               alt={listing.title}
+                              context="thumbnail"
                               className="w-20 h-20 object-cover rounded-lg"
+                              fallbackSrc="/placeholder.svg"
+                              lazy={index > 5} // Lazy loading après les 5 premières annonces
+                              showLoadingState={true}
                             />
                             <div className="space-y-2 flex-1">
                               <div className="flex items-center gap-2">
@@ -703,9 +716,9 @@ const MerchantDashboard = () => {
             )}
           </TabsContent>
 
-          {/* Onglet Messages - ADAPTÉ POUR MOBILE */}
+          {/* Onglet Messages - Interface simplifiée mobile-first */}
           <TabsContent value="messages">
-            {/* Version mobile - Interface simplifiée */}
+            {/* Version mobile - Interface conversation complète */}
             <div className="block md:hidden">
               {selectedConversation ? (
                 // Vue conversation mobile
@@ -924,7 +937,7 @@ const MerchantDashboard = () => {
               )}
             </div>
 
-            {/* Version desktop - Layout original 3 colonnes */}
+            {/* Version desktop - Layout 3 colonnes classique */}
             <div className="hidden md:grid grid-cols-1 lg:grid-cols-3 gap-6 h-[600px]">
               {/* Liste des conversations */}
               <Card className="lg:col-span-1">
@@ -1164,7 +1177,7 @@ const MerchantDashboard = () => {
             </div>
           </TabsContent>
 
-          {/* Onglet Paramètres  */}
+          {/* Onglet Paramètres */}
           <TabsContent value="settings">
             <div className="space-y-4 md:space-y-6">
               <Card>

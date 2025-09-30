@@ -4,6 +4,7 @@ import { Footer } from "@/components/Footer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { SmartImage } from "@/components/ui/SmartImage";
 import { MapPin } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -35,25 +36,22 @@ const MyListings = () => {
   const { user } = useAuthContext();
   const { toast } = useToast();
   
-  
-const { 
-  listings, 
-  loading, 
-  error, 
-  dataSource, 
-  soldListings, 
-  draftListings, 
-  clearListings,
-  fetchUserListings 
-        } = useListings();
+  const { 
+    listings, 
+    loading, 
+    error, 
+    dataSource, 
+    soldListings, 
+    draftListings, 
+    clearListings,
+    fetchUserListings 
+  } = useListings();
   const { deleteListing } = useCreateListing();
   const [activeTab, setActiveTab] = useState("all");
   const [operationLoading, setOperationLoading] = useState<string | null>(null);
   
-  // État pour la navigation mobile
   const [isMobileTabsOpen, setIsMobileTabsOpen] = useState(false);
 
-  // Effect pour charger les annonces utilisateur au montage du composant
   useEffect(() => {
     if (user?.id) {
       console.log("🔄 Chargement des annonces utilisateur pour ID:", user.id);
@@ -64,21 +62,11 @@ const {
     }
   }, [user?.id, fetchUserListings, clearListings]);
 
-  // Maintenant listings contient directement les annonces de l'utilisateur 
   const userListings = listings;
   
-  // Filtrage par statut pour les onglets - MODIFIÉ sans vendues et brouillons
   const activeListings = userListings.filter(listing => listing.status === 'active');
   const suspendedListings = userListings.filter(listing => listing.status === 'suspended');
 
-  // ========================================
-  // FONCTIONS : Gestion des suspensions
-  // ========================================
-
-  /**
-   * Détermine si l'utilisateur peut réactiver une annonce suspendue
-   * en fonction du type de suspension 
-   */
   const canUserReactivateListing = (listing: any): boolean => {
     if (listing.status !== 'suspended') {
       return false;
@@ -91,9 +79,6 @@ const {
     return listing.suspension_type !== 'admin' && listing.suspension_type !== 'system';
   };
 
-  /**
-   * Obtient un message explicatif sur le type de suspension - CONSERVÉE INTACTE
-   */
   const getSuspensionExplanation = (listing: any): string => {
     if (listing.status !== 'suspended') return '';
 
@@ -116,9 +101,6 @@ const {
     }
   };
 
-  /**
-   * Suspend volontairement une annonce (action utilisateur) 
-   */
   const handlePauseListing = async (listingId: string) => {
     if (!user?.id) return;
     
@@ -156,9 +138,6 @@ const {
     }
   };
 
-  /**
-   * Réactive une annonce suspendue UNIQUEMENT si l'utilisateur en a le droit 
-   */
   const handleResumeListing = async (listingId: string, listing: any) => {
     if (!user?.id) return;
 
@@ -208,13 +187,6 @@ const {
     }
   };
 
-  // ========================================
-  // Badge de statut avec logique complète
-  // ========================================
-
-  /**
-   * Génère le badge de statut approprié selon le statut et le type de suspension 
-   */
   const getStatusBadge = (status: string, suspensionType?: string) => {
     switch (status) {
       case 'active':
@@ -237,13 +209,6 @@ const {
     }
   };
 
-  // ========================================
-  // Menu d'actions avec logique conditionnelle
-  // ========================================
-
-  /**
-   * Génère les éléments du menu d'actions selon le statut et les droits 
-   */
   const getActionMenuItems = (listing: any) => {
     const canReactivate = canUserReactivateListing(listing);
     const isOperating = operationLoading === listing.id;
@@ -337,7 +302,6 @@ const {
     );
   };
 
-  // Fonction de filtrage mise à jour pour inclure les suspensions 
   const getListingsToShow = () => {
     switch (activeTab) {
       case 'active':
@@ -353,7 +317,6 @@ const {
     }
   };
 
-  // Fonctions utilitaires 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('fr-FR').format(price) + ' FCFA';
   };
@@ -367,7 +330,6 @@ const {
     }
   };
 
-  // Fonction pour obtenir le label du tab actuel (pour l'affichage mobile)
   const getActiveTabLabel = () => {
     switch (activeTab) {
       case 'all': return `Toutes (${userListings.length})`;
@@ -379,7 +341,6 @@ const {
     }
   };
 
-  // Gestion des états de chargement/erreur 
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
@@ -500,7 +461,6 @@ const {
 
         {/* Navigation par onglets adaptée mobile */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
-          {/* Version desktop - Tabs horizontales MODIFIÉES */}
           <TabsList className="hidden md:flex">
             <TabsTrigger value="all">Toutes ({userListings.length})</TabsTrigger>
             <TabsTrigger value="active">Actives ({activeListings.length})</TabsTrigger>
@@ -512,7 +472,6 @@ const {
             </TabsTrigger>
           </TabsList>
 
-          {/* Version mobile - Dropdown MODIFIÉ */}
           <div className="md:hidden relative">
             <Button
               variant="outline"
@@ -583,7 +542,7 @@ const {
               </Card>
             ) : (
               <>
-                {/* AFFICHAGE MOBILE : Liste horizontale avec image à gauche  */}
+                {/* AFFICHAGE MOBILE optimisé avec SmartImage */}
                 <div className="block md:hidden space-y-3">
                   {getListingsToShow().map((listing) => (
                     <div
@@ -591,57 +550,58 @@ const {
                       className="group bg-card border border-card-border rounded-lg overflow-hidden hover:shadow-md transition-all duration-300"
                     >
                       <div className="flex">
-                        {/* Image à gauche - 40% de la largeur */}
+                        {/* Image à gauche optimisée */}
                         <div className="relative w-28 flex-shrink-0">
-                          <div className="relative aspect-square overflow-hidden">
-                            <img
-                              src={listing.images?.[0] || "/placeholder.svg"}
-                              alt={listing.title}
-                              className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
-                            />
-                            
-                            {/* Badge de statut - adapté au design existant */}
-                            <div className="absolute top-1 left-1">
-                              {getStatusBadge(listing.status, listing.suspension_type)}
-                            </div>
-                            
-                            {/* Menu actions - repositionné sur mobile */}
-                            <div className="absolute top-1 right-1">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon"
-                                    className="bg-background hover:bg-accent h-7 w-7 border border-border shadow-sm"
-                                    disabled={operationLoading === listing.id}
-                                  >
-                                    <MoreVertical className="h-3 w-3" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                {getActionMenuItems(listing)}
-                              </DropdownMenu>
-                            </div>
+                          <SmartImage
+                            src={listing.images?.[0] || "/placeholder.svg"}
+                            alt={listing.title}
+                            context="thumbnail"
+                            className="aspect-square w-full group-hover:scale-105 transition-transform duration-300"
+                            objectFit="cover"
+                            lazy={true}
+                            quality="medium"
+                            showLoadingState={true}
+                            onError={() => console.log(`Erreur de chargement pour l'annonce ${listing.id}`)}
+                          />
+                          
+                          {/* Badge de statut */}
+                          <div className="absolute top-1 left-1">
+                            {getStatusBadge(listing.status, listing.suspension_type)}
+                          </div>
+                          
+                          {/* Menu actions */}
+                          <div className="absolute top-1 right-1">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon"
+                                  className="bg-background hover:bg-accent h-7 w-7 border border-border shadow-sm"
+                                  disabled={operationLoading === listing.id}
+                                >
+                                  <MoreVertical className="h-3 w-3" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              {getActionMenuItems(listing)}
+                            </DropdownMenu>
                           </div>
                         </div>
 
-                        {/* Contenu à droite - 60% de la largeur */}
+                        {/* Contenu à droite */}
                         <div className="flex-1 p-3 flex flex-col justify-between min-h-28">
                           <div className="flex-1">
-                            {/* Titre - 2 lignes max sur mobile */}
                             <h3 className="font-semibold text-sm leading-tight text-card-foreground mb-1 line-clamp-2 group-hover:text-primary transition-colors">
                               <Link to={`/listing/${listing.id}`} className="hover:underline">
                                 {listing.title}
                               </Link>
                             </h3>
                             
-                            {/* Prix - plus proéminent */}
                             <div className="text-lg font-bold text-primary mb-2">
                               {formatPrice(listing.price)}
                             </div>
                           </div>
 
                           <div className="space-y-1">
-                            {/* Localisation et vues */}
                             <div className="flex items-center justify-between text-xs text-muted-foreground">
                               <div className="flex items-center gap-1">
                                 <MapPin className="h-3 w-3 flex-shrink-0" />
@@ -653,12 +613,10 @@ const {
                               </div>
                             </div>
                             
-                            {/* Temps - discret */}
                             <div className="text-xs text-muted-foreground/80">
                               Créée le {new Date(listing.created_at).toLocaleDateString('fr-FR')}
                             </div>
 
-                            {/* Section suspension avec adaptation mobile */}
                             {listing.status === 'suspended' && (
                               <div className="mt-1 p-1.5 bg-muted/50 rounded text-xs text-muted-foreground">
                                 {getSuspensionExplanation(listing)}
@@ -671,15 +629,22 @@ const {
                   ))}
                 </div>
 
-                {/* AFFICHAGE DESKTOP : Grid classique maintenu avec vos cartes originales */}
+                {/* AFFICHAGE DESKTOP optimisé avec SmartImage */}
                 <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                   {getListingsToShow().map((listing) => (
                     <Card key={listing.id} className="overflow-hidden hover:shadow-lg transition-shadow">
                       <div className="relative">
-                        <img
+                        <SmartImage
                           src={listing.images?.[0] || '/placeholder.svg'}
                           alt={listing.title}
-                          className="w-full h-40 md:h-48 object-cover"
+                          context="card"
+                          className="w-full h-40 md:h-48"
+                          objectFit="cover"
+                          lazy={true}
+                          quality="high"
+                          showLoadingState={true}
+                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                          onLoad={() => console.log(`Image chargée pour l'annonce ${listing.id}`)}
                         />
                         <div className="absolute top-2 md:top-3 left-2 md:left-3">
                           {getStatusBadge(listing.status, listing.suspension_type)}
@@ -713,7 +678,6 @@ const {
                           {listing.location}
                         </p>
 
-                        {/* Section suspension avec adaptation mobile */}
                         {listing.status === 'suspended' && (
                           <div className="mb-3 p-2 bg-muted rounded-md">
                             <p className="text-xs text-muted-foreground">

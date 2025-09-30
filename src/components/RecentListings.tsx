@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Link } from "react-router-dom"
 import { MapPin, Clock, Eye, Heart, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { SmartImage } from "@/components/ui/SmartImage"
 import { useListings } from "@/hooks/useListings"
 import { useFavorites } from "@/hooks/useFavorites"
 import { formatPrice, formatRelativeTime, isListingNew, formatViewsCount } from "@/lib/utils"
@@ -62,38 +63,42 @@ export const RecentListings = () => {
                   className="group block bg-card border border-card-border rounded-lg overflow-hidden hover:shadow-md transition-all duration-300 active:scale-[0.98]"
                 >
                   <div className="flex">
-                    {/* Image à gauche - 40% de la largeur */}
+                    {/* Image à gauche optimisée avec SmartImage */}
                     <div className="relative w-28 flex-shrink-0">
-                      <div className="relative aspect-square overflow-hidden">
-                        <img
-                          src={listing.images?.[0] || "/placeholder.svg"}
-                          alt={listing.title}
-                          className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
-                        
-                        {/* Badge "Nouveau" - plus petit sur mobile */}
-                        {isListingNew(listing.created_at) && (
-                          <div className="absolute top-1 left-1">
-                            <span className="bg-accent text-accent-foreground px-1.5 py-0.5 rounded-full text-xs font-medium">
-                              Nouveau
-                            </span>
-                          </div>
-                        )}
-                        
-                        {/* Bouton favori - plus petit sur mobile */}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="absolute top-1 right-1 bg-white/80 hover:bg-white text-muted-foreground hover:text-primary backdrop-blur-sm h-7 w-7"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            toggleFavorite(listing.id);
-                          }}
-                        >
-                          <Heart className={`h-3 w-3 ${isFavorite(listing.id) ? "fill-destructive text-destructive" : ""}`} />
-                        </Button>
-                      </div>
+                      <SmartImage
+                        src={listing.images?.[0] || "/placeholder.svg"}
+                        alt={listing.title}
+                        context="thumbnail"
+                        className="aspect-square w-full"
+                        objectFit="cover"
+                        lazy={true}
+                        quality="medium"
+                        showLoadingState={true}
+                        onError={() => console.log(`Erreur de chargement pour l'annonce ${listing.id}`)}
+                      />
+                      
+                      {/* Badge "Nouveau" - plus petit sur mobile */}
+                      {isListingNew(listing.created_at) && (
+                        <div className="absolute top-1 left-1">
+                          <span className="bg-accent text-accent-foreground px-1.5 py-0.5 rounded-full text-xs font-medium">
+                            Nouveau
+                          </span>
+                        </div>
+                      )}
+                      
+                      {/* Bouton favori - plus petit sur mobile */}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute top-1 right-1 bg-white/80 hover:bg-white text-muted-foreground hover:text-primary backdrop-blur-sm h-7 w-7"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          toggleFavorite(listing.id);
+                        }}
+                      >
+                        <Heart className={`h-3 w-3 ${isFavorite(listing.id) ? "fill-destructive text-destructive" : ""}`} />
+                      </Button>
                     </div>
 
                     {/* Contenu à droite - 60% de la largeur */}
@@ -115,12 +120,7 @@ export const RecentListings = () => {
                         <div className="flex items-center gap-1 text-xs text-muted-foreground">
                           <User className="h-3 w-3 flex-shrink-0" />
                           <span className="truncate">
-                            {/*  Utilisation correcte de la propriété profiles */}
                             {listing.profiles?.full_name || "Vendeur anonyme"}
-                          </span>
-                          {/* Espace réservé pour le badge premium */}
-                          <span className="ml-1 px-1.5 py-0.5 bg-amber-100 text-amber-600 text-xs rounded-full font-medium hidden">
-                            ★
                           </span>
                         </div>
                         
@@ -147,19 +147,26 @@ export const RecentListings = () => {
               ))}
             </div>
 
-            {/* AFFICHAGE DESKTOP : Grid classique maintenu */}
+            {/* AFFICHAGE DESKTOP : Grid classique avec SmartImage optimisé */}
             <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {recentListings.map((listing) => (
                 <div
                   key={listing.id}
                   className="group bg-card border border-card-border rounded-xl overflow-hidden hover:shadow-lg transition-all duration-300 hover:scale-[1.02]"
                 >
-                  {/* Image avec overlays */}
-                  <div className="relative aspect-[4/3] overflow-hidden">
-                    <img
+                  {/* Image avec overlays optimisée */}
+                  <div className="relative overflow-hidden">
+                    <SmartImage
                       src={listing.images?.[0] || "/placeholder.svg"}
                       alt={listing.title}
-                      className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      context="card"
+                      className="aspect-[4/3] w-full group-hover:scale-105 transition-transform duration-300"
+                      objectFit="cover"
+                      lazy={true}
+                      quality="high"
+                      showLoadingState={true}
+                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                      onLoad={() => console.log(`Image chargée pour l'annonce ${listing.id}`)}
                     />
                     
                     {/* Badge "Nouveau" */}
@@ -203,19 +210,12 @@ export const RecentListings = () => {
                       </div>
                     </div>
                     
-                    {/*  Informations vendeur pour desktop */}
+                    {/* Informations vendeur pour desktop */}
                     <div className="flex items-center gap-2 mb-3 text-sm text-muted-foreground">
                       <User className="h-4 w-4 flex-shrink-0" />
                       <span className="truncate">
-                        {/* Utilisation correcte de la propriété profiles */}
                         {listing.profiles?.full_name || "Vendeur anonyme"}
                       </span>
-                      {/* Badge premium potentiel */}
-                      {listing.profiles?.full_name && (
-                        <span className="ml-1 px-2 py-0.5 bg-green-100 text-green-600 text-xs rounded-full font-medium hidden">
-                          Vérifié
-                        </span>
-                      )}
                     </div>
                     
                     {/* Localisation et date */}
@@ -243,7 +243,7 @@ export const RecentListings = () => {
           </>
         )}
         
-        {/* Boutons mobile pour voir toutes les annonces - amélioration UX */}
+        {/* Boutons mobile pour voir toutes les annonces */}
         <div className="mt-6 md:mt-8 text-center space-y-3">
           <Button variant="outline" className="w-full md:hidden" asChild>
             <Link to="/listings">
@@ -251,7 +251,6 @@ export const RecentListings = () => {
             </Link>
           </Button>
           
-          {/* Bouton pour publier - ajout pour conversion mobile */}
           <Button variant="cta" className="w-full md:hidden" asChild>
             <Link to="/publish">
               Publier votre annonce gratuitement

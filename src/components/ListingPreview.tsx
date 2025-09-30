@@ -6,6 +6,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
+import { SmartImage, useImageVariants } from "@/components/ui/SmartImage";
+import { formatPrice } from "@/lib/utils";
 
 // Interface pour les données du formulaire qui seront passées au composant
 interface FormDataForPreview {
@@ -29,6 +31,7 @@ interface ListingPreviewProps {
 const ListingPreview = ({ formData, isOpen, onClose, userFullName = "Vous" }: ListingPreviewProps) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [phoneRevealed, setPhoneRevealed] = useState(false);
+  const { ensureImageVariants } = useImageVariants();
 
   // Si le modal n'est pas ouvert, ne rien afficher
   if (!isOpen) return null;
@@ -51,6 +54,11 @@ const ListingPreview = ({ formData, isOpen, onClose, userFullName = "Vous" }: Li
     ) : (
       <Badge variant="outline">Occasion</Badge>
     );
+  };
+
+  // Optimisation des images pour l'affichage - convertir en variants si possible
+  const getOptimizedImageSrc = (imageUrl: string) => {
+    return ensureImageVariants(imageUrl);
   };
 
   return (
@@ -80,19 +88,22 @@ const ListingPreview = ({ formData, isOpen, onClose, userFullName = "Vous" }: Li
             {/* Section principale - Informations de l'annonce */}
             <div className="lg:col-span-2 space-y-6">
               
-              {/* Galerie d'images avec navigation */}
+              {/* Galerie d'images avec navigation optimisée */}
               <Card>
                 <CardContent className="p-0">
                   <div className="relative">
                     <AspectRatio ratio={4/3} className="overflow-hidden rounded-lg">
-                      <img
-                        src={displayImages[currentImageIndex]}
+                      <SmartImage
+                        src={getOptimizedImageSrc(displayImages[currentImageIndex])}
                         alt={formData.title || "Aperçu de l'annonce"}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          // Fallback vers placeholder si l'image ne charge pas
-                          (e.target as HTMLImageElement).src = '/placeholder.svg';
-                        }}
+                        context="detail"
+                        className="w-full h-full"
+                        objectFit="cover"
+                        lazy={false} // Image principale non lazy pour l'aperçu
+                        quality="high"
+                        showLoadingState={true}
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 66vw, 50vw"
+                        onError={() => console.log("Erreur de chargement de l'image principale")}
                       />
                     </AspectRatio>
                     
@@ -114,7 +125,7 @@ const ListingPreview = ({ formData, isOpen, onClose, userFullName = "Vous" }: Li
                     )}
                   </div>
 
-                  {/* Miniatures si plusieurs images */}
+                  {/* Miniatures si plusieurs images - optimisées avec SmartImage */}
                   {displayImages.length > 1 && (
                     <div className="p-4">
                       <div className="grid grid-cols-4 gap-2">
@@ -128,10 +139,16 @@ const ListingPreview = ({ formData, isOpen, onClose, userFullName = "Vous" }: Li
                                 : 'border-transparent hover:border-muted-foreground'
                             }`}
                           >
-                            <img
-                              src={image}
+                            <SmartImage
+                              src={getOptimizedImageSrc(image)}
                               alt={`Aperçu ${index + 1}`}
-                              className="w-full h-full object-cover"
+                              context="thumbnail"
+                              className="w-full h-full"
+                              objectFit="cover"
+                              lazy={true}
+                              quality="medium"
+                              showLoadingState={false} // Pas de loading state pour les miniatures
+                              onError={() => console.log(`Erreur miniature ${index + 1}`)}
                             />
                             {index === 3 && displayImages.length > 4 && (
                               <div className="absolute inset-0 bg-black/50 flex items-center justify-center text-white font-semibold text-sm">
@@ -275,7 +292,7 @@ const ListingPreview = ({ formData, isOpen, onClose, userFullName = "Vous" }: Li
                 </CardContent>
               </Card>
 
-              {/* Conseils de sécurité - inchangés */}
+              {/* Conseils de sécurité */}
               <Card>
                 <CardContent className="p-6">
                   <h3 className="font-semibold mb-4">Conseils de sécurité</h3>

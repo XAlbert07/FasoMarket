@@ -1,8 +1,7 @@
 // types/database.ts
-// Types étendus pour FasoMarket avec support des actions administratives
 
 // ========================================
-// TYPES DE BASE (EXISTANTS)
+// TYPES DE BASE 
 // ========================================
 
 export interface Profile {
@@ -18,36 +17,6 @@ export interface Profile {
   updated_at: string | null;
 }
 
-/*export interface Listing {
-  id: string;
-  title: string;
-  description: string;
-  price: number;
-  currency: string;
-  category_id: string;
-  user_id: string;
-  location: string;
-  condition: 'new' | 'used' | 'refurbished';
-  status: 'active' | 'sold' | 'expired' | 'suspended';
-  images: string[];
-  contact_phone: string | null;
-  contact_email: string | null;
-  contact_whatsapp: string | null;
-  featured: boolean;
-  views_count: number;
-  created_at: string;
-  updated_at: string;
-  expires_at: string | null;
-
-  suspension_type: 'temporary' | 'permanent' | null;
-  suspended_until: string | null;
-  suspension_reason: string | null;
-  categories: Category | null; // Relation avec la catégorie
-} */
-
-
-
-// Remplacez votre interface Listing existante par cette version complète
 
 export interface Listing {
   id: string;
@@ -79,7 +48,7 @@ export interface Listing {
   suspended_by: string | null;
   
   // ========================================
-  // PROPRIÉTÉS RELATIONNELLES (JOINTURES) - CORRECTION PRINCIPALE
+  // PROPRIÉTÉS RELATIONNELLES (JOINTURES) 
   // ========================================
   
   /**
@@ -123,11 +92,6 @@ export interface Listing {
 }
 
 
-
-
-
-
-
 export interface Category {
   id: string;
   name: string;
@@ -159,7 +123,6 @@ export interface Report {
   guest_phone: string | null;
   report_type: 'listing' | 'profile';
 }
-
 
 
 
@@ -231,7 +194,7 @@ export interface SearchTrackingData {
  * Utilisée quand on veut tracker les interactions avec les résultats
  */
 export interface SearchResultsData {
-  analytics_id: string; // ID de l'entrée search_analytics correspondante
+  analytics_id: string; 
   has_results: boolean;
   results_count: number;
   clicked_result?: boolean;
@@ -277,7 +240,7 @@ export interface PopularSearchesConfig {
   excludeQueries?: string[]; // Termes à exclure de l'affichage
   timeRange?: 'week' | 'month' | 'all'; // Période d'analyse
   source?: 'hero' | 'all'; // Source des recherches à considérer
-  enableDebugLogs?: boolean; // ← AJOUTER CETTE LIGNE
+  enableDebugLogs?: boolean; 
 }
 
 /**
@@ -289,7 +252,7 @@ export interface SearchStats {
   topSearches: Array<{
     query: string;
     count: number;
-    trend: 'up' | 'down' | 'stable'; // Tendance par rapport à la période précédente
+    trend: 'up' | 'down' | 'stable'; 
   }>;
   searchesWithResults: number;
   searchesWithClicks: number;
@@ -324,7 +287,7 @@ export interface Database {
         Insert: Omit<SearchAnalytics, 'id' | 'created_at'> & { id?: string; created_at?: string };
         Update: Partial<Omit<SearchAnalytics, 'id' | 'created_at'>>;
       };
-      // ... autres tables existantes (reports, etc.)
+      
     };
     Views: {
       popular_searches: {
@@ -405,13 +368,6 @@ export interface SearchTrackerProps {
 }
 
 
-
-
-
-
-
-
-
 // ========================================
 // NOUVEAUX TYPES POUR LES ACTIONS ADMINISTRATIVES
 // ========================================
@@ -447,7 +403,6 @@ export interface SuspensionAction {
   duration_days?: number;
   effective_date?: string;
 }
-
 
 
 
@@ -874,41 +829,6 @@ export const isValidActionType = (action: string): action is ActionType => {
   return Object.values(ACTION_TYPES).includes(action as ActionType);
 };
 
-// ========================================
-// TYPES POUR LA BASE DE DONNÉES SUPABASE
-// ========================================
-
-/*export interface Database {
-  public: {
-    Tables: {
-      profiles: {
-        Row: Profile;
-        Insert: Omit<Profile, 'id' | 'created_at'> & { id?: string; created_at?: string };
-        Update: Partial<Omit<Profile, 'id'>>;
-      };
-      listings: {
-        Row: Listing;
-        Insert: Omit<Listing, 'id' | 'created_at' | 'updated_at'> & { id?: string; created_at?: string; updated_at?: string };
-        Update: Partial<Omit<Listing, 'id'>>;
-      };
-      reports: {
-        Row: Report;
-        Insert: Omit<Report, 'id' | 'created_at' | 'updated_at'> & { id?: string; created_at?: string; updated_at?: string };
-        Update: Partial<Omit<Report, 'id'>>;
-      };
-      user_sanctions: {
-        Row: UserSanction;
-        Insert: Omit<UserSanction, 'id' | 'created_at' | 'updated_at'> & { id?: string; created_at?: string; updated_at?: string };
-        Update: Partial<Omit<UserSanction, 'id'>>;
-      };
-      admin_actions: {
-        Row: AdminAction;
-        Insert: Omit<AdminAction, 'id' | 'created_at'> & { id?: string; created_at?: string };
-        Update: Partial<Omit<AdminAction, 'id'>>;
-      };
-    };
-  };
-} */
 
 
 // ========================================

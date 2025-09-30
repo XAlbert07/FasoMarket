@@ -1,6 +1,6 @@
 // components/Header.tsx 
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, memo } from "react"
 import { Link, useNavigate, useLocation } from "react-router-dom"
 import { Search, Plus, User, Menu, LogOut, Settings, PlusCircle, ListIcon, Heart, MessageCircle, X, Home, Grid3X3, Bell } from "lucide-react"
 import { useAuthContext } from "@/contexts/AuthContext"
@@ -17,7 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-export const Header = () => {
+   export const Header = memo(() => {
   const navigate = useNavigate()
   const location = useLocation()
   const [searchQuery, setSearchQuery] = useState("")
@@ -26,8 +26,9 @@ export const Header = () => {
   
   // Récupération de l'état d'authentification
   const { user, profile, signOut, loading } = useAuthContext()
-  // Tracking de la recherche pour alimenter les analytics
-  const { trackSearch } = useSearchTracking()
+  // Mémoriser l'URL de l'avatar pour éviter les rechargements
+  const avatarUrl = useMemo(() => profile?.avatar_url || "", [profile?.avatar_url])
+  
 
   // Fermer les menus lors du changement de route
   useEffect(() => {
@@ -36,27 +37,13 @@ export const Header = () => {
   }, [location.pathname])
 
   // Fonction de recherche
-  const handleSearch = async (e) => {
-  e.preventDefault()
-  if (searchQuery.trim()) {
-    // Tracking de la recherche pour alimenter les analytics
-    try {
-      await trackSearch({
-        search_query: searchQuery.trim(),
-        location_query: undefined, // Pas de localisation dans le header
-        user_id: user?.id,
-        source_page: 'header', // Identifier que la recherche vient du header
-        category_filter: undefined
-      });
-    } catch (error) {
-      console.error('Erreur lors du tracking de la recherche depuis le header:', error);
-      // Le tracking ne doit jamais empêcher la recherche de fonctionner
+  const handleSearch = (e) => {
+    e.preventDefault()
+    if (searchQuery.trim()) {
+      navigate(`/listings?q=${encodeURIComponent(searchQuery.trim())}`)
+      setIsSearchOpen(false)
     }
-
-    navigate(`/listings?q=${encodeURIComponent(searchQuery.trim())}`)
-    setIsSearchOpen(false) // Fermer la recherche après soumission
   }
-}
 
   // Gestion du clic sur "Publier" selon l'état de connexion
   const handlePublishClick = (e) => {
@@ -150,7 +137,12 @@ export const Header = () => {
                   onClick={() => setIsMenuOpen(!isMenuOpen)}
                 >
                   <Avatar className="h-7 w-7">
-                   <AvatarImage src={profile.avatar_url || ""} alt={profile.full_name || "User"} />
+                   <AvatarImage 
+                      src={avatarUrl} 
+                      alt={profile?.full_name || "User"}
+                      loading="lazy"
+                      crossOrigin="anonymous"
+                    />
                     <AvatarFallback className="text-xs bg-slate-100 text-slate-700 border border-slate-200">
                       {getUserInitials()}
                   </AvatarFallback>
@@ -199,7 +191,12 @@ export const Header = () => {
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon">
                         <Avatar className="h-8 w-8">
-                       <AvatarImage src={profile.avatar_url || ""} alt={profile.full_name || "User"} />
+                        <AvatarImage 
+                           src={avatarUrl} 
+                           alt={profile?.full_name || "User"}
+                           loading="lazy"
+                           crossOrigin="anonymous"
+                          />
                           <AvatarFallback className="text-xs bg-slate-100 text-slate-700 border border-slate-200">
                             {getUserInitials()}
                        </AvatarFallback>
@@ -353,7 +350,12 @@ export const Header = () => {
                 
                 <div className="flex items-center space-x-3">
                   <Avatar className="h-12 w-12">
-                   <AvatarImage src={profile.avatar_url || ""} alt={profile.full_name || "User"} />
+                    <AvatarImage 
+                      src={avatarUrl} 
+                        alt={profile?.full_name || "User"}
+                        loading="lazy"
+                        crossOrigin="anonymous"
+                    />
                     <AvatarFallback className="text-sm bg-slate-100 text-slate-700 border border-slate-200">
                      {getUserInitials()}
                     </AvatarFallback>
@@ -498,4 +500,4 @@ export const Header = () => {
       )}
     </>
   )
-}
+})

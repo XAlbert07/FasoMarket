@@ -7,8 +7,25 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables')
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Configuration optimisée avec cache pour les avatars
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+  },
+  global: {
+    headers: {
+      'Cache-Control': 'public, max-age=3600', // Cache 1 heure
+    },
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 10
+    }
+  }
+})
 
+// Le reste du fichier (Database type) reste identique
 export type Database = {
   public: {
     Tables: {

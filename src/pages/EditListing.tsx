@@ -1,24 +1,22 @@
-// pages/EditListing.tsx 
-
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useAuthContext } from "@/contexts/AuthContext";
-import { useListing } from "@/hooks/useListings";
-import { useCategories } from "@/hooks/useCategories";
-import { useCreateListing } from "@/hooks/useListings";
-import { useImageUpload } from "@/hooks/useImageUpload"; 
-import { useToast } from "@/hooks/use-toast";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Separator } from "@/components/ui/separator";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Progress } from "@/components/ui/progress";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Upload, X, Eye, ChevronLeft, ChevronRight, Camera, MapPin, CheckCircle, ArrowLeft, Loader2, AlertTriangle } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { useListing, useCreateListing } from "@/hooks/useListings";
+import { useOptimizedImageUpload } from "@/hooks/useOptimizedImageUpload";
+import { useAuthContext } from "@/contexts/AuthContext";
+import ListingPreview from "@/components/ListingPreview";
 import { 
   Dialog,
   DialogContent,
@@ -26,874 +24,1110 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import { 
-  ArrowLeft, 
-  Save, 
-  Eye, 
-  Upload, 
-  X, 
-  AlertTriangle,
-  MapPin,
-  Package,
-  FileText,
-  Phone,
-  Plus,
-  Image as ImageIcon
-} from "lucide-react";
-
-// Liste des emplacements
-const BURKINA_LOCATIONS = [
-  "Ouagadougou", "Bobo-Dioulasso", "Koudougou", "Ouahigouya", "Banfora", 
-  "Dédougou", "Kaya", "Tenkodogo", "Fada N'Gourma", "Ziniaré",
-  "Réo", "Gaoua", "Dori", "Manga", "Boulsa"
-];
-
-// Composant de confirmation de sortie
-const ConfirmationDialog = ({ 
-  open, 
-  onOpenChange, 
-  onConfirm, 
-  onCancel,
-  hasChanges 
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onConfirm: () => void;
-  onCancel: () => void;
-  hasChanges: boolean;
-}) => (
-  <Dialog open={open} onOpenChange={onOpenChange}>
-    <DialogContent>
-      <DialogHeader>
-        <DialogTitle className="flex items-center gap-2">
-          <AlertTriangle className="h-5 w-5 text-amber-500" />
-          Modifications non sauvegardées
-        </DialogTitle>
-        <DialogDescription className="space-y-2">
-          <p>
-            Vous avez des modifications non sauvegardées qui seront perdues si vous quittez cette page.
-          </p>
-          <p className="font-medium text-foreground">
-            Que souhaitez-vous faire ?
-          </p>
-        </DialogDescription>
-      </DialogHeader>
-      <DialogFooter className="flex-col gap-2 sm:flex-row">
-        <Button 
-          variant="outline" 
-          onClick={onCancel}
-          className="w-full sm:w-auto"
-        >
-          Continuer l'édition
-        </Button>
-        <Button 
-          variant="destructive" 
-          onClick={onConfirm}
-          className="w-full sm:w-auto"
-        >
-          Quitter sans sauvegarder
-        </Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
-);
 
 const EditListing = () => {
   const { id } = useParams<{ id: string }>();
+  const { toast } = useToast();
   const navigate = useNavigate();
   const { user } = useAuthContext();
-  const { toast } = useToast();
   
-  const { listing, loading: listingLoading, error } = useListing(id!);
-  const { categories, loading: categoriesLoading } = useCategories();
-  const { updateListing, loading: updateLoading } = useCreateListing();
-  const { uploadImages, deleteImage, uploading: uploadingImages } = useImageUpload(); // Utilisation du hook
-
-  // Référence pour l'input file caché
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // États pour le formulaire
+  // Hooks pour charger l'annonce existante
+  const { listing, loading: listingLoading, error: listingError } = useListing(id!);
+  const { updateListing, loading: updatingListing } = useCreateListing();
+  const { uploadImages, uploading } = useOptimizedImageUpload();
+  
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [showPreview, setShowPreview] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
+  const [showExitConfirmation, setShowExitConfirmation] = useState(false);
+  
   const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    price: '',
-    category_id: '',
-    location: '',
-    condition: 'used' as 'new' | 'used' | 'refurbished',
-    contact_phone: '',
-    contact_email: '',
-    contact_whatsapp: '',
-    images: [] as string[]
+    title: "",
+    description: "",
+    price: "",
+    category: "",
+    location: "",
+    condition: "used" as "new" | "used",
+    phone: ""
   });
 
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-  const [hasChanges, setHasChanges] = useState(false);
-  const [imagesToRemove, setImagesToRemove] = useState<string[]>([]);
-  
-  // États pour la confirmation de sortie
-  const [showConfirmation, setShowConfirmation] = useState(false);
-  const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [completedSteps, setCompletedSteps] = useState<boolean[]>([false, false, false, false]);
 
-  // Charger les données de l'annonce dans le formulaire
+  const categories = [
+    { name: "Véhicules", id: "c47e7448-5f79-4aea-8b72-9cf24f52b280" },
+    { name: "Immobilier", id: "bec5720d-20cf-47e2-8b06-e0ae8f0b9ef8" },
+    { name: "Électronique", id: "5c06aa04-81c6-4d99-849f-b06f218ca631" },
+    { name: "Mode & Beauté", id: "7bb98a94-b7f2-49a8-9e67-69da0487b824" },
+    { name: "Maison & Jardin", id: "e2b83b13-dd31-47ae-a9eb-20692599e37d" },
+    { name: "Services", id: "5f24e208-935e-4ee7-a27f-9562413d6e11" },
+    { name: "Emploi", id: "51f56004-50b0-40cd-9576-1290b9eac09f" },
+    { name: "Loisirs & Sports", id: "e22cfdd9-b424-453d-8d37-f1851584f2ab" },
+  ];
+  
+  const burkinaCities = [
+    "Ouagadougou", "Bobo-Dioulasso", "Koudougou", "Banfora",
+    "Ouahigouya", "Pouytenga", "Dédougou", "Kaya",
+    "Fada N'Gourma", "Tenkodogo", "Réo", "Gaoua"
+  ];
+
+  // Charger les données de l'annonce existante
   useEffect(() => {
     if (listing) {
       // Vérifier que l'utilisateur est bien le propriétaire
       if (listing.user_id !== user?.id) {
         toast({
           title: "Accès refusé",
-          description: "Vous ne pouvez modifier que vos propres annonces.",
+          description: "Vous ne pouvez modifier que vos propres annonces",
           variant: "destructive"
         });
-        navigate('/my-listings');
+        navigate('/merchant-dashboard');
         return;
       }
 
-      // Remplir le formulaire avec les données existantes
+      // Trouver le nom de la catégorie à partir de l'ID
+      const categoryName = categories.find(cat => cat.id === listing.category_id)?.name || "";
+
+      // Convertir la condition en format valide (ne garder que "new" ou "used")
+      const validCondition: "new" | "used" = 
+        listing.condition === "new" ? "new" : "used";
+
+      // Pré-remplir le formulaire
       setFormData({
-        title: listing.title || '',
-        description: listing.description || '',
-        price: listing.price?.toString() || '',
-        category_id: listing.category_id || '',
-        location: listing.location || '',
-        condition: listing.condition || 'used',
-        contact_phone: listing.contact_phone || '',
-        contact_email: listing.contact_email || user?.email || '',
-        contact_whatsapp: listing.contact_whatsapp || '',
-        images: listing.images || []
+        title: listing.title || "",
+        description: listing.description || "",
+        price: listing.price?.toString() || "",
+        category: categoryName,
+        location: listing.location || "",
+        condition: validCondition,
+        phone: listing.contact_phone || ""
       });
+
+      // Charger les images existantes
+      if (listing.images && listing.images.length > 0) {
+        setImagePreviews(listing.images);
+      }
     }
   }, [listing, user, navigate, toast]);
 
-  // Détecter les changements dans le formulaire
+  // Détecter les changements
   useEffect(() => {
     if (listing) {
+      const categoryName = categories.find(cat => cat.id === listing.category_id)?.name || "";
       const hasFormChanges = 
-        formData.title !== (listing.title || '') ||
-        formData.description !== (listing.description || '') ||
-        formData.price !== (listing.price?.toString() || '') ||
-        formData.category_id !== (listing.category_id || '') ||
-        formData.location !== (listing.location || '') ||
-        formData.condition !== (listing.condition || 'used') ||
-        formData.contact_phone !== (listing.contact_phone || '') ||
-        formData.contact_email !== (listing.contact_email || '') ||
-        formData.contact_whatsapp !== (listing.contact_whatsapp || '') ||
-        JSON.stringify(formData.images) !== JSON.stringify(listing.images || []) ||
-        imagesToRemove.length > 0;
+        formData.title !== (listing.title || "") ||
+        formData.description !== (listing.description || "") ||
+        formData.price !== (listing.price?.toString() || "") ||
+        formData.category !== categoryName ||
+        formData.location !== (listing.location || "") ||
+        formData.condition !== (listing.condition || "used") ||
+        formData.phone !== (listing.contact_phone || "") ||
+        imageFiles.length > 0 ||
+        JSON.stringify(imagePreviews) !== JSON.stringify(listing.images || []);
       
       setHasChanges(hasFormChanges);
     }
-  }, [formData, listing, imagesToRemove]);
+  }, [formData, listing, imageFiles, imagePreviews]);
 
-  // Protection contre la fermeture accidentelle du navigateur
+  // Protection contre la fermeture du navigateur
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (hasChanges) {
         e.preventDefault();
         e.returnValue = '';
-        return 'Vous avez des modifications non sauvegardées. Êtes-vous sûr de vouloir quitter ?';
       }
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [hasChanges]);
 
-  const handleInputChange = (field: string, value: string | number) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    
-    // Supprimer l'erreur du champ modifié
-    if (formErrors[field]) {
-      setFormErrors(prev => {
-        const newErrors = { ...prev };
-        delete newErrors[field];
-        return newErrors;
-      });
-    }
+  const getCategoryIdByName = (name: string) => {
+    const category = categories.find(cat => cat.name === name);
+    return category ? category.id : null;
   };
 
-  // Fonction pour gérer l'upload d'images 
-  const handleImageUpload = async (files: FileList) => {
-    if (!files || files.length === 0) return;
+  const canShowPreview = () => {
+    return formData.title.trim() !== "" && 
+           formData.description.trim() !== "" && 
+           formData.price.trim() !== "" && 
+           formData.category !== "" && 
+           formData.location.trim() !== "";
+  };
 
-    // Vérifier que l'on ne dépasse pas 5 images au total
-    if (formData.images.length + files.length > 8) {
+  const handlePreview = () => {
+    if (!canShowPreview()) {
       toast({
-        title: "Trop d'images",
-        description: "Vous ne pouvez pas avoir plus de 8 images par annonce",
+        title: "Informations manquantes",
+        description: "Veuillez remplir tous les champs obligatoires pour voir l'aperçu",
         variant: "destructive"
       });
       return;
     }
+    setShowPreview(true);
+  };
 
-    const fileArray = Array.from(files);
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) {
+      const newFiles = Array.from(files);
+      const totalFiles = imagePreviews.length + imageFiles.length + newFiles.length;
+      
+      if (totalFiles > 8) {
+        toast({
+          title: "Limite atteinte",
+          description: "Vous ne pouvez avoir que 8 images maximum",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const newPreviews = newFiles.map(file => URL.createObjectURL(file));
+      setImageFiles(prev => [...prev, ...newFiles]);
+      setImagePreviews(prev => [...prev, ...newPreviews]);
+      
+      updateStepCompletion(0, true);
+    }
+  };
+
+  const removeImage = (index: number) => {
+    const imageToRemove = imagePreviews[index];
     
-    // Vérifications de base
-    for (const file of fileArray) {
-      if (!file.type.startsWith('image/')) {
-        toast({
-          title: "Format non supporté",
-          description: `Le fichier ${file.name} n'est pas une image`,
-          variant: "destructive"
-        });
-        return;
-      }
-
-      if (file.size > 5 * 1024 * 1024) { // 5MB max
-        toast({
-          title: "Fichier trop volumineux",
-          description: `L'image ${file.name} dépasse 5MB`,
-          variant: "destructive"
-        });
-        return;
-      }
+    // Si c'est une URL locale (nouvelle image), la révoquer
+    if (imageToRemove.startsWith('blob:')) {
+      URL.revokeObjectURL(imageToRemove);
+      const blobIndex = imagePreviews.slice(0, index).filter(img => img.startsWith('blob:')).length;
+      setImageFiles(prev => prev.filter((_, i) => i !== blobIndex));
     }
-
-    try {
-      // Utiliser le hook pour uploader les images vers Supabase
-      const uploadedUrls = await uploadImages(fileArray);
-
-      // Ajouter les nouvelles images au formulaire
-      setFormData(prev => ({
-        ...prev,
-        images: [...prev.images, ...uploadedUrls]
-      }));
-
-      toast({
-        title: "Images ajoutées",
-        description: `${uploadedUrls.length} image(s) ajoutée(s) avec succès`,
-      });
-
-    } catch (error) {
-      console.error('Erreur lors de l\'upload:', error);
-      // Le hook useImageUpload affiche déjà un toast d'erreur
-    }
+    
+    setImagePreviews(prev => prev.filter((_, i) => i !== index));
+    updateStepCompletion(0, imagePreviews.length > 1);
   };
 
-  // Gestionnaire pour ouvrir le sélecteur de fichiers
-  const handleAddImages = () => {
-    fileInputRef.current?.click();
+  const handleLocationInput = (value: string) => {
+    setFormData(prev => ({ ...prev, location: value }));
+    updateStepCompletion(2, value.trim() !== "");
   };
 
-  // Navigation avec confirmation
-  const handleNavigateWithConfirmation = (path: string) => {
-    if (hasChanges) {
-      setPendingNavigation(path);
-      setShowConfirmation(true);
-    } else {
-      navigate(path);
-    }
+  const selectSuggestedCity = (city: string) => {
+    setFormData(prev => ({ ...prev, location: city }));
+    updateStepCompletion(2, true);
   };
 
-  // Confirmer la sortie sans sauvegarder
-  const confirmNavigation = () => {
-    if (pendingNavigation) {
-      navigate(pendingNavigation);
-    }
-    setShowConfirmation(false);
-    setPendingNavigation(null);
-  };
-
-  // Annuler la sortie (continuer l'édition)
-  const cancelNavigation = () => {
-    setShowConfirmation(false);
-    setPendingNavigation(null);
-  };
-
-  // Gestionnaire du bouton Annuler/Retour
-  const handleCancel = () => {
-    handleNavigateWithConfirmation(`/listing/${id}`);
-  };
-
-  // Validation du formulaire
-  const validateForm = () => {
-    const errors: Record<string, string> = {};
-
-    if (!formData.title.trim()) {
-      errors.title = "Le titre est obligatoire";
-    } else if (formData.title.length < 10) {
-      errors.title = "Le titre doit contenir au moins 10 caractères";
-    } else if (formData.title.length > 100) {
-      errors.title = "Le titre ne peut pas dépasser 100 caractères";
-    }
-
-    if (!formData.description.trim()) {
-      errors.description = "La description est obligatoire";
-    } else if (formData.description.length < 20) {
-      errors.description = "La description doit contenir au moins 20 caractères";
-    }
-
-    const price = parseFloat(formData.price);
-    if (!formData.price || isNaN(price) || price <= 0) {
-      errors.price = "Le prix doit être un nombre positif";
-    } else if (price > 100000000) {
-      errors.price = "Le prix semble trop élevé";
-    }
-
-    if (!formData.category_id) {
-      errors.category_id = "Veuillez sélectionner une catégorie";
-    }
-
-    if (!formData.location.trim()) {
-      errors.location = "La localisation est obligatoire";
-    }
-
-    // Validation du téléphone si fourni
-    if (formData.contact_phone) {
-      const phoneRegex = /^(\+226|226|0)?[0-9]{8}$/;
-      if (!phoneRegex.test(formData.contact_phone.replace(/\s/g, ''))) {
-        errors.contact_phone = "Format de téléphone invalide (ex: +226 12 34 56 78)";
-      }
-    }
-
-    // Validation de l'email si fourni
-    if (formData.contact_email) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(formData.contact_email)) {
-        errors.contact_email = "Format d'email invalide";
-      }
-    }
-
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  // Soumission du formulaire
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!validateForm()) {
+    
+    if (!user || !id) {
       toast({
-        title: "Erreurs dans le formulaire",
-        description: "Veuillez corriger les erreurs avant de sauvegarder",
+        title: "Erreur",
+        description: "Impossible de mettre à jour l'annonce",
         variant: "destructive"
       });
       return;
     }
 
-    if (!id) {
+    if (!formData.title || !formData.description || !formData.price || !formData.category || !formData.location) {
       toast({
         title: "Erreur",
-        description: "ID de l'annonce manquant",
+        description: "Veuillez remplir tous les champs obligatoires",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (imagePreviews.length === 0) {
+      toast({
+        title: "Images requises", 
+        description: "Veuillez ajouter au moins une image",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const categoryId = getCategoryIdByName(formData.category);
+    if (!categoryId) {
+      toast({
+        title: "Erreur",
+        description: "Catégorie non valide",
         variant: "destructive"
       });
       return;
     }
 
     try {
-      // Supprimer les images marquées pour suppression
-      if (imagesToRemove.length > 0) {
-        for (const imageUrl of imagesToRemove) {
-          await deleteImage(imageUrl);
-        }
+      // Upload des nouvelles images seulement
+      let finalImageUrls = imagePreviews.filter(img => !img.startsWith('blob:'));
+      
+      if (imageFiles.length > 0) {
+        const newImageUrls = await uploadImages(imageFiles);
+        finalImageUrls = [...finalImageUrls, ...newImageUrls];
       }
-
-      // Préparer les données pour la mise à jour
+      
       const updateData = {
-        title: formData.title.trim(),
-        description: formData.description.trim(),
+        title: formData.title,
+        description: formData.description,
         price: parseFloat(formData.price),
-        currency: 'FCFA', 
-        category_id: formData.category_id,
-        location: formData.location.trim(),
+        category_id: categoryId,
+        location: formData.location,
         condition: formData.condition,
-        contact_phone: formData.contact_phone.trim() || null,
-        contact_email: formData.contact_email.trim() || null,
-        contact_whatsapp: formData.contact_whatsapp.trim() || null,
-        images: formData.images,
-        updated_at: new Date().toISOString()
+        contact_phone: formData.phone,
+        images: finalImageUrls,
+        currency: "XOF"
       };
 
       const result = await updateListing(id, updateData);
-
+      
       if (result) {
+        setHasChanges(false);
         toast({
           title: "Annonce mise à jour",
-          description: "Vos modifications ont été sauvegardées avec succès",
-          duration: 4000
+          description: "Vos modifications ont été sauvegardées",
         });
-
-        // Réinitialiser les changements
-        setHasChanges(false);
-        setImagesToRemove([]);
-
-        // Rediriger vers la page de gestion de l'annonce
         navigate(`/listing/${id}`);
       }
     } catch (error) {
-      console.error('Erreur lors de la mise à jour:', error);
       toast({
         title: "Erreur",
-        description: "Impossible de sauvegarder les modifications",
+        description: "Erreur lors de la mise à jour de l'annonce",
         variant: "destructive"
       });
+      console.error('Erreur de mise à jour:', error);
     }
   };
 
-  // Fonction pour marquer une image pour suppression
-  const handleRemoveImage = (imageUrl: string) => {
-    // Si c'est une image existante (URL Supabase), la marquer pour suppression
-    if (listing?.images?.includes(imageUrl)) {
-      setImagesToRemove(prev => [...prev, imageUrl]);
-    }
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
     
-    // Retirer l'image du formulaire
-    setFormData(prev => ({
-      ...prev,
-      images: prev.images.filter(img => img !== imageUrl)
-    }));
+    switch (field) {
+      case 'title':
+      case 'description':
+      case 'price':
+      case 'category':
+        updateStepCompletion(1, value.trim() !== "");
+        break;
+      case 'phone':
+        updateStepCompletion(3, value.trim() !== "");
+        break;
+    }
   };
 
-  // États de chargement et d'erreur
-  if (listingLoading || categoriesLoading) {
+  const updateStepCompletion = (stepIndex: number, isCompleted: boolean) => {
+    setCompletedSteps(prev => {
+      const newSteps = [...prev];
+      newSteps[stepIndex] = isCompleted;
+      return newSteps;
+    });
+  };
+
+  const getStepValidation = () => {
+    return [
+      imagePreviews.length > 0,
+      formData.title && formData.description && formData.price && formData.category,
+      formData.location.trim() !== "",
+      formData.phone.trim() !== ""
+    ];
+  };
+
+  const goToNextStep = () => {
+    const validations = getStepValidation();
+    if (currentStep < 3 && validations[currentStep]) {
+      setCurrentStep(currentStep + 1);
+    }
+  };
+
+  const goToPreviousStep = () => {
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
+  const handleCancel = () => {
+    if (hasChanges) {
+      setShowExitConfirmation(true);
+    } else {
+      navigate(`/listing/${id}`);
+    }
+  };
+
+  const confirmExit = () => {
+    setShowExitConfirmation(false);
+    navigate(`/listing/${id}`);
+  };
+
+  const completedStepsCount = getStepValidation().filter(Boolean).length;
+  const progressPercentage = (completedStepsCount / 4) * 100;
+
+  const steps = [
+    {
+      title: "Photos",
+      description: "Modifiez vos photos",
+      icon: <Camera className="w-5 h-5" />,
+      required: true
+    },
+    {
+      title: "Informations", 
+      description: "Détails de votre article",
+      icon: <CheckCircle className="w-5 h-5" />,
+      required: true
+    },
+    {
+      title: "Localisation",
+      description: "Où se trouve l'article",
+      icon: <MapPin className="w-5 h-5" />,
+      required: true
+    },
+    {
+      title: "Contact",
+      description: "Comment vous joindre",
+      icon: <Eye className="w-5 h-5" />,
+      required: true
+    }
+  ];
+
+  // États de chargement
+  if (listingLoading) {
     return (
-      <div className="min-h-screen bg-background flex flex-col">
+      <div className="min-h-screen bg-background">
         <Header />
-        <main className="flex-grow container mx-auto px-4 py-8 flex items-center justify-center">
+        <div className="container mx-auto px-4 py-8 flex items-center justify-center">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-            <p>Chargement de l'annonce à modifier...</p>
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+            <p>Chargement de l'annonce...</p>
           </div>
-        </main>
+        </div>
         <Footer />
       </div>
     );
   }
 
-  if (error || !listing) {
+  if (listingError || !listing) {
     return (
-      <div className="min-h-screen bg-background flex flex-col">
+      <div className="min-h-screen bg-background">
         <Header />
-        <main className="flex-grow container mx-auto px-4 py-8 flex items-center justify-center">
-          <div className="max-w-2xl mx-auto text-center">
-            <Card>
-              <CardContent className="p-8">
-                <AlertTriangle className="h-16 w-16 text-red-500 mx-auto mb-4" />
-                <h1 className="text-2xl font-bold mb-2">Impossible de modifier l'annonce</h1>
-                <p className="text-muted-foreground mb-6">
-                  Cette annonce n'existe pas ou vous n'avez pas les droits pour la modifier.
-                </p>
-                <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                  <Button variant="outline" onClick={() => navigate('/my-listings')}>
-                    Mes annonces
-                  </Button>
-                  <Button onClick={() => navigate('/')}>
-                    Accueil
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </main>
+        <div className="container mx-auto px-4 py-8 flex items-center justify-center">
+          <Card className="max-w-md">
+            <CardContent className="p-8 text-center">
+              <AlertTriangle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+              <h2 className="text-xl font-bold mb-2">Annonce introuvable</h2>
+              <p className="text-muted-foreground mb-4">Cette annonce n'existe pas ou vous n'avez pas les droits pour la modifier</p>
+              <Button onClick={() => navigate('/merchant-dashboard')}>Retour au tableau de bord</Button>
+            </CardContent>
+          </Card>
+        </div>
         <Footer />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen bg-background">
       <Header />
       
-      {/* Modale de confirmation */}
-      <ConfirmationDialog
-        open={showConfirmation}
-        onOpenChange={setShowConfirmation}
-        onConfirm={confirmNavigation}
-        onCancel={cancelNavigation}
-        hasChanges={hasChanges}
-      />
-      
-      {/* Container principal adapté pour le mobile-first */}
-      <main className="flex-grow container mx-auto px-4 py-8 md:px-6 lg:px-8">
-        <div className="max-w-4xl mx-auto">
-          {/* Input file caché pour l'upload d'images */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={(e) => e.target.files && handleImageUpload(e.target.files)}
-            className="hidden"
-          />
+      {/* Dialog de confirmation de sortie */}
+      <Dialog open={showExitConfirmation} onOpenChange={setShowExitConfirmation}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Modifications non sauvegardées
+            </DialogTitle>
+            <DialogDescription>
+              Vous avez des modifications non sauvegardées. Voulez-vous vraiment quitter sans sauvegarder ?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setShowExitConfirmation(false)}>
+              Continuer la modification
+            </Button>
+            <Button variant="destructive" onClick={confirmExit}>
+              Quitter sans sauvegarder
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-          {/* En-tête */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 space-y-4 sm:space-y-0">
-            <div>
-              <Button
-                variant="ghost"
-                onClick={handleCancel}
-                className="mb-2 sm:mb-4 px-0"
-              >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Retour à l'annonce
-              </Button>
-              <h1 className="text-2xl sm:text-3xl font-bold">Modifier votre annonce</h1>
-              <p className="text-sm sm:text-base text-muted-foreground mt-1">
-                Apportez des modifications à votre annonce "{listing.title}"
-              </p>
-            </div>
+      {/* MOBILE: Barre de progression sticky */}
+      <div className="sticky top-16 z-40 bg-background/95 backdrop-blur-sm border-b border-border py-3 md:hidden">
+        <div className="container mx-auto px-4">
+          <div className="flex items-center justify-between mb-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleCancel}
+              className="flex items-center gap-1"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Annuler
+            </Button>
             
-            <div className="flex gap-2">
-              <Button variant="outline" asChild>
-                <a href={`/listing/${id}`} target="_blank">
-                  <Eye className="h-4 w-4 mr-2" />
-                  Prévisualiser
-                </a>
-              </Button>
+            <div className="text-sm font-medium">
+              Étape {currentStep + 1} sur 4
             </div>
           </div>
+          
+          <div className="space-y-2">
+            <Progress value={progressPercentage} className="h-2" />
+            <p className="text-xs text-muted-foreground text-center">
+              {steps[currentStep].title} - {steps[currentStep].description}
+            </p>
+          </div>
 
-          {/* Alerte si changements non sauvegardés */}
           {hasChanges && (
-            <Alert className="mb-6 border-amber-200 bg-amber-50">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>
-                Vous avez des modifications non sauvegardées. N'oubliez pas de cliquer sur "Sauvegarder" avant de quitter.
-              </AlertDescription>
-            </Alert>
+            <div className="mt-2 text-xs text-amber-600 text-center flex items-center justify-center gap-1">
+              <AlertTriangle className="h-3 w-3" />
+              Modifications non sauvegardées
+            </div>
           )}
+        </div>
+      </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6 lg:space-y-8">
-            {/* La grille est maintenant mobile-first : une seule colonne par défaut, 3 colonnes sur les écrans larges */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
-              {/* Colonne principale - Le formulaire, s'étend sur 2 colonnes sur les grands écrans */}
-              <div className="lg:col-span-2 space-y-6">
-                {/* Informations générales */}
-                <Card className="rounded-lg shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-xl">
-                      <FileText className="h-5 w-5 text-primary" />
-                      Informations générales
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    <div>
-                      <Label htmlFor="title" className="mb-1">Titre de l'annonce *</Label>
-                      <Input
-                        id="title"
-                        value={formData.title}
-                        onChange={(e) => handleInputChange('title', e.target.value)}
-                        placeholder="Ex: iPhone 13 Pro Max 256Go état neuf avec accessoires"
-                        maxLength={100}
-                        className={`mt-1 ${formErrors.title ? "border-red-500" : ""}`}
-                      />
-                      {formErrors.title && (
-                        <p className="text-red-500 text-sm mt-1">{formErrors.title}</p>
-                      )}
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {formData.title.length}/100 caractères
-                      </p>
-                    </div>
+      <main className="container mx-auto px-4 py-4 md:py-8 max-w-3xl">
+        
+        {/* DESKTOP: En-tête */}
+        <div className="hidden md:block mb-8">
+          <Button
+            variant="ghost"
+            onClick={handleCancel}
+            className="mb-4"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Retour à l'annonce
+          </Button>
+          <h1 className="text-3xl font-heading font-bold text-foreground mb-2">
+            Modifier votre annonce
+          </h1>
+          <p className="text-muted-foreground">
+            Apportez des modifications à "{listing.title}"
+          </p>
+          
+          {hasChanges && (
+            <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2 text-sm text-amber-800">
+              <AlertTriangle className="h-4 w-4" />
+              Vous avez des modifications non sauvegardées
+            </div>
+          )}
+        </div>
 
-                    <div>
-                      <Label htmlFor="description" className="mb-1">Description détaillée *</Label>
-                      <Textarea
-                        id="description"
-                        value={formData.description}
-                        onChange={(e) => handleInputChange('description', e.target.value)}
-                        placeholder="Décrivez votre article en détail : état, âge, raison de la vente, etc."
-                        rows={6}
-                        maxLength={2000}
-                        className={`mt-1 ${formErrors.description ? "border-red-500" : ""}`}
-                      />
-                      {formErrors.description && (
-                        <p className="text-red-500 text-sm mt-1">{formErrors.description}</p>
-                      )}
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {formData.description.length}/2000 caractères
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Prix et catégorie */}
-                <Card className="rounded-lg shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-xl">
-                      <Package className="h-5 w-5 text-primary" />
-                      Catégorie et prix
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="category" className="mb-1">Catégorie *</Label>
-                        <Select
-                          value={formData.category_id}
-                          onValueChange={(value) => handleInputChange('category_id', value)}
-                        >
-                          <SelectTrigger className={`mt-1 ${formErrors.category_id ? "border-red-500" : ""}`}>
-                            <SelectValue placeholder="Choisir une catégorie" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {categories.map((category) => (
-                              <SelectItem key={category.id} value={category.id}>
-                                {category.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {formErrors.category_id && (
-                          <p className="text-red-500 text-sm mt-1">{formErrors.category_id}</p>
-                        )}
-                      </div>
-
-                      <div>
-                        <Label htmlFor="condition" className="mb-1">État</Label>
-                        <Select
-                          value={formData.condition}
-                          onValueChange={(value: 'new' | 'used' | 'refurbished') => 
-                            handleInputChange('condition', value)}
-                        >
-                          <SelectTrigger className="mt-1">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="new">Neuf</SelectItem>
-                            <SelectItem value="used">Occasion</SelectItem>
-                            <SelectItem value="refurbished">Reconditionné</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    <div>
-                      <Label htmlFor="price" className="mb-1">Prix en FCFA *</Label>
-                      <Input
-                        id="price"
-                        type="number"
-                        value={formData.price}
-                        onChange={(e) => handleInputChange('price', e.target.value)}
-                        placeholder="500000"
-                        min="0"
-                        step="1000"
-                        className={`mt-1 ${formErrors.price ? "border-red-500" : ""}`}
-                      />
-                      {formErrors.price && (
-                        <p className="text-red-500 text-sm mt-1">{formErrors.price}</p>
-                      )}
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Entrez le prix en Francs CFA (XOF)
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Localisation */}
-                <Card className="rounded-lg shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-xl">
-                      <MapPin className="h-5 w-5 text-primary" />
-                      Localisation
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div>
-                      <Label htmlFor="location" className="mb-1">Ville/Localité *</Label>
-                      <Select
-                        value={formData.location}
-                        onValueChange={(value) => handleInputChange('location', value)}
-                      >
-                        <SelectTrigger className={`mt-1 ${formErrors.location ? "border-red-500" : ""}`}>
-                          <SelectValue placeholder="Choisir votre localisation" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {BURKINA_LOCATIONS.map((location) => (
-                            <SelectItem key={location} value={location}>
-                              {location}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {formErrors.location && (
-                        <p className="text-red-500 text-sm mt-1">{formErrors.location}</p>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Coordonnées de contact */}
-                <Card className="rounded-lg shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-xl">
-                      <Phone className="h-5 w-5 text-primary" />
-                      Informations de contact
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <Label htmlFor="contact_phone" className="mb-1">Téléphone</Label>
-                      <Input
-                        id="contact_phone"
-                        value={formData.contact_phone}
-                        onChange={(e) => handleInputChange('contact_phone', e.target.value)}
-                        placeholder="+226 12 34 56 78"
-                        className={`mt-1 ${formErrors.contact_phone ? "border-red-500" : ""}`}
-                      />
-                      {formErrors.contact_phone && (
-                        <p className="text-red-500 text-sm mt-1">{formErrors.contact_phone}</p>
-                      )}
-                    </div>
-
-                    <div>
-                      <Label htmlFor="contact_email" className="mb-1">Email</Label>
-                      <Input
-                        id="contact_email"
-                        type="email"
-                        value={formData.contact_email}
-                        onChange={(e) => handleInputChange('contact_email', e.target.value)}
-                        placeholder="votre@email.com"
-                        className={`mt-1 ${formErrors.contact_email ? "border-red-500" : ""}`}
-                      />
-                      {formErrors.contact_email && (
-                        <p className="text-red-500 text-sm mt-1">{formErrors.contact_email}</p>
-                      )}
-                    </div>
-
-                    <div>
-                      <Label htmlFor="contact_whatsapp" className="mb-1">WhatsApp (optionnel)</Label>
-                      <Input
-                        id="contact_whatsapp"
-                        value={formData.contact_whatsapp}
-                        onChange={(e) => handleInputChange('contact_whatsapp', e.target.value)}
-                        placeholder="+226 12 34 56 78"
-                        className="mt-1"
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Si différent du numéro de téléphone principal
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Sidebar - Images et actions */}
-              <div className="space-y-6">
-                {/* Gestion des images */}
-                <Card className="rounded-lg shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-xl">
-                      <ImageIcon className="h-5 w-5 text-primary" />
-                      Photos de l'annonce
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {/* Grille des images existantes */}
-                    {formData.images.length > 0 && (
-                      <div className="grid grid-cols-2 gap-3 mb-4">
-                        {formData.images.map((image, index) => (
-                          <div key={index} className="relative group rounded-lg overflow-hidden border">
-                            <img
-                              src={image}
+        <form onSubmit={handleSubmit} className="space-y-6 md:space-y-8">
+          
+          {/* MOBILE: Navigation par étapes - Structure identique à PublishListing */}
+          <div className="md:hidden">
+            
+            {/* Étape 1: Photos */}
+            {currentStep === 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Camera className="w-5 h-5" />
+                    Photos de votre article
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Modifiez ou ajoutez des photos
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  
+                  {imagePreviews.length > 0 && (
+                    <ScrollArea className="w-full whitespace-nowrap">
+                      <div className="flex gap-2 pb-2">
+                        {imagePreviews.map((image, index) => (
+                          <div key={index} className="relative flex-shrink-0">
+                            <img 
+                              src={image} 
                               alt={`Image ${index + 1}`}
-                              className="w-full h-24 object-cover"
+                              className="w-24 h-24 object-cover rounded-lg border"
                             />
                             <Button
                               type="button"
                               variant="destructive"
                               size="icon"
-                              className="absolute -top-2 -right-2 h-7 w-7 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                              onClick={() => handleRemoveImage(image)}
+                              className="absolute -top-2 -right-2 h-6 w-6"
+                              onClick={() => removeImage(index)}
+                              disabled={uploading}
                             >
-                              <X className="h-4 w-4" />
+                              <X className="h-3 w-3" />
                             </Button>
                           </div>
                         ))}
                       </div>
+                    </ScrollArea>
+                  )}
+                  
+                  {imagePreviews.length < 8 && (
+                    <label className="block border-2 border-dashed border-primary/25 rounded-lg p-8 text-center cursor-pointer hover:bg-primary/5 transition-colors">
+                      <Upload className="h-8 w-8 text-primary mx-auto mb-2" />
+                      <p className="text-sm font-medium">Touchez pour ajouter des photos</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Formats JPG, PNG - Max 8 photos
+                      </p>
+                      <input
+                        type="file"
+                        multiple
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleImageUpload}
+                        disabled={uploading}
+                      />
+                    </label>
+                  )}
+                  
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="text-sm text-muted-foreground">
+                      {imagePreviews.length}/8 photos
+                    </span>
+                    {uploading && (
+                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
                     )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
-                    {/* Bouton d'ajout d'images */}
-                    <div className="space-y-3">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="w-full h-12 rounded-lg"
-                        onClick={handleAddImages}
-                        disabled={uploadingImages || formData.images.length >= 5}
-                      >
-                        {uploadingImages ? (
-                          <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent mr-2" />
-                            Upload en cours...
-                          </>
-                        ) : (
-                          <>
-                            <Plus className="h-4 w-4 mr-2" />
-                            {formData.images.length === 0 ? "Ajouter des photos" : "Ajouter plus de photos"}
-                          </>
-                        )}
-                      </Button>
+            {/* Étapes 2, 3, 4 : identiques à PublishListing mais avec les données pré-remplies */}
+            {/* [Le code des autres étapes est identique à PublishListing] */}
+            
+            {currentStep === 1 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5" />
+                    Informations générales
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="mobile-title">Titre de l'annonce *</Label>
+                    <Input
+                      id="mobile-title"
+                      placeholder="Ex: iPhone 13 Pro Max 256GB neuf"
+                      value={formData.title}
+                      onChange={(e) => handleInputChange("title", e.target.value)}
+                      required
+                      maxLength={100}
+                      className="text-base"
+                    />
+                  </div>
 
-                      {/* Informations sur les images */}
-                      <div className="text-xs text-muted-foreground space-y-1">
-                        <p>• {formData.images.length}/5 photos ajoutées</p>
-                        <p>• Formats supportés: JPG, PNG, JPEG</p>
-                        <p>• Taille max: 5MB par image</p>
+                  <div>
+                    <Label htmlFor="mobile-description">Description *</Label>
+                    <Textarea
+                      id="mobile-description"
+                      placeholder="État, caractéristiques, raison de la vente..."
+                      rows={4}
+                      value={formData.description}
+                      onChange={(e) => handleInputChange("description", e.target.value)}
+                      required
+                      maxLength={2000}
+                      className="text-base resize-none"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {formData.description.length}/2000 caractères
+                    </p>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="mobile-price">Prix (F CFA) *</Label>
+                    <Input
+                      id="mobile-price"
+                      type="number"
+                      inputMode="numeric"
+                      min="0"
+                      step="100"
+                      placeholder="450000"
+                      value={formData.price}
+                      onChange={(e) => handleInputChange("price", e.target.value)}
+                      required
+                      className="text-base"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="mobile-category">Catégorie *</Label>
+                    <Select value={formData.category} onValueChange={(value) => handleInputChange("category", value)}>
+                      <SelectTrigger className="text-base">
+                        <SelectValue placeholder="Choisir une catégorie" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.map((category) => (
+                          <SelectItem key={category.id} value={category.name}>
+                            {category.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label>État de l'article</Label>
+                    <RadioGroup 
+                      value={formData.condition} 
+                      onValueChange={(value) => handleInputChange("condition", value)}
+                      className="flex flex-col gap-3 mt-2"
+                    >
+                      <div className="flex items-center space-x-3 p-3 border rounded-lg">
+                        <RadioGroupItem value="new" id="mobile-new" />
+                        <Label htmlFor="mobile-new" className="font-normal flex-1">
+                          <span className="block font-medium">Neuf</span>
+                          <span className="text-xs text-muted-foreground">Jamais utilisé</span>
+                        </Label>
                       </div>
+                      <div className="flex items-center space-x-3 p-3 border rounded-lg">
+                        <RadioGroupItem value="used" id="mobile-used" />
+                        <Label htmlFor="mobile-used" className="font-normal flex-1">
+                          <span className="block font-medium">Occasion</span>
+                          <span className="text-xs text-muted-foreground">Déjà utilisé</span>
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
-                      {/* Message si aucune image */}
-                      {formData.images.length === 0 && (
-                        <div className="text-center py-6 bg-gray-50 rounded-lg border-2 border-dashed">
-                          <Upload className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                          <p className="text-sm text-gray-500">Aucune photo ajoutée</p>
-                          <p className="text-xs text-gray-400">Cliquez pour commencer</p>
-                        </div>
-                      )}
+            {currentStep === 2 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <MapPin className="w-5 h-5" />
+                    Localisation
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="mobile-location">Ville / Quartier *</Label>
+                    <Input
+                      id="mobile-location"
+                      placeholder="Ex: Ouagadougou - Secteur 15"
+                      value={formData.location}
+                      onChange={(e) => handleLocationInput(e.target.value)}
+                      required
+                      className="text-base"
+                    />
+                  </div>
+                  
+                  <div>
+                    <p className="text-sm font-medium mb-3">Villes principales :</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {burkinaCities.slice(0, 8).map((city) => (
+                        <Button
+                          key={city}
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="justify-start text-sm"
+                          onClick={() => selectSuggestedCity(city)}
+                        >
+                          {city}
+                        </Button>
+                      ))}
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
-                {/* Actions */}
-                <Card className="rounded-lg shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="text-xl">Actions</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <Button
-                      type="submit"
-                      className="w-full h-12 rounded-lg"
-                      disabled={updateLoading || !hasChanges}
+            {currentStep === 3 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Eye className="w-5 h-5" />
+                    Contact et finalisation
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div>
+                    <Label htmlFor="mobile-phone">Numéro de téléphone *</Label>
+                    <Input
+                      id="mobile-phone"
+                      type="tel"
+                      inputMode="tel"
+                      placeholder="+226 70 12 34 56"
+                      value={formData.phone}
+                      onChange={(e) => handleInputChange("phone", e.target.value)}
+                      required
+                      className="text-base"
+                    />
+                  </div>
+
+                  {/* Récapitulatif */}
+                  <div className="bg-muted/30 p-4 rounded-lg">
+                    <h3 className="font-medium mb-3">Récapitulatif des modifications</h3>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Photos :</span>
+                        <span>{imagePreviews.length} photo(s)</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Titre :</span>
+                        <span className="text-right max-w-[150px] truncate">{formData.title || "Non renseigné"}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Prix :</span>
+                        <span>{formData.price ? `${formData.price} XOF` : "Non renseigné"}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Catégorie :</span>
+                        <span>{formData.category || "Non choisie"}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Lieu :</span>
+                        <span className="text-right max-w-[150px] truncate">{formData.location || "Non indiqué"}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions finales */}
+                  <div className="space-y-3">
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      className="w-full"
+                      onClick={handlePreview}
+                      disabled={!canShowPreview() || uploading}
                     >
-                      {updateLoading ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2" />
-                          Sauvegarde...
-                        </>
-                      ) : (
-                        <>
-                          <Save className="h-4 w-4 mr-2" />
-                          Sauvegarder les modifications
-                        </>
-                      )}
+                      <Eye className="h-4 w-4 mr-2" />
+                      Voir l'aperçu
+                    </Button>
+                    
+                    <Button 
+                      type="submit" 
+                      className="w-full"
+                      disabled={updatingListing || uploading || !user || !hasChanges}
+                      size="lg"
+                    >
+                      {updatingListing || uploading ? "Mise à jour en cours..." : "Sauvegarder les modifications"}
                     </Button>
 
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full h-12 rounded-lg"
-                      onClick={handleCancel}
-                      disabled={updateLoading}
-                    >
-                      Annuler
-                    </Button>
+                    {!hasChanges && (
+                      <p className="text-xs text-center text-muted-foreground">
+                        Aucune modification détectée
+                      </p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
 
-                    <Separator className="my-4" />
+          {/* DESKTOP: Interface complète - identique à PublishListing */}
+          <div className="hidden md:block space-y-8">
+            
+            <Card>
+              <CardHeader>
+                <CardTitle>Photos de votre article</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {imagePreviews.map((image, index) => (
+                      <div key={index} className="relative group">
+                        <img 
+                          src={image} 
+                          alt={`Image ${index + 1}`}
+                          className="w-full h-24 object-cover rounded-lg border"
+                        />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          className="absolute -top-2 -right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => removeImage(index)}
+                          disabled={uploading}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                    
+                    {imagePreviews.length < 8 && (
+                      <label className="border-2 border-dashed border-muted-foreground/25 rounded-lg h-24 flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50 transition-colors">
+                        <Upload className="h-6 w-6 text-muted-foreground mb-1" />
+                        <span className="text-xs text-muted-foreground">Ajouter</span>
+                        <input
+                          type="file"
+                          multiple
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleImageUpload}
+                          disabled={uploading}
+                        />
+                      </label>
+                    )}
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-muted-foreground">
+                      Ajoutez jusqu'à 8 photos de qualité - {imagePreviews.length}/8
+                    </p>
+                    {uploading && (
+                      <div className="flex items-center gap-2 text-sm text-primary">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Upload en cours...
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-                    <div className="text-xs text-muted-foreground space-y-1">
-                      <p>• Modifié le: {new Date(listing.updated_at || listing.created_at).toLocaleDateString('fr-FR')}</p>
-                      <p>• Statut: <Badge variant="outline" className="text-xs">{listing.status}</Badge></p>
+            <Card>
+              <CardHeader>
+                <CardTitle>Informations générales</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                
+                <div>
+                  <Label htmlFor="title">Titre de l'annonce *</Label>
+                  <Input
+                    id="title"
+                    placeholder="Ex: iPhone 13 Pro Max 256GB, État neuf avec accessoires"
+                    value={formData.title}
+                    onChange={(e) => handleInputChange("title", e.target.value)}
+                    required
+                    maxLength={100}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {formData.title.length}/100 caractères
+                  </p>
+                </div>
+
+                <div>
+                  <Label htmlFor="description">Description complète *</Label>
+                  <Textarea
+                    id="description"
+                    placeholder="Décrivez votre article en détail : état, caractéristiques, raison de la vente..."
+                    rows={5}
+                    value={formData.description}
+                    onChange={(e) => handleInputChange("description", e.target.value)}
+                    required
+                    maxLength={2000}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {formData.description.length}/2000 caractères
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="price">Prix de vente (F CFA) *</Label>
+                    <Input
+                      id="price"
+                      type="number"
+                      min="0"
+                      step="100"
+                      placeholder="Ex: 450000"
+                      value={formData.price}
+                      onChange={(e) => handleInputChange("price", e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="category">Catégorie *</Label>
+                    <Select value={formData.category} onValueChange={(value) => handleInputChange("category", value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionner une catégorie" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.map((category) => (
+                          <SelectItem key={category.id} value={category.name}>
+                            {category.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="location">Où se trouve votre article ? *</Label>
+                  <div className="space-y-3">
+                    <Input
+                      id="location"
+                      placeholder="Ex: Ouagadougou - Secteur 15, Bobo-Dioulasso - Quartier Diarradougou..."
+                      value={formData.location}
+                      onChange={(e) => handleLocationInput(e.target.value)}
+                      required
+                    />
+                    
+                    <div className="flex flex-wrap gap-2">
+                      <span className="text-sm text-muted-foreground self-center">Villes principales :</span>
+                      {burkinaCities.slice(0, 6).map((city) => (
+                        <Button
+                          key={city}
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-3 text-xs"
+                          onClick={() => selectSuggestedCity(city)}
+                        >
+                          {city}
+                        </Button>
+                      ))}
                     </div>
-                  </CardContent>
-                </Card>
-              </div>
+                  </div>
+                </div>
+
+                <div>
+                  <Label>Dans quel état est votre article ?</Label>
+                  <RadioGroup 
+                    value={formData.condition} 
+                    onValueChange={(value) => handleInputChange("condition", value)}
+                    className="flex gap-8 mt-3"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="new" id="new" />
+                      <Label htmlFor="new" className="font-normal">
+                        Neuf
+                        <span className="block text-xs text-muted-foreground">Jamais utilisé</span>
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="used" id="used" />
+                      <Label htmlFor="used" className="font-normal">
+                        Occasion
+                        <span className="block text-xs text-muted-foreground">Déjà utilisé</span>
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Vos informations de contact</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div>
+                  <Label htmlFor="phone">Numéro de téléphone *</Label>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    placeholder="+226 70 12 34 56"
+                    value={formData.phone}
+                    onChange={(e) => handleInputChange("phone", e.target.value)}
+                    required
+                  />
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Ce numéro sera visible par les acheteurs intéressés
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="flex gap-4">
+              <Button 
+                type="button" 
+                variant="outline" 
+                className="flex-1"
+                onClick={handlePreview}
+                disabled={!canShowPreview() || uploading}
+              >
+                <Eye className="h-4 w-4 mr-2" />
+                Aperçu
+              </Button>
+              <Button 
+                type="button"
+                variant="outline"
+                className="flex-1"
+                onClick={handleCancel}
+                disabled={updatingListing || uploading}
+              >
+                Annuler
+              </Button>
+              <Button 
+                type="submit" 
+                className="flex-1"
+                disabled={updatingListing || uploading || !user || !hasChanges}
+              >
+                {updatingListing || uploading ? "Mise à jour..." : "Sauvegarder les modifications"}
+              </Button>
             </div>
-          </form>
-        </div>
+
+            {!hasChanges && (
+              <div className="text-center">
+                <p className="text-sm text-muted-foreground">
+                  Aucune modification détectée. Modifiez les informations ci-dessus pour activer le bouton de sauvegarde.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* MOBILE: Navigation entre étapes */}
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-background border-t border-border p-4 md:hidden">
+            <div className="container mx-auto max-w-md">
+              <div className="flex gap-3">
+                {currentStep > 0 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="lg"
+                    onClick={goToPreviousStep}
+                    className="flex-1"
+                  >
+                    <ChevronLeft className="w-4 h-4 mr-1" />
+                    Précédent
+                  </Button>
+                )}
+                
+                {currentStep < 3 ? (
+                  <Button
+                    type="button"
+                    size="lg"
+                    onClick={goToNextStep}
+                    disabled={!getStepValidation()[currentStep]}
+                    className="flex-1"
+                  >
+                    Suivant
+                    <ChevronRight className="w-4 h-4 ml-1" />
+                  </Button>
+                ) : (
+                  <Button 
+                    type="submit" 
+                    size="lg"
+                    disabled={updatingListing || uploading || !user || !hasChanges || !getStepValidation().every(Boolean)}
+                    className="flex-1"
+                  >
+                    {updatingListing || uploading ? "Mise à jour..." : "Sauvegarder"}
+                  </Button>
+                )}
+              </div>
+              
+              {!getStepValidation()[currentStep] && (
+                <p className="text-xs text-center text-red-600 mt-2">
+                  {currentStep === 0 && "Au moins une photo est requise"}
+                  {currentStep === 1 && "Remplissez tous les champs obligatoires"}
+                  {currentStep === 2 && "Indiquez votre localisation"}
+                  {currentStep === 3 && "Saisissez votre numéro de téléphone"}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="h-20 md:hidden" />
+        </form>
       </main>
+
+      {showPreview && (
+        <ListingPreview
+          formData={{
+            title: formData.title,
+            description: formData.description,
+            price: formData.price,
+            category: formData.category,
+            location: formData.location,
+            condition: formData.condition,
+            phone: formData.phone,
+            imageUrls: imagePreviews
+          }}
+          isOpen={showPreview}
+          onClose={() => setShowPreview(false)}
+          userFullName={user?.user_metadata?.full_name || user?.email?.split('@')[0] || "Utilisateur"}
+        />
+      )}
 
       <Footer />
     </div>

@@ -11,10 +11,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Upload, X, Eye, ChevronLeft, ChevronRight, Camera, MapPin, CheckCircle, ArrowLeft } from "lucide-react";
+import { Upload, X, Eye, ChevronLeft, ChevronRight, Camera, MapPin, CheckCircle, ArrowLeft, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useCreateListing } from "@/hooks/useListings";
-import { useImageUpload } from "@/hooks/useImageUpload";
+import { useOptimizedImageUpload } from "@/hooks/useOptimizedImageUpload";
 import { useAuthContext } from "@/contexts/AuthContext";
 import ListingPreview from "@/components/ListingPreview";
 
@@ -23,8 +23,7 @@ const PublishListing = () => {
   const navigate = useNavigate();
   const { user } = useAuthContext();
   const { createListing, loading: creatingListing } = useCreateListing();
-  const { uploadImages, uploading } = useImageUpload();
-  
+  const { uploadImages, uploading } = useOptimizedImageUpload();
   
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
@@ -40,12 +39,10 @@ const PublishListing = () => {
     phone: ""
   });
 
-  // ÉTATS : Spécifiques à l'interface mobile pour la navigation par étapes
   const [currentStep, setCurrentStep] = useState(0);
   const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
   const [completedSteps, setCompletedSteps] = useState<boolean[]>([false, false, false, false]);
 
-  // Configuration des catégories identique
   const categories = [
     { name: "Véhicules", id: "c47e7448-5f79-4aea-8b72-9cf24f52b280" },
     { name: "Immobilier", id: "bec5720d-20cf-47e2-8b06-e0ae8f0b9ef8" },
@@ -63,7 +60,6 @@ const PublishListing = () => {
     "Fada N'Gourma", "Tenkodogo", "Réo", "Gaoua"
   ];
 
-  // Toutes les fonctions métier 
   const getCategoryIdByName = (name: string) => {
     const category = categories.find(cat => cat.name === name);
     return category ? category.id : null;
@@ -109,7 +105,6 @@ const PublishListing = () => {
       setImageFiles(prev => [...prev, ...newFiles]);
       setImagePreviews(prev => [...prev, ...newPreviews]);
       
-      // Marquer l'étape images comme complétée
       updateStepCompletion(0, newFiles.length > 0);
     }
   };
@@ -121,16 +116,12 @@ const PublishListing = () => {
     
     setImageFiles(newFiles);
     setImagePreviews(newPreviews);
-    
-    //  Mise à jour du statut de l'étape
     updateStepCompletion(0, newFiles.length > 0);
   };
 
   const handleLocationInput = (value: string) => {
     setFormData(prev => ({ ...prev, location: value }));
     setShowLocationSuggestions(value.length > 0);
-    
-    // Validation temps réel pour la navigation mobile
     updateStepCompletion(2, value.trim() !== "");
   };
 
@@ -213,7 +204,6 @@ const PublishListing = () => {
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     
-    // Validation temps réel pour le parcours mobile
     switch (field) {
       case 'title':
       case 'description':
@@ -227,7 +217,6 @@ const PublishListing = () => {
     }
   };
 
-  // Gestion des étapes pour l'interface mobile
   const updateStepCompletion = (stepIndex: number, isCompleted: boolean) => {
     setCompletedSteps(prev => {
       const newSteps = [...prev];
@@ -236,13 +225,12 @@ const PublishListing = () => {
     });
   };
 
-  // Validation de chaque étape pour la navigation
   const getStepValidation = () => {
     return [
-      imageFiles.length > 0, // Étape 1: Images
-      formData.title && formData.description && formData.price && formData.category, // Étape 2: Infos générales
-      formData.location.trim() !== "", // Étape 3: Localisation
-      formData.phone.trim() !== "" // Étape 4: Contact
+      imageFiles.length > 0,
+      formData.title && formData.description && formData.price && formData.category,
+      formData.location.trim() !== "",
+      formData.phone.trim() !== ""
     ];
   };
 
@@ -262,7 +250,6 @@ const PublishListing = () => {
   const completedStepsCount = getStepValidation().filter(Boolean).length;
   const progressPercentage = (completedStepsCount / 4) * 100;
 
-  // Configuration des étapes pour l'interface mobile
   const steps = [
     {
       title: "Photos",
@@ -294,7 +281,7 @@ const PublishListing = () => {
     <div className="min-h-screen bg-background">
       <Header />
       
-      {/* MOBILE: Barre de progression sticky avec navigation intuitive */}
+      {/* MOBILE: Barre de progression sticky */}
       <div className="sticky top-16 z-40 bg-background/95 backdrop-blur-sm border-b border-border py-3 md:hidden">
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between mb-2">
@@ -324,7 +311,7 @@ const PublishListing = () => {
 
       <main className="container mx-auto px-4 py-4 md:py-8 max-w-3xl">
         
-        {/* DESKTOP: En-tête traditionnel conservé */}
+        {/* DESKTOP: En-tête */}
         <div className="hidden md:block mb-8">
           <h1 className="text-3xl font-heading font-bold text-foreground mb-2">
             Publier une annonce
@@ -336,10 +323,10 @@ const PublishListing = () => {
 
         <form onSubmit={handleSubmit} className="space-y-6 md:space-y-8">
           
-          {/* MOBILE: Navigation par étapes - Interface intuitive pour petits écrans */}
+          {/* MOBILE: Navigation par étapes */}
           <div className="md:hidden">
             
-            {/* Étape 1: Photos - Interface tactile optimisée */}
+            {/* Étape 1: Photos */}
             {currentStep === 0 && (
               <Card>
                 <CardHeader>
@@ -353,7 +340,6 @@ const PublishListing = () => {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   
-                  {/* Galerie mobile-optimisée avec carrousel horizontal */}
                   {imagePreviews.length > 0 && (
                     <ScrollArea className="w-full whitespace-nowrap">
                       <div className="flex gap-2 pb-2">
@@ -380,7 +366,6 @@ const PublishListing = () => {
                     </ScrollArea>
                   )}
                   
-                  {/* Zone de téléchargement tactile friendly */}
                   {imagePreviews.length < 8 && (
                     <label className="block border-2 border-dashed border-primary/25 rounded-lg p-8 text-center cursor-pointer hover:bg-primary/5 transition-colors">
                       <Upload className="h-8 w-8 text-primary mx-auto mb-2" />
@@ -399,22 +384,20 @@ const PublishListing = () => {
                     </label>
                   )}
                   
-                  {/* Indicateur de progression pour mobile */}
-                  <div className="text-center">
+                  {/* Indicateur simple */}
+                  <div className="flex items-center justify-center gap-2">
                     <span className="text-sm text-muted-foreground">
                       {imagePreviews.length}/8 photos ajoutées
                     </span>
                     {uploading && (
-                      <p className="text-sm text-primary animate-pulse mt-1">
-                        Téléchargement en cours...
-                      </p>
+                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
                     )}
                   </div>
                 </CardContent>
               </Card>
             )}
 
-            {/* Étape 2: Informations générales - Formulaire optimisé mobile */}
+            {/* Étape 2: Informations générales */}
             {currentStep === 1 && (
               <Card>
                 <CardHeader>
@@ -434,7 +417,7 @@ const PublishListing = () => {
                       onChange={(e) => handleInputChange("title", e.target.value)}
                       required
                       maxLength={100}
-                      className="text-base" // Évite le zoom sur iOS
+                      className="text-base"
                     />
                     <p className="text-xs text-muted-foreground mt-1">
                       Titre accrocheur et précis
@@ -517,7 +500,7 @@ const PublishListing = () => {
               </Card>
             )}
 
-            {/* Étape 3: Localisation - Interface géographique simplifiée */}
+            {/* Étape 3: Localisation */}
             {currentStep === 2 && (
               <Card>
                 <CardHeader>
@@ -543,7 +526,6 @@ const PublishListing = () => {
                     />
                   </div>
                   
-                  {/* Suggestions de villes en grille tactile */}
                   <div>
                     <p className="text-sm font-medium mb-3">Villes principales :</p>
                     <div className="grid grid-cols-2 gap-2">
@@ -571,7 +553,7 @@ const PublishListing = () => {
               </Card>
             )}
 
-            {/* Étape 4: Contact - Informations finales */}
+            {/* Étape 4: Contact */}
             {currentStep === 3 && (
               <Card>
                 <CardHeader>
@@ -599,7 +581,7 @@ const PublishListing = () => {
                     </p>
                   </div>
 
-                  {/* Récapitulatif visuel pour validation finale */}
+                  {/* Récapitulatif */}
                   <div className="bg-muted/30 p-4 rounded-lg">
                     <h3 className="font-medium mb-3">Récapitulatif</h3>
                     <div className="space-y-2 text-sm">
@@ -626,7 +608,7 @@ const PublishListing = () => {
                     </div>
                   </div>
 
-                  {/* Actions finales avec aperçu prioritaire sur mobile */}
+                  {/* Actions finales */}
                   <div className="space-y-3">
                     <Button 
                       type="button" 
@@ -653,7 +635,7 @@ const PublishListing = () => {
             )}
           </div>
 
-          {/* DESKTOP: Interface traditionnelle complète conservée */}
+          {/* DESKTOP: Interface complète */}
           <div className="hidden md:block space-y-8">
             
             <Card>
@@ -699,14 +681,16 @@ const PublishListing = () => {
                     )}
                   </div>
                   
-                  <p className="text-sm text-muted-foreground">
-                    Ajoutez jusqu'à 8 photos de qualité (formats JPG, PNG) - {imagePreviews.length}/8
-                  </p>
-                  {uploading && (
-                    <p className="text-sm text-primary animate-pulse">
-                      Téléchargement des images en cours...
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-muted-foreground">
+                      Ajoutez jusqu'à 8 photos de qualité (formats JPG, PNG) - {imagePreviews.length}/8
                     </p>
-                  )}
+                    {uploading && (
+                      <div className="flex items-center gap-2 text-sm text-primary">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      </div>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -894,7 +878,7 @@ const PublishListing = () => {
             </div>
           </div>
 
-          {/* MOBILE: Navigation entre étapes - Barre flottante intuitive */}
+          {/* MOBILE: Navigation entre étapes */}
           <div className="fixed bottom-0 left-0 right-0 z-50 bg-background border-t border-border p-4 md:hidden">
             <div className="container mx-auto max-w-md">
               <div className="flex gap-3">
@@ -934,7 +918,6 @@ const PublishListing = () => {
                 )}
               </div>
               
-              {/* Indicateur de validation pour l'étape courante */}
               {!getStepValidation()[currentStep] && (
                 <p className="text-xs text-center text-red-600 mt-2">
                   {currentStep === 0 && "Ajoutez au moins une photo"}
@@ -946,12 +929,10 @@ const PublishListing = () => {
             </div>
           </div>
 
-          {/* Espace pour la barre de navigation mobile */}
           <div className="h-20 md:hidden" />
         </form>
       </main>
 
-      {/* Modal d'aperçu identique */}
       {showPreview && (
         <ListingPreview
           formData={{

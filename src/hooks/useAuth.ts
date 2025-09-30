@@ -1,8 +1,9 @@
 // useAuth.ts 
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { User, Session, AuthError } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
+import { cache } from '@/lib/cache'
 import { useToast } from '@/hooks/use-toast'
 
 // ========================================
@@ -126,6 +127,16 @@ export const useAuth = (): AuthContextType => {
   const [loading, setLoading] = useState(true)
   const { toast } = useToast()
 
+  // Mémorisation du profil pour éviter les re-renders inutiles
+  const memoizedProfile = useMemo(() => {
+    if (!profile) return null
+    return {
+      ...profile,
+      // Stabiliser l'URL de l'avatar pour éviter le rechargement
+      avatar_url: profile.avatar_url || null
+    }
+  }, [profile?.id, profile?.avatar_url, profile?.updated_at])
+
   // Système anti-collision pour la récupération de profil 
   const profileFetchRef = useRef<{
     isActive: boolean
@@ -210,7 +221,15 @@ export const useAuth = (): AuthContextType => {
   
   const fetchProfile = async (userId: string, source: string = 'unknown') => {
     const profileLogger = createLogger('FETCH_PROFILE')
-    
+
+    // Vérifier le cache d'abord
+    const cachedProfile = cache.get<UserProfile>(cache.profileKey(userId))
+    if (cachedProfile) {
+      profileLogger.info('Profil récupéré depuis le cache')
+      setProfile(cachedProfile)
+      setLoading(false)
+      return
+    }
     // Vérification anti-collision
     if (profileFetchRef.current.isActive && profileFetchRef.current.currentUserId === userId) {
       profileLogger.warning(`Récupération déjà en cours pour l'utilisateur ${userId} (source: ${source}) - ignoré`)
@@ -309,6 +328,7 @@ export const useAuth = (): AuthContextType => {
         
       } else {
         profileLogger.success('Données de profil reçues avec succès')
+        cache.set(cache.profileKey(userId), data)
         setProfile(data)
         profileLogger.success('Profil mis à jour dans l\'état React')
       }
@@ -967,6 +987,8 @@ export const useAuth = (): AuthContextType => {
       if (error) throw error
 
       setProfile(prev => prev ? { ...prev, ...updates } : null)
+      // Invalider le cache après mise à jour
+      cache.invalidate(cache.profileKey(user.id))
       updateLogger.success('Profil mis à jour avec succès')
       
       toast({
@@ -1557,7 +1579,7 @@ const verifyMFA = async (code: string): Promise<BackupCode[]> => {
   return {
     // États de base
     user,
-    profile,
+    profile: memoizedProfile,
     session,
     loading,
     
@@ -1579,5 +1601,5 @@ const verifyMFA = async (code: string): Promise<BackupCode[]> => {
     getActiveSessions,
     revokeSession,
     revokeAllOtherSessions,
-  }
+  };
 }

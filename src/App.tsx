@@ -1,4 +1,4 @@
-//App.tsx avec ScrollToTop intégré
+// App.tsx - Version optimisée pour les performances de chargement initial
 
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -6,134 +6,276 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
-import ScrollToTop from "./components/ScrollToTop"; // Import du nouveau composant
-import Index from "./pages/Index";
-import Listings from "./pages/Listings";
-// Import du nouveau composant intelligent au lieu de ListingDetail
-import SmartListingDetail from "./components/SmartListingDetail";
-import PublishListing from "./pages/PublishListing";
-import Login from "./pages/Login";
-//import ForgotPassword from "./pages/ForgotPassword";//
-import MerchantDashboard from "./pages/MerchantDashboard";
-import AdminDashboard from "./pages/AdminDashboard";
-import Messages from "./pages/Messages";
-import Favorites from "./pages/Favorites";
-import CategoryListings from "./pages/CategoryListings";
+import { lazy, Suspense } from "react";
+import ScrollToTop from "./components/ScrollToTop"; 
 import ProtectedRoute from "./components/ProtectedRoute";
-import NotFound from "./pages/NotFound";
-import PrivacyPolicy from "./pages/PrivacyPolicy";
-import LegalNotice from "./pages/LegalNotice";
-import TermsOfService from "./pages/TermsOfService";
-import About from "./pages/About";
-import HelpSupport from "./pages/HelpSupport";
-import MyProfile from "./pages/MyProfile";
-import HowToPublish from "./pages/HowToPublish";
-import MyListings from "./pages/MyListings";
-import SellerProfile from "./pages/SellerProfile";
-import EditListing from "./pages/EditListing";
-import { SuspensionGuard } from '@/components/SuspensionGuard'
-import  SanctionsManagementPage  from '@/pages/admin/components/SanctionsManagementPage'
-import ForgotPassword from "@/pages/ForgotPassword";
-import ResetPassword from "@/pages/ResetPassword";
-import Blog from "./pages/Blog";
-import { AvatarUploadModal } from '@/components/AvatarUploadModal';
+import { SuspensionGuard } from '@/components/SuspensionGuard';
 
-// Le hook sera automatiquement importé dans le modal
+// IMPORTANT : Les pages critiques ne sont PAS en lazy loading
+// Cela élimine complètement la latence de chargement initial
+import Index from "./pages/Index";  // Page d'accueil chargée immédiatement
+import Login from "./pages/Login";   // Login chargé immédiatement pour l'UX
 
-const queryClient = new QueryClient();
+// Composant de loading optimisé pour le Suspense
+const PageLoader = () => (
+  <div className="flex items-center justify-center min-h-screen bg-background">
+    <div className="flex flex-col items-center space-y-4">
+      <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent"></div>
+      <p className="text-sm text-muted-foreground">Chargement...</p>
+    </div>
+  </div>
+);
+
+// Lazy loading intelligent : Pages par ordre de priorité d'usage
+
+// Pages très fréquemment utilisées (chargement prioritaire)
+const Listings = lazy(() => import("./pages/Listings"));
+const SmartListingDetail = lazy(() => import("./components/SmartListingDetail"));
+const PublishListing = lazy(() => import("./pages/PublishListing"));
+
+// Pages utilisateur moyennement fréquentes
+const CategoryListings = lazy(() => import("./pages/CategoryListings"));
+const SellerProfile = lazy(() => import("./pages/SellerProfile"));
+const MyListings = lazy(() => import("./pages/MyListings"));
+const Favorites = lazy(() => import("./pages/Favorites"));
+
+// Pages utilisateur moins fréquentes
+const MerchantDashboard = lazy(() => import("./pages/MerchantDashboard"));
+const MyProfile = lazy(() => import("./pages/MyProfile"));
+const Messages = lazy(() => import("./pages/Messages"));
+const EditListing = lazy(() => import("./pages/EditListing"));
+
+// Pages admin (chargement très différé)
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
+const SanctionsManagementPage = lazy(() => import("@/pages/admin/components/SanctionsManagementPage"));
+
+// Pages d'authentification secondaires
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+
+// Pages statiques (chargement très différé)
+const NotFound = lazy(() => import("./pages/NotFound"));
+const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
+const LegalNotice = lazy(() => import("./pages/LegalNotice"));
+const TermsOfService = lazy(() => import("./pages/TermsOfService"));
+const About = lazy(() => import("./pages/About"));
+const HelpSupport = lazy(() => import("./pages/HelpSupport"));
+const HowToPublish = lazy(() => import("./pages/HowToPublish"));
+const Blog = lazy(() => import("./pages/Blog"));
+
+// Configuration optimisée du QueryClient pour la performance
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Cache les données 10 minutes par défaut pour réduire les requêtes
+      staleTime: 10 * 60 * 1000,
+      // Garde les données en cache 15 minutes
+      gcTime: 15 * 60 * 1000,
+      // Retry strategy optimisée
+      retry: (failureCount, error) => {
+        // Ne pas réessayer pour les erreurs 4xx
+        if (error instanceof Error && error.message.includes('4')) {
+          return false;
+        }
+        return failureCount < 2;
+      },
+      // Réduire le temps d'attente pour les requêtes lentes
+      networkMode: 'offlineFirst',
+    },
+    mutations: {
+      // Retry strategy pour les mutations
+      retry: 1,
+    }
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
       <SuspensionGuard>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          {/* 
-            COMPOSANT SCROLL-TO-TOP
-            Placé immédiatement après BrowserRouter pour pouvoir accéder aux hooks de routage
-            Il écoute tous les changements de route et repositionne automatiquement le scroll
-          */}
-          <ScrollToTop />
-          
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/listings" element={<Listings />} />
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <ScrollToTop />
             
-            {/* 
-              ROUTE INTELLIGENTE : Une seule URL qui s'adapte selon l'utilisateur
-              - Si l'utilisateur connecté est le propriétaire de l'annonce : vue de gestion complète
-              - Sinon : vue publique standard
-              Cette approche offre une expérience utilisateur cohérente avec des URLs prévisibles
-            */}
-            <Route path="/listing/:id" element={<SmartListingDetail />} />
+            <Routes>
+              {/* Routes critiques - PAS de Suspense pour un chargement immédiat */}
+              <Route path="/" element={<Index />} />
+              <Route path="/login" element={<Login />} />
+              
+              {/* Routes fréquentes - Suspense avec priorité élevée */}
+              <Route path="/listings" element={
+                <Suspense fallback={<PageLoader />}>
+                  <Listings />
+                </Suspense>
+              } />
+              
+              <Route path="/listing/:id" element={
+                <Suspense fallback={<PageLoader />}>
+                  <SmartListingDetail />
+                </Suspense>
+              } />
+              
+              <Route path="/publish" element={
+                <Suspense fallback={<PageLoader />}>
+                  <PublishListing />
+                </Suspense>
+              } />
 
-             {/* 
-              NOUVELLE ROUTE : Édition d'annonce protégée
-              Seul le propriétaire de l'annonce peut y accéder
-              La vérification se fait dans le composant EditListing lui-même
-            */}
-            <Route 
-              path="/edit-listing/:id" 
-              element={
-                <ProtectedRoute>
-                  <EditListing />
-                </ProtectedRoute>
-              } 
-            />
-            
-            <Route path="/publish" element={<PublishListing />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-            <Route path="/legal-notice" element={<LegalNotice />} />
-            <Route path="/terms-of-service" element={<TermsOfService />} />
-            <Route path="/about" element={<About />} />
-            <Route path="/help-support" element={<HelpSupport />} />
-            <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
-            <Route path="/favorites" element={<ProtectedRoute><Favorites /></ProtectedRoute>} />
-            <Route path="/how-to-publish" element={<HowToPublish />} />
-            <Route path="/category/:category" element={<CategoryListings />} />
-            <Route path="/my-profile" element={<ProtectedRoute><MyProfile /></ProtectedRoute>} />
-            <Route path="/my-listings" element={<ProtectedRoute><MyListings /></ProtectedRoute>} />
-             <Route path="/Sanctions" element={<ProtectedRoute>< SanctionsManagementPage/></ProtectedRoute>} />
-             <Route path="/forgot-password" element={<ForgotPassword />} />
-             <Route path="/reset-password" element={<ResetPassword />} />
-              <Route path="/blog" element={<Blog />} />
-            
-            {/* 
-              ROUTE PROFIL VENDEUR : Permet de voir le profil public d'un vendeur
-              Accessible à tous, même sans connexion
-            */}
-            <Route path="/seller-profile/:sellerId" element={<SellerProfile />} />
-            
-            {/* Routes protégées par rôle */}
-            <Route 
-              path="/merchant-dashboard" 
-              element={
-                <ProtectedRoute requiredRole="merchant">
-                  <MerchantDashboard />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/admin-dashboard" 
-              element={
-                <ProtectedRoute requiredRole="admin">
-                  <AdminDashboard />
-                </ProtectedRoute>
-              } 
-            />
-            
-            {/* 
-              IMPORTANT : La route catch-all (*) doit toujours être en dernier
-              Elle capture toutes les URLs qui ne correspondent à aucune route définie
-            */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
+              <Route path="/category/:category" element={
+                <Suspense fallback={<PageLoader />}>
+                  <CategoryListings />
+                </Suspense>
+              } />
+              
+              {/* Routes utilisateur - Lazy loading standard */}
+              <Route path="/seller-profile/:sellerId" element={
+                <Suspense fallback={<PageLoader />}>
+                  <SellerProfile />
+                </Suspense>
+              } />
+              
+              <Route 
+                path="/edit-listing/:id" 
+                element={
+                  <Suspense fallback={<PageLoader />}>
+                    <ProtectedRoute>
+                      <EditListing />
+                    </ProtectedRoute>
+                  </Suspense>
+                } 
+              />
+              
+              {/* Pages utilisateur protégées */}
+              <Route path="/my-listings" element={
+                <Suspense fallback={<PageLoader />}>
+                  <ProtectedRoute>
+                    <MyListings />
+                  </ProtectedRoute>
+                </Suspense>
+              } />
+              
+              <Route path="/favorites" element={
+                <Suspense fallback={<PageLoader />}>
+                  <ProtectedRoute>
+                    <Favorites />
+                  </ProtectedRoute>
+                </Suspense>
+              } />
+              
+              <Route path="/messages" element={
+                <Suspense fallback={<PageLoader />}>
+                  <ProtectedRoute>
+                    <Messages />
+                  </ProtectedRoute>
+                </Suspense>
+              } />
+              
+              <Route path="/my-profile" element={
+                <Suspense fallback={<PageLoader />}>
+                  <ProtectedRoute>
+                    <MyProfile />
+                  </ProtectedRoute>
+                </Suspense>
+              } />
+              
+              {/* Routes par rôle */}
+              <Route 
+                path="/merchant-dashboard" 
+                element={
+                  <Suspense fallback={<PageLoader />}>
+                    <ProtectedRoute requiredRole="merchant">
+                      <MerchantDashboard />
+                    </ProtectedRoute>
+                  </Suspense>
+                } 
+              />
+              
+              <Route 
+                path="/admin-dashboard" 
+                element={
+                  <Suspense fallback={<PageLoader />}>
+                    <ProtectedRoute requiredRole="admin">
+                      <AdminDashboard />
+                    </ProtectedRoute>
+                  </Suspense>
+                } 
+              />
+              
+              <Route path="/sanctions" element={
+                <Suspense fallback={<PageLoader />}>
+                  <ProtectedRoute>
+                    <SanctionsManagementPage />
+                  </ProtectedRoute>
+                </Suspense>
+              } />
+              
+              {/* Pages d'authentification secondaires */}
+              <Route path="/forgot-password" element={
+                <Suspense fallback={<PageLoader />}>
+                  <ForgotPassword />
+                </Suspense>
+              } />
+              
+              <Route path="/reset-password" element={
+                <Suspense fallback={<PageLoader />}>
+                  <ResetPassword />
+                </Suspense>
+              } />
+              
+              {/* Pages statiques - Chargement très différé */}
+              <Route path="/privacy-policy" element={
+                <Suspense fallback={<PageLoader />}>
+                  <PrivacyPolicy />
+                </Suspense>
+              } />
+              
+              <Route path="/legal-notice" element={
+                <Suspense fallback={<PageLoader />}>
+                  <LegalNotice />
+                </Suspense>
+              } />
+              
+              <Route path="/terms-of-service" element={
+                <Suspense fallback={<PageLoader />}>
+                  <TermsOfService />
+                </Suspense>
+              } />
+              
+              <Route path="/about" element={
+                <Suspense fallback={<PageLoader />}>
+                  <About />
+                </Suspense>
+              } />
+              
+              <Route path="/help-support" element={
+                <Suspense fallback={<PageLoader />}>
+                  <HelpSupport />
+                </Suspense>
+              } />
+              
+              <Route path="/how-to-publish" element={
+                <Suspense fallback={<PageLoader />}>
+                  <HowToPublish />
+                </Suspense>
+              } />
+              
+              <Route path="/blog" element={
+                <Suspense fallback={<PageLoader />}>
+                  <Blog />
+                </Suspense>
+              } />
+              
+              {/* Page 404 */}
+              <Route path="*" element={
+                <Suspense fallback={<PageLoader />}>
+                  <NotFound />
+                </Suspense>
+              } />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
       </SuspensionGuard>
     </AuthProvider>
   </QueryClientProvider>

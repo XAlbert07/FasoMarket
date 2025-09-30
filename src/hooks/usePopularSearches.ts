@@ -460,7 +460,8 @@ export const usePopularSearches = (config: PopularSearchesConfig = {}) => {
    * Se déclenche au montage du composant et lors des changements de configuration
    */
   useEffect(() => {
-    fetchPopularSearches();
+    // DÉSACTIVÉ pour debugging - réactiver plus tard si besoin
+     fetchPopularSearches();
   }, [fetchPopularSearches]);
 
   /**
@@ -507,15 +508,17 @@ export const usePopularSearches = (config: PopularSearchesConfig = {}) => {
  * Optimisation pour les composants qui veulent juste tracker sans récupérer les populaires
  */
 export const useSearchTracking = () => {
-  const { trackSearch, updateSearchResults, normalizeQuery, generateSessionId } = usePopularSearches({
-    maxItems: 0 // Ne pas récupérer les recherches populaires pour économiser les ressources
-  });
+  // Version simplifiée sans appel à usePopularSearches pour éviter les boucles
+  const trackSearch = async (data: SearchTrackingData): Promise<void> => {
+    // Tracking désactivé temporairement pour debugging
+    console.log('[SearchTracking] Tracking désactivé', data);
+  };
 
   return {
     trackSearch,
-    updateSearchResults,
-    normalizeQuery,
-    generateSessionId
+    updateSearchResults: async () => {},
+    normalizeQuery: (q: string) => q.toLowerCase().trim(),
+    generateSessionId: () => 'debug-session'
   };
 };
 
