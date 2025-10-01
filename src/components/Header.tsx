@@ -5,6 +5,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom"
 import { Search, Plus, User, Menu, LogOut, Settings, PlusCircle, ListIcon, Heart, MessageCircle, X, Home, Grid3X3, Bell } from "lucide-react"
 import { useAuthContext } from "@/contexts/AuthContext"
 import { Button } from "@/components/ui/button"
+import PublishButton from "@/components/PublishButton"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useSearchTracking } from "@/hooks/usePopularSearches"
@@ -42,14 +43,6 @@ import {
     if (searchQuery.trim()) {
       navigate(`/listings?q=${encodeURIComponent(searchQuery.trim())}`)
       setIsSearchOpen(false)
-    }
-  }
-
-  // Gestion du clic sur "Publier" selon l'état de connexion
-  const handlePublishClick = (e) => {
-    if (!user) {
-      e.preventDefault()
-      navigate("/login?redirect=publish&message=Connectez-vous pour publier une annonce")
     }
   }
 
@@ -114,17 +107,13 @@ import {
               </Button>
 
               {/* Bouton publier - toujours visible sur mobile */}
-              <Button 
+              <PublishButton 
                 variant="cta" 
                 size="sm" 
                 className="h-9 px-3 text-xs"
-                asChild
               >
-                <Link to="/publish" onClick={handlePublishClick}>
-                  <Plus className="mr-1 h-3 w-3" />
-                  Publier
-                </Link>
-              </Button>
+                Publier
+              </PublishButton>
 
               {/* Avatar ou connexion - compact mobile */}
               {loading ? (
@@ -175,12 +164,9 @@ import {
               {/* Actions desktop */}
               <div className="flex items-center space-x-2">
                 {/* Bouton publier desktop */}
-                <Button variant="cta" size="sm" asChild>
-                  <Link to="/publish" onClick={handlePublishClick}>
-                    <Plus className="mr-1 h-4 w-4" />
-                    Publier
-                  </Link>
-                </Button>
+                <PublishButton variant="cta" size="sm">
+                  Publier
+                </PublishButton>
                 
                 {/* Menu utilisateur desktop */}
                 {loading ? (

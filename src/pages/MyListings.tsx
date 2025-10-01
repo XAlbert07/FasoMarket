@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
-import { Footer } from "@/components/Footer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +8,16 @@ import { SmartImage } from "@/components/ui/SmartImage";
 import { MapPin } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { 
   Plus, 
   MoreVertical, 
@@ -16,21 +26,18 @@ import {
   Trash2, 
   Package, 
   TrendingUp, 
-  Clock, 
-  CheckCircle, 
   Play, 
   Pause, 
   Shield, 
   AlertTriangle,
   MessageCircle,
-  Menu,
   ChevronDown
 } from "lucide-react";
 import { useListings, useCreateListing } from "@/hooks/useListings";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 
 const MyListings = () => {
   const { user } = useAuthContext();
@@ -40,17 +47,17 @@ const MyListings = () => {
     listings, 
     loading, 
     error, 
-    dataSource, 
-    soldListings, 
-    draftListings, 
     clearListings,
     fetchUserListings 
   } = useListings();
   const { deleteListing } = useCreateListing();
   const [activeTab, setActiveTab] = useState("all");
   const [operationLoading, setOperationLoading] = useState<string | null>(null);
-  
   const [isMobileTabsOpen, setIsMobileTabsOpen] = useState(false);
+  
+  // État pour le dialogue de confirmation de suppression
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [listingToDelete, setListingToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     if (user?.id) {
@@ -209,6 +216,29 @@ const MyListings = () => {
     }
   };
 
+  // Ouvrir le dialogue de confirmation de suppression
+  const openDeleteDialog = (listingId: string) => {
+    setListingToDelete(listingId);
+    setDeleteDialogOpen(true);
+  };
+
+  // Confirmer la suppression
+  const confirmDelete = async () => {
+    if (!listingToDelete) return;
+    
+    const success = await deleteListing(listingToDelete);
+    if (success && user?.id) {
+      fetchUserListings(user.id);
+      toast({
+        title: "Annonce supprimée",
+        description: "Votre annonce a été supprimée avec succès"
+      });
+    }
+    
+    setDeleteDialogOpen(false);
+    setListingToDelete(null);
+  };
+
   const getActionMenuItems = (listing: any) => {
     const canReactivate = canUserReactivateListing(listing);
     const isOperating = operationLoading === listing.id;
@@ -232,22 +262,14 @@ const MyListings = () => {
         <DropdownMenuSeparator />
 
         {listing.status === 'active' && (
-          <>
-            <DropdownMenuItem asChild>
-              <Link to={`/edit-listing/${listing.id}`} className="flex items-center gap-2">
-                <Edit className="h-4 w-4" />
-                Modifier
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem 
-              className="flex items-center gap-2"
-              onClick={() => handlePauseListing(listing.id)}
-              disabled={isOperating}
-            >
-              <Pause className="h-4 w-4" />
-              {isOperating ? "Pause en cours..." : "Mettre en pause"}
-            </DropdownMenuItem>
-          </>
+          <DropdownMenuItem 
+            className="flex items-center gap-2"
+            onClick={() => handlePauseListing(listing.id)}
+            disabled={isOperating}
+          >
+            <Pause className="h-4 w-4" />
+            {isOperating ? "Pause en cours..." : "Mettre en pause"}
+          </DropdownMenuItem>
         )}
 
         {listing.status === 'suspended' && canReactivate && (
@@ -268,14 +290,14 @@ const MyListings = () => {
           </DropdownMenuItem>
         )}
 
-        {(listing.status !== 'suspended' || canReactivate) ? (
+        {(listing.status !== 'suspended' || canReactivate) && (
           <DropdownMenuItem asChild>
             <Link to={`/edit-listing/${listing.id}`} className="flex items-center gap-2">
               <Edit className="h-4 w-4" />
               Modifier
             </Link>
           </DropdownMenuItem>
-        ) : null}
+        )}
 
         <DropdownMenuSeparator />
 
@@ -293,7 +315,7 @@ const MyListings = () => {
 
         <DropdownMenuItem 
           className="text-destructive flex items-center gap-2"
-          onClick={() => handleDelete(listing.id)}
+          onClick={() => openDeleteDialog(listing.id)}
         >
           <Trash2 className="h-4 w-4" />
           Supprimer
@@ -306,10 +328,6 @@ const MyListings = () => {
     switch (activeTab) {
       case 'active':
         return activeListings;
-      case 'sold':
-        return soldListings;
-      case 'draft':
-        return draftListings;
       case 'suspended':
         return suspendedListings;
       default:
@@ -321,22 +339,11 @@ const MyListings = () => {
     return new Intl.NumberFormat('fr-FR').format(price) + ' FCFA';
   };
 
-  const handleDelete = async (listingId: string) => {
-    if (window.confirm('Êtes-vous sûr de vouloir supprimer cette annonce ?')) {
-      const success = await deleteListing(listingId);
-      if (success && user?.id) {
-        fetchUserListings(user.id);
-      }
-    }
-  };
-
   const getActiveTabLabel = () => {
     switch (activeTab) {
       case 'all': return `Toutes (${userListings.length})`;
       case 'active': return `Actives (${activeListings.length})`;
       case 'suspended': return `Suspendues (${suspendedListings.length})`;
-      case 'sold': return `Vendues (${soldListings.length})`;
-      case 'draft': return `Brouillons (${draftListings.length})`;
       default: return 'Toutes';
     }
   };
@@ -351,7 +358,7 @@ const MyListings = () => {
             <p className="text-muted-foreground">Chargement de vos annonces...</p>
           </div>
         </main>
-        <Footer />
+        
       </div>
     );
   }
@@ -374,7 +381,7 @@ const MyListings = () => {
             </Button>
           </div>
         </main>
-        <Footer />
+        
       </div>
     );
   }
@@ -397,7 +404,7 @@ const MyListings = () => {
             </Link>
           </div>
         </main>
-        <Footer />
+        
       </div>
     );
   }
@@ -527,9 +534,7 @@ const MyListings = () => {
                       ? "Vous n'avez pas encore créé d'annonces." 
                       : `Vous n'avez pas d'annonces ${
                           activeTab === 'active' ? 'actives' : 
-                          activeTab === 'sold' ? 'vendues' : 
-                          activeTab === 'suspended' ? 'suspendues' :
-                          'en brouillon'
+                          'suspendues'
                         }.`
                     }
                   </p>
@@ -709,7 +714,31 @@ const MyListings = () => {
         </Tabs>
       </main>
 
-      <Footer />
+      {/* Dialogue de confirmation de suppression personnalisé */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer cette annonce ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est irréversible. L'annonce sera définitivement supprimée 
+              et ne pourra pas être récupérée. Toutes les photos et informations associées seront perdues.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setListingToDelete(null)}>
+              Annuler
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Supprimer définitivement
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      
     </div>
   );
 };

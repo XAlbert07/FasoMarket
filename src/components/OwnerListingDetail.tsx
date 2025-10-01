@@ -33,6 +33,16 @@ import {
   ChevronDown,
   ChevronUp
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useListing } from "@/hooks/useListings";
 import { useToast } from "@/hooks/use-toast";
 import { formatPrice, formatRelativeTime } from "@/lib/utils";
@@ -106,7 +116,7 @@ const OwnerListingDetail = () => {
   const [expandedContact, setExpandedContact] = useState<string | null>(null);
   const [showDetailedStats, setShowDetailedStats] = useState(false);
   const [showAllContacts, setShowAllContacts] = useState(false);
-
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   // Logique métier conservée identique pour la gestion des suspensions
   const canUserReactivateListing = (): boolean => {
     if (!listing || listing.status !== 'suspended') return false;
@@ -374,37 +384,46 @@ const OwnerListingDetail = () => {
 
   // Fonctions utilitaires pour la navigation et les actions
   const handleEditListing = () => navigate(`/edit-listing/${id}`);
+
+  // Ouvrir le dialogue de confirmation de suppression
+     const openDeleteDialog = () => {
+        setDeleteDialogOpen(true);
+      };
   
   const handleDeleteListing = async () => {
-    if (!listing?.id || !window.confirm('Êtes-vous sûr de vouloir supprimer définitivement cette annonce ?')) return;
+  if (!listing?.id) return;
+  
+  try {
+    // Nettoyage des données liées avant suppression
+    await supabase.from('favorites').delete().eq('listing_id', listing.id);
+    await supabase.from('messages').delete().eq('listing_id', listing.id);
+    await supabase.from('guest_messages').delete().eq('listing_id', listing.id);
     
-    try {
-      // Nettoyage des données liées avant suppression
-      await supabase.from('favorites').delete().eq('listing_id', listing.id);
-      await supabase.from('messages').delete().eq('listing_id', listing.id);
-      
-      const { error } = await supabase
-        .from('listings')
-        .delete()
-        .eq('id', listing.id)
-        .eq('user_id', listing.user_id);
+    const { error } = await supabase
+      .from('listings')
+      .delete()
+      .eq('id', listing.id)
+      .eq('user_id', listing.user_id);
 
-      if (error) throw error;
-      
-      toast({
-        title: "Annonce supprimée",
-        description: "Votre annonce a été supprimée définitivement"
-      });
-      navigate('/my-listings');
-    } catch (error) {
-      console.error('Erreur lors de la suppression:', error);
-      toast({
-        title: "Erreur",
-        description: "Impossible de supprimer l'annonce",
-        variant: "destructive"
-      });
-    }
-  };
+    if (error) throw error;
+    
+    toast({
+      title: "Annonce supprimée",
+      description: "Votre annonce a été supprimée définitivement"
+    });
+    
+    setDeleteDialogOpen(false);
+    navigate('/my-listings');
+  } catch (error) {
+    console.error('Erreur lors de la suppression:', error);
+    toast({
+      title: "Erreur",
+      description: "Impossible de supprimer l'annonce",
+      variant: "destructive"
+    });
+    setDeleteDialogOpen(false);
+  }
+};
 
   // Fonction pour marquer un contact comme lu
   const markContactAsRead = async (contactId: string, contactMethod: string) => {
@@ -565,8 +584,8 @@ const OwnerListingDetail = () => {
                 variant="ghost"
                 className="w-full justify-start text-sm px-4 py-2 text-red-600 hover:text-red-700 hover:bg-red-50"
                 onClick={() => {
-                  handleDeleteListing();
-                  setShowMobileMenu(false);
+                 openDeleteDialog();
+                 setShowMobileMenu(false);
                 }}
               >
                 <Trash2 className="w-4 h-4 mr-2" />
@@ -621,7 +640,7 @@ const OwnerListingDetail = () => {
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={handleDeleteListing}
+              onClick={openDeleteDialog}
               className="text-destructive hover:text-destructive"
             >
               <Trash2 className="h-4 w-4 mr-2" />
@@ -1651,8 +1670,33 @@ const OwnerListingDetail = () => {
           </div>
         </div>
       </main>
+      {/* Dialogue de confirmation de suppression personnalisé */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer cette annonce ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est irréversible. L'annonce sera définitivement supprimée 
+              ainsi que toutes les photos, messages et statistiques associés. 
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>
+              Annuler
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteListing}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Supprimer définitivement
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
-      <Footer />
+      <div className="hidden md:block">
+        <Footer />
+      </div>
     </div>
   );
 };

@@ -16,7 +16,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { Header } from "@/components/Header";
-import { Footer } from "@/components/Footer";
+
 
 // Import de tous les hooks nécessaires 
 import { useSellerListings } from "@/hooks/useSellerListings";
@@ -255,7 +255,7 @@ const MerchantDashboard = () => {
             <p className="text-muted-foreground">Chargement de votre tableau de bord...</p>
           </div>
         </main>
-        <Footer />
+       
       </div>
     );
   }
@@ -1240,7 +1240,7 @@ const MerchantDashboard = () => {
         </Tabs>
       </main>
 
-      <Footer />
+     
     </div>
   );
 };

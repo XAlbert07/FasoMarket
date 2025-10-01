@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Link } from "react-router-dom"
 import { MapPin, Clock, Eye, Heart, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import PublishButton from "@/components/PublishButton"
 import { SmartImage } from "@/components/ui/SmartImage"
 import { useListings } from "@/hooks/useListings"
 import { useFavorites } from "@/hooks/useFavorites"
@@ -251,11 +252,13 @@ export const RecentListings = () => {
             </Link>
           </Button>
           
-          <Button variant="cta" className="w-full md:hidden" asChild>
-            <Link to="/publish">
-              Publier votre annonce gratuitement
-            </Link>
-          </Button>
+          <PublishButton 
+            variant="cta" 
+            className="w-full md:hidden"
+            showIcon={false}
+          >
+            Publier votre annonce gratuitement
+          </PublishButton>
         </div>
       </div>
     </section>

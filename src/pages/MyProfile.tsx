@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Header } from "@/components/Header";
-import { Footer } from "@/components/Footer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -556,7 +555,7 @@ const MyProfile = () => {
         <main className="container mx-auto px-4 py-4 md:py-8">
           <MobileLoadingSkeleton />
         </main>
-        <Footer />
+        
       </div>
     );
   }
@@ -1016,7 +1015,9 @@ const MyProfile = () => {
         onError={handleSecurityActionError}
       />
 
-      <Footer />
+      <div className="hidden md:block">
+       
+      </div>
     </div>
   );
 };
