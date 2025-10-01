@@ -37,10 +37,18 @@ const Login = () => {
   };
 
   const isValidBurkinaPhone = (phone: string): boolean => {
-    if (!phone) return true;
-    const phoneRegex = /^(\+226|0)[567]\d{7}$/;
-    return phoneRegex.test(phone.replace(/\s/g, ''));
-  };
+  if (!phone) return true;
+  
+  // Retire tous les espaces, tirets et points
+  const cleanPhone = phone.replace(/[\s\-\.]/g, '');
+  
+  // Accepte :
+  // - Format international : +226 suivi de 8 chiffres (n'importe lesquels)
+  // - Format local : 0 suivi de 8 chiffres
+  const phoneRegex = /^(\+226\d{8}|0\d{8})$/;
+  
+  return phoneRegex.test(cleanPhone);
+};
 
   const isValidPassword = (password: string): boolean => {
     return password.length >= 6;
