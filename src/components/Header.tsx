@@ -149,13 +149,12 @@ import {
                  </Avatar>
                 </Button>
               ) : (
-                <Button variant="outline" size="sm" className="h-9 px-3 text-xs" asChild>
-                  <Link to="/login">
-                    <User className="mr-1 h-3 w-3" />
-                    Connexion
-                  </Link>
-                </Button>
-              )}
+               <Button variant="outline" size="icon" className="h-9 w-9" asChild>
+               <Link to="/login">
+               <User className="h-4 w-4" />
+               </Link>
+           </Button>
+          )}
             </div>
 
             {/* DESKTOP: Interface complète traditionnelle */}
