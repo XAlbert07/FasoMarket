@@ -23,7 +23,7 @@ const PublishListing = () => {
   const navigate = useNavigate();
   const { user } = useAuthContext();
   const { createListing, loading: creatingListing } = useCreateListing();
-  const { uploadImages, uploading } = useOptimizedImageUpload();
+  const { uploadImages, uploadOptimizedImages, uploading } = useOptimizedImageUpload();
   
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
@@ -172,7 +172,17 @@ const PublishListing = () => {
     }
 
     try {
-      const imageUrls = await uploadImages(imageFiles);
+      // Upload avec tous les variants (thumbnail, medium, large, original)
+      const imageSets = await uploadOptimizedImages(imageFiles, {
+        generateThumbnail: true,
+        generateMedium: true,
+        generateLarge: true,
+        keepOriginal: true,
+        quality: 0.92
+      });
+      
+      // Récupérer les URLs 'large' pour l'affichage principal
+      const imageUrls = imageSets.map(set => set.large || set.medium || set.thumbnail || '');
       
       const listingData = {
         title: formData.title,
@@ -185,7 +195,6 @@ const PublishListing = () => {
         images: imageUrls,
         currency: "XOF"
       };
-
       const newListing = await createListing(listingData);
       
       if (newListing) {

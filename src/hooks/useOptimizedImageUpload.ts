@@ -1,4 +1,4 @@
-// hooks/useOptimizedImageUpload.ts
+// hooks/useOptimizedImageUpload.ts - VERSION AMÉLIORÉE QUALITÉ
 
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -6,10 +6,10 @@ import { useToast } from '@/hooks/use-toast';
 
 // Types pour les différentes tailles d'images
 interface ImageVariants {
-  thumbnail: string;    // 150x150 pour les listes
-  medium: string;       // 400x300 pour les aperçus
-  large: string;        // 800x600 pour les détails
-  original?: string;    // Image originale (optionnelle, pour zoom)
+  thumbnail: string;    // 200x200 pour les listes (amélioré)
+  medium: string;       // 800x600 pour les aperçus (amélioré)
+  large: string;        // 1600x1200 pour les détails (nouveau)
+  original?: string;    // Image originale HD pour zoom
 }
 
 interface OptimizedUploadOptions {
@@ -18,6 +18,7 @@ interface OptimizedUploadOptions {
   generateLarge?: boolean;
   keepOriginal?: boolean;
   quality?: number; // 0.1 à 1.0
+  maxOriginalSize?: number; // Taille max en pixels pour l'original
 }
 
 export const useOptimizedImageUpload = () => {
@@ -25,14 +26,50 @@ export const useOptimizedImageUpload = () => {
   const [compressionProgress, setCompressionProgress] = useState(0);
   const { toast } = useToast();
 
-  // Fonction utilitaire pour redimensionner et compresser une image
+  // Fonction pour détecter si l'image contient beaucoup de détails
+  const detectImageComplexity = async (file: File): Promise<'simple' | 'complex'> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d')!;
+
+      img.onload = () => {
+        // Échantillonner une petite zone pour analyser
+        canvas.width = 100;
+        canvas.height = 100;
+        ctx.drawImage(img, 0, 0, 100, 100);
+        
+        const imageData = ctx.getImageData(0, 0, 100, 100);
+        const data = imageData.data;
+        
+        // Calculer la variance des couleurs (complexité)
+        let variance = 0;
+        const pixels = data.length / 4;
+        
+        for (let i = 0; i < data.length; i += 4) {
+          const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+          variance += Math.abs(data[i] - avg) + Math.abs(data[i + 1] - avg) + Math.abs(data[i + 2] - avg);
+        }
+        
+        variance = variance / pixels;
+        
+        // Si variance > 30, l'image est complexe (beaucoup de détails)
+        resolve(variance > 30 ? 'complex' : 'simple');
+      };
+
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
+  // Fonction utilitaire pour redimensionner et compresser une image AVEC QUALITÉ AMÉLIORÉE
   const compressImage = async (
     file: File, 
     maxWidth: number, 
     maxHeight: number, 
-    quality: number = 0.8
+    quality: number = 0.92, // QUALITÉ PAR DÉFAUT AUGMENTÉE
+    format: 'webp' | 'jpeg' = 'webp'
   ): Promise<Blob> => {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d')!;
       const img = new Image();
@@ -41,38 +78,59 @@ export const useOptimizedImageUpload = () => {
         // Calculer les nouvelles dimensions en conservant le ratio
         let { width, height } = img;
         
-        if (width > height) {
-          if (width > maxWidth) {
-            height = (height * maxWidth) / width;
-            width = maxWidth;
-          }
+        // Ne redimensionner que si l'image est plus grande que le max
+        if (width <= maxWidth && height <= maxHeight) {
+          // Image déjà assez petite, juste la recompresser légèrement
+          canvas.width = width;
+          canvas.height = height;
         } else {
-          if (height > maxHeight) {
-            width = (width * maxHeight) / height;
-            height = maxHeight;
+          // Calculer les nouvelles dimensions
+          if (width > height) {
+            if (width > maxWidth) {
+              height = (height * maxWidth) / width;
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width = (width * maxHeight) / height;
+              height = maxHeight;
+            }
           }
+          canvas.width = width;
+          canvas.height = height;
         }
 
-        // Configurer le canvas
-        canvas.width = width;
-        canvas.height = height;
-
-        // Améliorer la qualité du redimensionnement
+        // AMÉLIORATION QUALITÉ : Utiliser les meilleurs paramètres de rendu
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
+        
+        // Appliquer un léger anti-aliasing pour améliorer la netteté
+        ctx.filter = 'contrast(1.02) brightness(1.01)';
 
         // Dessiner l'image redimensionnée
         ctx.drawImage(img, 0, 0, width, height);
 
-        // Convertir en blob avec compression
-        canvas.toBlob(resolve, 'image/webp', quality);
+        // Convertir en blob avec compression optimisée
+        const mimeType = format === 'webp' ? 'image/webp' : 'image/jpeg';
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              resolve(blob);
+            } else {
+              reject(new Error('Échec de la conversion en blob'));
+            }
+          },
+          mimeType,
+          quality
+        );
       };
 
+      img.onerror = () => reject(new Error('Échec du chargement de l\'image'));
       img.src = URL.createObjectURL(file);
     });
   };
 
-  // Générer plusieurs variants d'une image
+  // Générer plusieurs variants d'une image AVEC QUALITÉ OPTIMISÉE
   const generateImageVariants = async (
     file: File,
     options: OptimizedUploadOptions = {}
@@ -83,36 +141,45 @@ export const useOptimizedImageUpload = () => {
       generateThumbnail = true,
       generateMedium = true,
       generateLarge = true,
-      keepOriginal = false,
-      quality = 0.8
+      keepOriginal = true, // CHANGÉ : Garder l'original par défaut
+      quality = 0.92, // QUALITÉ AUGMENTÉE
+      maxOriginalSize = 2400 // Taille max pour l'original (2400px)
     } = options;
 
     try {
-      // Générer les différentes tailles selon les besoins
+      // Détecter la complexité de l'image pour ajuster la qualité
+      const complexity = await detectImageComplexity(file);
+      const adjustedQuality = complexity === 'complex' ? Math.min(quality + 0.03, 0.95) : quality;
+
+      // Générer les différentes tailles avec qualités adaptées
       if (generateThumbnail) {
-        const thumbnail = await compressImage(file, 150, 150, 0.7);
+        // Thumbnail : 200x200, qualité légèrement réduite pour économiser
+        const thumbnail = await compressImage(file, 200, 200, 0.85, 'webp');
         if (thumbnail) variants.thumbnail = thumbnail;
       }
 
       if (generateMedium) {
-        const medium = await compressImage(file, 400, 300, quality);
+        // Medium : 800x600, qualité élevée pour l'affichage principal
+        const medium = await compressImage(file, 800, 600, adjustedQuality, 'webp');
         if (medium) variants.medium = medium;
       }
 
       if (generateLarge) {
-        const large = await compressImage(file, 800, 600, quality);
+        // Large : 1600x1200, très haute qualité pour les détails
+        const large = await compressImage(file, 1600, 1200, Math.min(adjustedQuality + 0.02, 0.96), 'webp');
         if (large) variants.large = large;
       }
 
-      // Conserver l'original seulement si demandé (pour articles de luxe par exemple)
+      // Conserver une version originale optimisée (limitée à 2400px pour éviter des fichiers trop lourds)
       if (keepOriginal) {
-        variants.original = file;
+        const original = await compressImage(file, maxOriginalSize, maxOriginalSize, 0.94, 'webp');
+        if (original) variants.original = original;
       }
 
     } catch (error) {
       console.error('Erreur lors de la génération des variants:', error);
-      // En cas d'erreur, au moins créer une version medium
-      const fallback = await compressImage(file, 400, 300, 0.6);
+      // En cas d'erreur, créer au moins une version medium de qualité
+      const fallback = await compressImage(file, 800, 600, 0.88, 'webp');
       if (fallback) variants.medium = fallback;
     }
 
@@ -133,11 +200,9 @@ export const useOptimizedImageUpload = () => {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         
-        // Mise à jour du progrès
         const baseProgress = (i / files.length) * 100;
         setCompressionProgress(baseProgress);
 
-        // Vérifier le type de fichier
         if (!file.type.startsWith('image/')) {
           toast({
             title: "Format non supporté",
@@ -147,21 +212,18 @@ export const useOptimizedImageUpload = () => {
           continue;
         }
 
-        // Vérifier la taille (limite à 10MB pour l'original)
-        if (file.size > 10 * 1024 * 1024) {
+        if (file.size > 15 * 1024 * 1024) { // Limite augmentée à 15MB
           toast({
             title: "Image trop lourde",
-            description: `${file.name} dépasse 10MB`,
+            description: `${file.name} dépasse 15MB`,
             variant: "destructive"
           });
           continue;
         }
 
-        // Générer les variants optimisés
         setCompressionProgress(baseProgress + 20);
         const variants = await generateImageVariants(file, options);
         
-        // Upload de chaque variant
         const imageSet: ImageVariants = {} as ImageVariants;
         const baseFileName = `${Date.now()}-${Math.random().toString(36).substring(2)}`;
         
@@ -171,16 +233,15 @@ export const useOptimizedImageUpload = () => {
         for (const [variantName, blob] of Object.entries(variants)) {
           const fileName = `${baseFileName}-${variantName}.webp`;
           
-          // Mise à jour du progrès pour chaque variant
           const variantProgress = baseProgress + 20 + ((variantIndex / variantKeys.length) * 60);
           setCompressionProgress(variantProgress);
           
           const { data, error } = await supabase.storage
             .from('listing-images')
             .upload(fileName, blob, {
-              cacheControl: '31536000', // Cache 1 an pour les images optimisées
+              cacheControl: '31536000',
               upsert: false,
-              contentType: variantName === 'original' ? file.type : 'image/webp'
+              contentType: 'image/webp'
             });
 
           if (error) {
@@ -188,7 +249,6 @@ export const useOptimizedImageUpload = () => {
             continue;
           }
 
-          // Obtenir l'URL publique
           const { data: { publicUrl } } = supabase.storage
             .from('listing-images')
             .getPublicUrl(data.path);
@@ -197,7 +257,6 @@ export const useOptimizedImageUpload = () => {
           variantIndex++;
         }
         
-        // S'assurer qu'on a au moins une image medium
         if (!imageSet.medium && imageSet.large) {
           imageSet.medium = imageSet.large;
         }
@@ -209,13 +268,12 @@ export const useOptimizedImageUpload = () => {
         setCompressionProgress((i + 1) / files.length * 100);
       }
 
-      // Toast de succès avec stats d'optimisation
       const originalSize = files.reduce((sum, file) => sum + file.size, 0);
-      const estimatedOptimizedSize = originalSize * 0.15; // Estimation 85% de réduction
+      const estimatedOptimizedSize = originalSize * 0.25; // Estimation avec meilleure qualité
       
       toast({
         title: "Images optimisées avec succès",
-        description: `${uploadedImageSets.length} image(s) uploadée(s). Économie estimée: ${Math.round((originalSize - estimatedOptimizedSize) / 1024 / 1024)}MB`,
+        description: `${uploadedImageSets.length} image(s) haute qualité uploadée(s). Économie: ${Math.round((originalSize - estimatedOptimizedSize) / 1024 / 1024)}MB`,
         variant: "default"
       });
 
@@ -240,21 +298,19 @@ export const useOptimizedImageUpload = () => {
     const imageSets = await uploadOptimizedImages(files, {
       generateThumbnail: true,
       generateMedium: true,
-      generateLarge: false, // Pour économiser l'espace de stockage
-      keepOriginal: false,
-      quality: 0.75
+      generateLarge: true, // ACTIVÉ pour haute qualité
+      keepOriginal: true, // ACTIVÉ pour zoom HD
+      quality: 0.92 // QUALITÉ ÉLEVÉE
     });
     
-    // Retourner les URLs medium pour compatibilité
-    return imageSets.map(set => set.medium || set.thumbnail || '');
+    // Retourner les URLs large (haute qualité) pour l'affichage principal
+    return imageSets.map(set => set.large || set.medium || set.thumbnail || '');
   };
 
-  // Fonction de nettoyage pour supprimer tous les variants
   const deleteImageVariants = async (imageVariants: ImageVariants): Promise<boolean> => {
     try {
       const pathsToDelete: string[] = [];
       
-      // Extraire tous les chemins des variants
       Object.values(imageVariants).forEach(url => {
         if (url) {
           const path = url.split('/').pop();
@@ -276,8 +332,8 @@ export const useOptimizedImageUpload = () => {
   };
 
   return {
-    uploadImages, // Interface compatible
-    uploadOptimizedImages, // Interface avancée
+    uploadImages,
+    uploadOptimizedImages,
     deleteImageVariants,
     uploading,
     compressionProgress

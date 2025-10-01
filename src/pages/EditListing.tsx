@@ -35,7 +35,7 @@ const EditListing = () => {
   // Hooks pour charger l'annonce existante
   const { listing, loading: listingLoading, error: listingError } = useListing(id!);
   const { updateListing, loading: updatingListing } = useCreateListing();
-  const { uploadImages, uploading } = useOptimizedImageUpload();
+  const { uploadImages, uploadOptimizedImages, uploading } = useOptimizedImageUpload();
   
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
@@ -257,11 +257,20 @@ const EditListing = () => {
     }
 
     try {
-      // Upload des nouvelles images seulement
+      // Upload des nouvelles images seulement avec tous les variants
       let finalImageUrls = imagePreviews.filter(img => !img.startsWith('blob:'));
       
       if (imageFiles.length > 0) {
-        const newImageUrls = await uploadImages(imageFiles);
+        const imageSets = await uploadOptimizedImages(imageFiles, {
+          generateThumbnail: true,
+          generateMedium: true,
+          generateLarge: true,
+          keepOriginal: true,
+          quality: 0.92
+        });
+        
+        // Récupérer les URLs 'large' pour les nouvelles images
+        const newImageUrls = imageSets.map(set => set.large || set.medium || set.thumbnail || '');
         finalImageUrls = [...finalImageUrls, ...newImageUrls];
       }
       

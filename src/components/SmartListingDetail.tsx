@@ -30,15 +30,12 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { Link } from "react-router-dom";
 import { formatPrice, formatRelativeTime, isListingNew, formatViewsCount } from "@/lib/utils"
-
-
-
-
 import {
   Star, Shield, MessageSquare, Phone, MapPin, Clock, Send, Flag, Heart, HeartOff, Eye, Share2,
   MoreVertical, AlertTriangle, CheckCircle, Info, Package, Crown, User, ChevronLeft, ChevronRight,
   Copy, X, ExternalLink, Wifi, WifiOff
 } from "lucide-react";
+import { OptimizedImageDisplay } from "@/components/OptimizedImageDisplay";
 
 const SmartListingDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -611,14 +608,16 @@ const BuyerListingDetailWithEnhancedFeatures = ({ listing }: BuyerListingDetailW
                       className="relative aspect-square md:aspect-video overflow-hidden rounded-lg bg-muted cursor-pointer"
                       onClick={() => setIsImageViewerOpen(true)}
                     >
-                      <img
-                        src={listing.images[currentImageIndex]?.url || listing.images[currentImageIndex]}
-                        alt={`${listing.title} - Image ${currentImageIndex + 1}`}
-                        className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
-                        onError={(e) => {
-                          e.currentTarget.src = '/placeholder.svg';
-                        }}
-                      />
+                      <OptimizedImageDisplay
+                         src={listing.images[currentImageIndex]?.url || listing.images[currentImageIndex]}
+                         alt={`${listing.title} - Image ${currentImageIndex + 1}`}
+                         className="transition-transform duration-300 hover:scale-105"
+                         aspectRatio="auto"
+                         quality="large"
+                         enableZoom={true}
+                         onZoomClick={() => setIsImageViewerOpen(true)}
+                         priority={currentImageIndex === 0}
+                         />
                       
                       {/* Navigation d'images pour mobile */}
                       {listing.images.length > 1 && (
@@ -1203,11 +1202,14 @@ const BuyerListingDetailWithEnhancedFeatures = ({ listing }: BuyerListingDetailW
           
           {listing.images && listing.images.length > 0 && (
             <div className="relative w-full h-full flex items-center justify-center bg-black/5 rounded-lg">
-              <img
-                src={listing.images[currentImageIndex]?.url || listing.images[currentImageIndex]}
-                alt={`${listing.title} - Image ${currentImageIndex + 1}`}
-                className="max-w-full max-h-full object-contain"
-              />
+              <OptimizedImageDisplay
+                 src={listing.images[currentImageIndex]?.url || listing.images[currentImageIndex]}
+                 alt={`${listing.title} - Image ${currentImageIndex + 1}`}
+                 className="max-w-full max-h-full object-contain"
+                 aspectRatio="auto"
+                 quality="original"
+                 priority={true}
+                  />
               
               {listing.images.length > 1 && (
                 <>
