@@ -1,5 +1,6 @@
 // Login.tsx 
 import { useState } from "react";
+import { useEffect } from "react"; 
 import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -11,6 +12,8 @@ import { Separator } from "@/components/ui/separator";
 import { Eye, EyeOff, Store, ShoppingBag, ArrowLeft } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/components/ui/use-toast";
+
 
 const Login = () => {
   const navigate = useNavigate();
@@ -29,6 +32,36 @@ const Login = () => {
 
   // État UX minimal et fonctionnel
   const [isRegistering, setIsRegistering] = useState(false);
+
+
+  // Vérifier si on attend une confirmation email
+
+const { toast } = useToast();
+
+useEffect(() => {
+  const pendingVerification = sessionStorage.getItem('signup_pending_verification')
+  
+  if (pendingVerification) {
+    try {
+      const data = JSON.parse(pendingVerification)
+      const timeSinceSignup = Date.now() - data.timestamp
+      
+      // Afficher le message seulement pendant 5 minutes
+      if (timeSinceSignup < 5 * 60 * 1000) {
+        toast({
+          title: "En attente de vérification",
+          description: `Un email a été envoyé à ${data.email}. Cliquez sur le lien pour activer votre compte.`,
+          duration: 8000
+        })
+      } else {
+        // Nettoyer si trop ancien
+        sessionStorage.removeItem('signup_pending_verification')
+      }
+    } catch (e) {
+      console.error('Erreur parsing signup data:', e)
+    }
+  }
+}, [toast])
 
   // Fonctions de validation conservées identiques
   const isValidEmail = (email: string): boolean => {

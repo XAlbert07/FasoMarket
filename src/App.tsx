@@ -38,6 +38,7 @@ const CategoryListings = lazy(() => import("./pages/CategoryListings"));
 const SellerProfile = lazy(() => import("./pages/SellerProfile"));
 const MyListings = lazy(() => import("./pages/MyListings"));
 const Favorites = lazy(() => import("./pages/Favorites"));
+const AuthCallback = lazy(() => import("./pages/AuthCallback"));
 
 // Pages utilisateur moins fréquentes
 const MerchantDashboard = lazy(() => import("./pages/MerchantDashboard"));
@@ -103,6 +104,12 @@ const App = () => (
               {/* Routes critiques - PAS de Suspense pour un chargement immédiat */}
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<Login />} />
+               
+               <Route path="/auth/callback" element={
+                 <Suspense fallback={<PageLoader />}>
+                 <AuthCallback />
+                 </Suspense>
+               } />
               
               {/* Routes fréquentes - Suspense avec priorité élevée */}
               <Route path="/listings" element={

@@ -770,81 +770,81 @@ export const useAuth = (): AuthContextType => {
   // ========================================
 
   const signUp = async (email: string, password: string, fullName: string, phone?: string) => {
-    const signupLogger = createLogger('SIGNUP')
+  const signupLogger = createLogger('SIGNUP')
+  
+  try {
+    setLoading(true)
+    signupLogger.info('Création de compte marchand', { email, fullName })
     
-    try {
-      setLoading(true)
-      signupLogger.info('Création de compte marchand', { email, fullName })
-      
-      if (!email.includes('@')) throw new Error('Email invalide')
-      if (password.length < 6) throw new Error('Mot de passe trop court')
-      if (fullName.trim().length < 2) throw new Error('Nom trop court')
-      
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: fullName,
-            phone: phone || null,
-            role: 'merchant'
-          }
-        }
-      })
-
-      if (error) throw error
-
-      signupLogger.success('Compte créé avec succès', { userId: data.user?.id })
-
-      if (data.user) {
-        const profileData = {
-          id: data.user.id,
-          email: data.user.email!,
+    if (!email.includes('@')) throw new Error('Email invalide')
+    if (password.length < 6) throw new Error('Mot de passe trop court')
+    if (fullName.trim().length < 2) throw new Error('Nom trop court')
+    
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
           full_name: fullName,
           phone: phone || null,
-          role: 'merchant' as const,
-          suspended_until: null,
-          suspension_reason: null,
-          is_banned: false,
-          ban_reason: null
-        }
-        
-        supabase
-          .from('profiles')
-          .insert(profileData)
-          .then(({ error: profileError }) => {
-            if (profileError) {
-              signupLogger.warning('Création de profil échouée', profileError)
-            } else {
-              signupLogger.success('Profil créé en base')
-            }
-          })
+          role: 'merchant'
+        },
+        // IMPORTANT : Redirection après vérification email
+        emailRedirectTo: `${window.location.origin}/auth/callback`
       }
+    })
 
+    if (error) throw error
+
+    signupLogger.success('Compte créé avec succès', { userId: data.user?.id })
+
+
+    // Vérifier si l'email doit être confirmé
+    if (data.user && !data.session) {
+      // Email confirmation requise
+      signupLogger.info('Confirmation email requise')
+      
+      toast({
+        title: "Vérifiez votre email",
+        description: "Un email de confirmation a été envoyé à " + email + ". Cliquez sur le lien pour activer votre compte.",
+        duration: 10000 // 10 secondes
+      })
+    } else if (data.session) {
+      // Connexion automatique (confirmation email désactivée)
+      signupLogger.info('Inscription avec connexion automatique')
+      
       toast({
         title: "Compte créé !",
-        description: "Vérifiez votre email pour confirmer votre compte.",
+        description: "Bienvenue sur FasoMarket.",
       })
-
-    } catch (error) {
-      const authError = error as AuthError
-      signupLogger.error('Échec de création de compte', authError)
-      
-      let errorMessage = authError.message
-      if (authError.message.includes('already registered')) {
-        errorMessage = "Cette adresse email est déjà utilisée."
-      }
-      
-      toast({
-        title: "Erreur de création",
-        description: errorMessage,
-        variant: "destructive"
-      })
-      
-      setLoading(false)
-      throw error
     }
+
+    // IMPORTANT : Stocker l'état pour afficher le message dans Login.tsx
+    sessionStorage.setItem('signup_pending_verification', JSON.stringify({
+      email,
+      timestamp: Date.now()
+    }))
+
+  } catch (error) {
+    const authError = error as AuthError
+    signupLogger.error('Échec de création de compte', authError)
+    
+    let errorMessage = authError.message
+    if (authError.message.includes('already registered')) {
+      errorMessage = "Cette adresse email est déjà utilisée."
+    }
+    
+    toast({
+      title: "Erreur de création",
+      description: errorMessage,
+      variant: "destructive"
+    })
+    
+    throw error
+  } finally {
+    setLoading(false)
   }
+}
 
   const signIn = async (email: string, password: string) => {
     const signinLogger = createLogger('SIGNIN')
