@@ -1,20 +1,18 @@
-// hooks/useAvatarUpload.ts - Hook spécialisé pour les avatars
+// hooks/useAvatarUpload.ts - Hook avec système de crop amélioré
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthContext } from '@/contexts/AuthContext';
-
-interface AvatarUploadResult {
-  url: string;
-  path: string;
-}
 
 export const useAvatarUpload = () => {
   const [uploading, setUploading] = useState(false);
   const { toast } = useToast();
   const { user, updateProfile } = useAuthContext();
 
-  const uploadAvatar = async (file: File): Promise<string | null> => {
+  /**
+   * Upload d'un avatar rogné (reçoit déjà un Blob traité)
+   */
+  const uploadAvatar = async (croppedBlob: Blob): Promise<string | null> => {
     if (!user) {
       toast({
         title: "Erreur d'authentification",
@@ -24,43 +22,22 @@ export const useAvatarUpload = () => {
       return null;
     }
 
-    // Validation du fichier
-    if (!file.type.startsWith('image/')) {
-      toast({
-        title: "Format invalide",
-        description: "Veuillez sélectionner une image (JPG, PNG, WebP)",
-        variant: "destructive"
-      });
-      return null;
-    }
-
-    if (file.size > 5 * 1024 * 1024) { // 5MB max
-      toast({
-        title: "Fichier trop volumineux",
-        description: "L'image ne doit pas dépasser 5MB",
-        variant: "destructive"
-      });
-      return null;
-    }
-
     setUploading(true);
 
     try {
-      // Compression et redimensionnement de l'avatar
-      const processedFile = await processAvatarImage(file);
+      console.log('Upload de l\'avatar rogné en cours...');
       
-      // Nom de fichier unique pour éviter les conflits
-      const fileExt = processedFile.type.split('/')[1];
-      const fileName = `${user.id}_${Date.now()}.${fileExt}`;
+      // Nom de fichier unique
+      const fileName = `${user.id}_${Date.now()}.jpg`;
 
-      // Suppression de l'ancien avatar si existant
+      // Suppression de l'ancien avatar
       await deleteOldAvatar(user.id);
 
       // Upload vers Supabase Storage
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(fileName, processedFile, {
-          contentType: processedFile.type,
+        .upload(fileName, croppedBlob, {
+          contentType: 'image/jpeg',
           cacheControl: '3600',
           upsert: false
         });
@@ -77,6 +54,8 @@ export const useAvatarUpload = () => {
 
       // Mise à jour du profil utilisateur
       await updateProfile({ avatar_url: publicUrl });
+
+      console.log('Avatar mis à jour avec succès:', publicUrl);
 
       toast({
         title: "Avatar mis à jour",
@@ -101,6 +80,9 @@ export const useAvatarUpload = () => {
     }
   };
 
+  /**
+   * Suppression de l'avatar
+   */
   const deleteAvatar = async (): Promise<boolean> => {
     if (!user) return false;
 
@@ -132,72 +114,40 @@ export const useAvatarUpload = () => {
     }
   };
 
+  /**
+   * Validation d'un fichier image avant crop
+   */
+  const validateImageFile = (file: File): { valid: boolean; error?: string } => {
+    // Validation du type
+    if (!file.type.startsWith('image/')) {
+      return {
+        valid: false,
+        error: 'Veuillez sélectionner une image (JPG, PNG, WebP)'
+      };
+    }
+
+    // Validation de la taille (5MB max)
+    if (file.size > 5 * 1024 * 1024) {
+      return {
+        valid: false,
+        error: "L'image ne doit pas dépasser 5MB"
+      };
+    }
+
+    return { valid: true };
+  };
+
   return {
     uploadAvatar,
     deleteAvatar,
+    validateImageFile,
     uploading
   };
 };
 
-// Fonction utilitaire pour traiter l'image d'avatar
-const processAvatarImage = async (file: File): Promise<Blob> => {
-  return new Promise((resolve, reject) => {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    const img = new Image();
-
-    if (!ctx) {
-      reject(new Error('Canvas non supporté'));
-      return;
-    }
-
-    img.onload = () => {
-      // Dimensions optimales pour avatar (carré)
-      const size = 400;
-      canvas.width = size;
-      canvas.height = size;
-
-      // Calcul pour crop carré centré
-      const { width: imgWidth, height: imgHeight } = img;
-      const minDimension = Math.min(imgWidth, imgHeight);
-      const cropX = (imgWidth - minDimension) / 2;
-      const cropY = (imgHeight - minDimension) / 2;
-
-      // Configuration optimisée pour avatars
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-
-      // Dessin avec crop carré centré
-      ctx.drawImage(
-        img,
-        cropX, cropY, minDimension, minDimension, // Source (crop carré)
-        0, 0, size, size // Destination (redimensionnement)
-      );
-
-      // Conversion en blob avec qualité élevée pour les avatars
-      canvas.toBlob(
-        (blob) => {
-          if (blob) {
-            console.log(`Avatar traité: ${imgWidth}x${imgHeight} → ${size}x${size} (${Math.round(blob.size/1024)}KB)`);
-            resolve(blob);
-          } else {
-            reject(new Error('Échec traitement image'));
-          }
-        },
-        'image/jpeg',
-        0.9 // Qualité élevée pour les avatars
-      );
-
-      // Nettoyage
-      img.remove();
-    };
-
-    img.onerror = () => reject(new Error('Impossible de charger l\'image'));
-    img.src = URL.createObjectURL(file);
-  });
-};
-
-// Fonction utilitaire pour supprimer l'ancien avatar
+/**
+ * Fonction utilitaire pour supprimer l'ancien avatar
+ */
 const deleteOldAvatar = async (userId: string) => {
   try {
     // Liste des fichiers existants pour cet utilisateur

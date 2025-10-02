@@ -1,51 +1,49 @@
 // components/PublishButton.tsx
-
-import { Link, useNavigate } from "react-router-dom"
-import { useAuthContext } from "@/contexts/AuthContext"
-import { Button } from "@/components/ui/button"
-import { Plus } from "lucide-react"
-import { ReactNode } from "react"
+import { Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
+import { useAuthContext } from "@/contexts/AuthContext";
 
 interface PublishButtonProps {
-  variant?: "default" | "outline" | "ghost" | "cta"
-  size?: "default" | "sm" | "lg" | "icon"
-  className?: string
-  children?: ReactNode
-  showIcon?: boolean
-  loginMessage?: string
+  variant?: "default" | "cta" | "outline";
+  size?: "default" | "sm" | "lg";
+  className?: string;
+  showIcon?: boolean;
+  children?: React.ReactNode;
 }
 
-export const PublishButton = ({
-  variant = "cta",
-  size = "default",
+const PublishButton = ({ 
+  variant = "default", 
+  size = "default", 
   className = "",
-  children = "Publier",
   showIcon = true,
-  loginMessage = "Connectez-vous pour publier une annonce"
+  children = "Publier"
 }: PublishButtonProps) => {
-  const { user } = useAuthContext()
-  const navigate = useNavigate()
+  const navigate = useNavigate();
+  const { user } = useAuthContext();
 
-  const handleClick = (e: React.MouseEvent) => {
+  const handlePublish = () => {
     if (!user) {
-      e.preventDefault()
-      navigate(`/login?redirect=publish&message=${encodeURIComponent(loginMessage)}`)
+      // Passer la destination dans le state de navigation
+      navigate("/login", { 
+        state: { from: "/publish" }
+      });
+    } else {
+      navigate("/publish");
     }
-  }
+  };
 
   return (
     <Button 
       variant={variant} 
-      size={size} 
+      size={size}
       className={className}
-      asChild
+      onClick={handlePublish}
     >
-      <Link to="/publish" onClick={handleClick}>
-        {showIcon && <Plus className="mr-1 h-4 w-4" />}
-        {children}
-      </Link>
+      {showIcon && <Plus className="h-4 w-4 mr-2" />}
+      {children}
     </Button>
-  )
-}
+  );
+};
 
-export default PublishButton
+export default PublishButton;

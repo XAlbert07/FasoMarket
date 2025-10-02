@@ -1,11 +1,12 @@
-// components/AvatarUploadModal.tsx - Modal dédiée à l'upload d'avatar
+// components/AvatarUploadModal.tsx - Modal complète avec système de crop
 import React, { useRef, useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { AvatarCropModal } from "@/components/AvatarCropModal";
 import { useAvatarUpload } from "@/hooks/useAvatarUpload";
 import { useAuthContext } from "@/contexts/AuthContext";
-import { Camera, Upload, Trash2, X } from "lucide-react";
+import { Camera, Upload, Trash2, AlertTriangle } from "lucide-react";
 
 interface AvatarUploadModalProps {
   isOpen: boolean;
@@ -17,84 +18,99 @@ export const AvatarUploadModal: React.FC<AvatarUploadModalProps> = ({
   onClose
 }) => {
   const { user, profile } = useAuthContext();
-  const { uploadAvatar, deleteAvatar, uploading } = useAvatarUpload();
+  const { uploadAvatar, deleteAvatar, validateImageFile, uploading } = useAvatarUpload();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  
+  // États pour gérer le workflow de crop
+  const [imageToCrop, setImageToCrop] = useState<string | null>(null);
+  const [showCropModal, setShowCropModal] = useState(false);
+  
+  // État pour la confirmation de suppression
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validation immédiate
-    if (!file.type.startsWith('image/')) {
-      alert('Veuillez sélectionner une image');
+    // Validation du fichier
+    const validation = validateImageFile(file);
+    if (!validation.valid) {
+      alert(validation.error);
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      alert('L\'image ne doit pas dépasser 5MB');
-      return;
-    }
-
-    setSelectedFile(file);
-    
-    // Création du preview
+    // Création du preview pour le crop
     const reader = new FileReader();
     reader.onload = (e) => {
-      setPreviewUrl(e.target?.result as string);
+      const imageDataUrl = e.target?.result as string;
+      setImageToCrop(imageDataUrl);
+      setShowCropModal(true);
     };
     reader.readAsDataURL(file);
   };
 
-  const handleUpload = async () => {
-    if (!selectedFile) return;
-
-    const success = await uploadAvatar(selectedFile);
+  const handleCropComplete = async (croppedImage: Blob) => {
+    const success = await uploadAvatar(croppedImage);
+    
     if (success) {
-      resetModal();
+      // Réinitialisation
+      setImageToCrop(null);
+      setShowCropModal(false);
+      
+      // Reset input file
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      
+      // Fermer la modal principale
       onClose();
     }
   };
 
-  const handleDelete = async () => {
+  const handleDeleteClick = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const handleDeleteConfirm = async () => {
     const success = await deleteAvatar();
     if (success) {
-      resetModal();
+      setShowDeleteConfirm(false);
       onClose();
     }
   };
 
-  const resetModal = () => {
-    setPreviewUrl(null);
-    setSelectedFile(null);
+  const handleDeleteCancel = () => {
+    setShowDeleteConfirm(false);
+  };
+
+  const handleCloseCropModal = () => {
+    setShowCropModal(false);
+    setImageToCrop(null);
+    
+    // Reset input file
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
-  const handleClose = () => {
-    resetModal();
-    onClose();
-  };
-
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Camera className="h-5 w-5" />
-            Photo de profil
-          </DialogTitle>
-        </DialogHeader>
+    <>
+      {/* Modal principale de sélection */}
+      <Dialog open={isOpen && !showCropModal && !showDeleteConfirm} onOpenChange={onClose}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Camera className="h-5 w-5" />
+              Photo de profil
+            </DialogTitle>
+          </DialogHeader>
 
-        <div className="space-y-6">
-          {/* Aperçu de l'avatar actuel/nouveau */}
-          <div className="flex flex-col items-center space-y-4">
-            <div className="relative">
+          <div className="space-y-6">
+            {/* Aperçu de l'avatar actuel */}
+            <div className="flex flex-col items-center space-y-4">
               <Avatar className="h-32 w-32 border-4 border-muted">
                 <AvatarImage 
-                  src={previewUrl || profile?.avatar_url} 
+                  src={profile?.avatar_url} 
                   className="object-cover"
                 />
                 <AvatarFallback className="text-2xl">
@@ -102,121 +118,115 @@ export const AvatarUploadModal: React.FC<AvatarUploadModalProps> = ({
                    user?.email?.charAt(0)?.toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              
-              {(previewUrl || profile?.avatar_url) && (
+
+              <div className="text-center">
+                <p className="text-sm text-muted-foreground">
+                  {profile?.avatar_url 
+                    ? 'Photo de profil actuelle'
+                    : 'Aucune photo de profil'}
+                </p>
+              </div>
+            </div>
+
+            {/* Input file caché */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+
+            {/* Actions */}
+            <div className="space-y-3">
+              <Button
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full"
+                disabled={uploading}
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                {profile?.avatar_url ? 'Changer la photo' : 'Ajouter une photo'}
+              </Button>
+
+              {profile?.avatar_url && (
                 <Button
                   variant="destructive"
-                  size="sm"
-                  className="absolute -top-2 -right-2 h-8 w-8 rounded-full p-0"
-                  onClick={() => {
-                    if (previewUrl) {
-                      resetModal();
-                    } else {
-                      handleDelete();
-                    }
-                  }}
+                  onClick={handleDeleteClick}
+                  className="w-full"
                   disabled={uploading}
                 >
-                  <X className="h-4 w-4" />
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Supprimer la photo
                 </Button>
               )}
             </div>
 
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground">
-                {selectedFile 
-                  ? `Nouvelle photo sélectionnée: ${selectedFile.name}`
-                  : profile?.avatar_url 
-                    ? 'Photo de profil actuelle'
-                    : 'Aucune photo de profil'}
-              </p>
+            {/* Conseils */}
+            <div className="text-xs text-muted-foreground space-y-1 bg-muted/50 p-3 rounded-lg">
+              <p className="font-medium">À savoir :</p>
+              <p>• Formats acceptés: JPG, PNG, WebP</p>
+              <p>• Taille maximale: 5MB</p>
+              <p>• Vous pourrez ajuster votre photo avant l'upload</p>
+              <p>• Format final: carré 400x400px</p>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
 
-          {/* Input file caché */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleFileSelect}
-            className="hidden"
-          />
+      {/* Modal de confirmation de suppression */}
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Supprimer la photo de profil
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              Êtes-vous sûr de vouloir supprimer votre photo de profil ? Cette action est irréversible.
+            </DialogDescription>
+          </DialogHeader>
 
-          {/* Actions */}
-          <div className="space-y-3">
-            {!selectedFile ? (
-              <>
-                <Button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full"
-                  disabled={uploading}
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  Choisir une photo
-                </Button>
+          <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={handleDeleteCancel}
+              disabled={uploading}
+              className="w-full sm:w-auto"
+            >
+              Annuler
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteConfirm}
+              disabled={uploading}
+              className="w-full sm:w-auto"
+            >
+              {uploading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2" />
+                  Suppression...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Supprimer définitivement
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-                {profile?.avatar_url && (
-                  <Button
-                    variant="destructive"
-                    onClick={handleDelete}
-                    className="w-full"
-                    disabled={uploading}
-                  >
-                    {uploading ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2" />
-                        Suppression...
-                      </>
-                    ) : (
-                      <>
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Supprimer la photo
-                      </>
-                    )}
-                  </Button>
-                )}
-              </>
-            ) : (
-              <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  onClick={resetModal}
-                  className="flex-1"
-                  disabled={uploading}
-                >
-                  Annuler
-                </Button>
-                
-                <Button
-                  onClick={handleUpload}
-                  className="flex-1"
-                  disabled={uploading}
-                >
-                  {uploading ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2" />
-                      Upload...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="h-4 w-4 mr-2" />
-                      Sauvegarder
-                    </>
-                  )}
-                </Button>
-              </div>
-            )}
-          </div>
-
-          {/* Conseils */}
-          <div className="text-xs text-muted-foreground space-y-1">
-            <p>• Formats acceptés: JPG, PNG, WebP</p>
-            <p>• Taille maximale: 5MB</p>
-            <p>• L'image sera automatiquement recadrée au format carré</p>
-            <p>• Résolution recommandée: 400x400px minimum</p>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+      {/* Modal de crop */}
+      {imageToCrop && (
+        <AvatarCropModal
+          isOpen={showCropModal}
+          onClose={handleCloseCropModal}
+          imageSrc={imageToCrop}
+          onCropComplete={handleCropComplete}
+          uploading={uploading}
+        />
+      )}
+    </>
   );
 };

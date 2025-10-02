@@ -1,7 +1,7 @@
 // Login.tsx 
 import { useState } from "react";
 import { useEffect } from "react"; 
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
@@ -15,9 +15,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/components/ui/use-toast";
 
 
+
 const Login = () => {
   const navigate = useNavigate();
-  const { signIn, signUp, loading } = useAuth();
+  const location = useLocation(); 
+  const { signIn, signUp, loading, user } = useAuth();
   
   // États de logique métier conservés 
   const [showPassword, setShowPassword] = useState(false);
@@ -32,6 +34,22 @@ const Login = () => {
 
   // État UX minimal et fonctionnel
   const [isRegistering, setIsRegistering] = useState(false);
+
+
+  // Redirection automatique après connexion réussie
+useEffect(() => {
+  if (user && !loading) {
+    const redirectTo = location.state?.from || '/merchant-dashboard';
+    console.log('Utilisateur connecté détecté - redirection vers:', redirectTo);
+    
+    // Petit délai pour s'assurer que tout est bien chargé
+    const timer = setTimeout(() => {
+      navigate(redirectTo, { replace: true });
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }
+}, [user, loading, navigate, location.state]);
 
 
   // Vérifier si on attend une confirmation email
@@ -117,9 +135,13 @@ useEffect(() => {
     try {
       console.log('Tentative de connexion pour:', loginData.email);
       await signIn(loginData.email, loginData.password);
-      navigate("/");
+      
+      // ⚠️ NE PAS rediriger ici - laisser useEffect s'en charger
+      console.log('Connexion réussie - redirection sera gérée par useEffect');
+      
     } catch (error) {
       console.error('Erreur lors de la connexion:', error);
+      // L'erreur est déjà gérée dans useAuth avec un toast
     }
   };
 

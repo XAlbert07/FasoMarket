@@ -1,4 +1,4 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom"; // ⬅️ Modifié
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Shield } from "lucide-react";
 import { useAuthContext } from "@/contexts/AuthContext";
@@ -10,6 +10,7 @@ interface ProtectedRouteProps {
 
 const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
   const { user, profile, loading } = useAuthContext();
+  const location = useLocation(); // ⬅️ AJOUTÉ
 
   if (loading) {
     return (
@@ -20,7 +21,7 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
   }
 
   if (!user || !profile) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" state={{ from: location.pathname }} replace />; // ⬅️ Modifié
   }
 
   if (requiredRole && profile.role !== requiredRole) {

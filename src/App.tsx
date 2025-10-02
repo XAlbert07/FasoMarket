@@ -125,10 +125,12 @@ const App = () => (
               } />
               
               <Route path="/publish" element={
-                <Suspense fallback={<PageLoader />}>
-                  <PublishListing />
-                </Suspense>
-              } />
+               <Suspense fallback={<PageLoader />}>
+               <ProtectedRoute>
+               <PublishListing />
+               </ProtectedRoute>
+              </Suspense>
+             } />
 
               <Route path="/category/:category" element={
                 <Suspense fallback={<PageLoader />}>

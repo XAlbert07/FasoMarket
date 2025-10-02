@@ -7,6 +7,7 @@ import { Footer } from "@/components/Footer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import PublishButton from "@/components/PublishButton"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -162,12 +163,15 @@ const HowToPublish = () => {
           
           {/* CTA primaire - Mobile prominant */}
           <div className="flex flex-col sm:flex-row gap-3 justify-center mb-6">
-            <Button size="lg" className="w-full sm:w-auto" asChild>
-              <Link to="/publish">
-                <PlayCircle className="w-4 h-4 mr-2" />
-                Créer mon annonce
-              </Link>
-            </Button>
+            <PublishButton
+                   variant="cta"
+                   size="lg"
+                  className="w-full sm:w-auto"
+                  showIcon={true}
+                     >
+                   Publier maintenant
+                </PublishButton>
+                
             <Button variant="outline" size="lg" className="w-full sm:w-auto md:hidden" asChild>
               <Link to="/listings">
                 Voir les annonces
@@ -413,12 +417,14 @@ const HowToPublish = () => {
               </p>
               
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <Button size="lg" className="w-full sm:w-auto" asChild>
-                  <Link to="/publish">
-                    <Camera className="w-4 h-4 mr-2" />
-                    Publier maintenant
-                  </Link>
-                </Button>
+                <PublishButton
+                   variant="cta"
+                   size="lg"
+                  className="w-full sm:w-auto"
+                  showIcon={true}
+                     >
+                   Publier maintenant
+                </PublishButton>
                 
                 <Button variant="outline" size="lg" className="w-full sm:w-auto" asChild>
                   <Link to="/listings">
@@ -428,23 +434,8 @@ const HowToPublish = () => {
                 </Button>
               </div>
 
-              {/* Statistiques encourageantes */}
-              <div className="mt-6 pt-4 border-t border-primary/20">
-                <div className="grid grid-cols-3 gap-4 text-center">
-                  <div>
-                    <div className="text-lg md:text-xl font-bold text-primary">85%</div>
-                    <div className="text-xs text-muted-foreground">Taux de vente</div>
-                  </div>
-                  <div>
-                    <div className="text-lg md:text-xl font-bold text-primary">2j</div>
-                    <div className="text-xs text-muted-foreground">Vente moyenne</div>
-                  </div>
-                  <div>
-                    <div className="text-lg md:text-xl font-bold text-primary">24h</div>
-                    <div className="text-xs text-muted-foreground">Premier contact</div>
-                  </div>
-                </div>
-              </div>
+              
+              
             </CardContent>
           </Card>
         </div>
