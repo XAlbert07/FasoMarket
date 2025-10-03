@@ -440,29 +440,72 @@ export const useListingViews = () => {
   };
 };
 
+
 /**
  * HOOK SIMPLIFIÉ POUR L'AUTO-TRACKING
  * À utiliser dans les pages de détail d'annonce
+ *  Utilise sessionStorage pour éviter les doubles enregistrements
  */
-export const useAutoRecordView = (listingId: string | undefined) => {
+export const useAutoRecordView = (
+  listingId: string | undefined, 
+  listingOwnerId?: string
+) => {
   const { recordView } = useListingViews();
   const hasRecorded = useRef(false);
+  const SESSION_KEY = 'fasomarket_viewed_listings';
 
   useEffect(() => {
     if (!listingId || hasRecorded.current) return;
+
+    // Vérifier si déjà enregistré dans cette session
+    const checkIfAlreadyViewed = () => {
+      try {
+        const viewedListings = sessionStorage.getItem(SESSION_KEY);
+        if (viewedListings) {
+          const parsed = JSON.parse(viewedListings);
+          return parsed.includes(listingId);
+        }
+      } catch (error) {
+        console.warn('Erreur lecture sessionStorage:', error);
+      }
+      return false;
+    };
+
+    // Marquer comme vu dans la session
+    const markAsViewed = () => {
+      try {
+        const viewedListings = sessionStorage.getItem(SESSION_KEY);
+        const parsed = viewedListings ? JSON.parse(viewedListings) : [];
+        
+        if (!parsed.includes(listingId)) {
+          parsed.push(listingId);
+          sessionStorage.setItem(SESSION_KEY, JSON.stringify(parsed));
+        }
+      } catch (error) {
+        console.warn('Erreur écriture sessionStorage:', error);
+      }
+    };
+
+    // Vérification avant d'enregistrer
+    if (checkIfAlreadyViewed()) {
+      console.log(`📊 Vue déjà enregistrée dans cette session pour ${listingId}`);
+      hasRecorded.current = true;
+      return;
+    }
 
     const recordViewWithDelay = async () => {
       // Attendre 2 secondes avant d'enregistrer la vue
       // Cela évite de compter les "bounces" (visiteurs qui quittent immédiatement)
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      const success = await recordView(listingId);
+      const success = await recordView(listingId, listingOwnerId);
       if (success) {
         hasRecorded.current = true;
+        markAsViewed();
         console.log(`📊 Vue auto-enregistrée pour ${listingId}`);
       }
     };
 
     recordViewWithDelay();
-  }, [listingId, recordView]);
+  }, [listingId, listingOwnerId, recordView]);
 };
