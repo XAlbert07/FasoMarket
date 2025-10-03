@@ -1,13 +1,16 @@
-// components/HeroSection.tsx 
+// components/HeroSection.tsx - Version optimisée avec recherches populaires
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
-import { Search, MapPin, TrendingUp, Clock } from "lucide-react"
+import { Search, MapPin, TrendingUp, Clock, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useAuthContext } from "@/contexts/AuthContext"
 import { usePopularSearches } from "@/hooks/usePopularSearches"
 import heroImage from "@/assets/hero-marketplace.jpg"
+
+// Recherches de fallback si le système ne retourne rien
+const FALLBACK_SEARCHES = ["Téléphones", "Voitures", "Maisons", "Motos", "Laptops", "Vêtements"];
 
 export const HeroSection = () => {
   const navigate = useNavigate();
@@ -15,7 +18,7 @@ export const HeroSection = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [location, setLocation] = useState("");
 
-  // Hook pour les recherches populaires
+  // Hook pour les recherches populaires avec configuration optimisée
   const {
     popularSearches,
     loading: searchesLoading,
@@ -24,13 +27,22 @@ export const HeroSection = () => {
     totalSearches
   } = usePopularSearches({
     maxItems: 6,
-    timeRange: 'all',
-    minSearches: 2, // Réduit à 2 pour plus de flexibilité
-    excludeQueries: ['test', 'aaa', 'zzz'] 
+    timeRange: 'month',
+    minSearches: 2,
+    excludeQueries: ['test', 'aaa', 'zzz'],
+    enableDebugLogs: false
   });
 
+  // Calcul des recherches à afficher (populaires ou fallback)
+  const displaySearches = useMemo(() => {
+    if (popularSearches.length > 0) {
+      return popularSearches.map(s => s.display_query);
+    }
+    return FALLBACK_SEARCHES;
+  }, [popularSearches]);
+
   /**
-   * Gestion de la soumission de recherche avec tracking automatique
+   * Gestion de la soumission de recherche avec tracking
    */
   const handleSearch = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,25 +52,23 @@ export const HeroSection = () => {
     
     if (!trimmedQuery) return;
 
-    // Construction des paramètres de recherche
+    // Tracking asynchrone (non-bloquant)
+    trackSearch({
+      search_query: trimmedQuery,
+      location_query: trimmedLocation || undefined,
+      user_id: user?.id,
+      source_page: 'hero',
+      category_filter: undefined
+    }).catch(err => {
+      // Le tracking ne doit pas bloquer la navigation
+      console.warn('Erreur tracking (ignorée):', err);
+    });
+
+    // Navigation immédiate vers les résultats
     const params = new URLSearchParams();
     if (trimmedQuery) params.set("q", trimmedQuery);
     if (trimmedLocation) params.set("location", trimmedLocation);
 
-    // Tracking de la recherche
-    try {
-      await trackSearch({
-        search_query: trimmedQuery,
-        location_query: trimmedLocation || undefined,
-        user_id: user?.id,
-        source_page: 'hero',
-        category_filter: undefined
-      });
-    } catch (error) {
-      console.error('Erreur lors du tracking de la recherche:', error);
-    }
-
-    // Navigation vers la page de résultats
     navigate(`/listings?${params.toString()}`);
   }, [searchQuery, location, navigate, trackSearch, user?.id]);
 
@@ -66,20 +76,18 @@ export const HeroSection = () => {
    * Gestion du clic sur une recherche populaire
    */
   const handlePopularSearchClick = useCallback(async (query: string) => {
-    setSearchQuery(query);
-    
-    try {
-      await trackSearch({
-        search_query: query,
-        location_query: location.trim() || undefined,
-        user_id: user?.id,
-        source_page: 'hero',
-        category_filter: 'popular_click'
-      });
-    } catch (error) {
-      console.error('Erreur lors du tracking du clic populaire:', error);
-    }
+    // Tracking asynchrone
+    trackSearch({
+      search_query: query,
+      location_query: location.trim() || undefined,
+      user_id: user?.id,
+      source_page: 'hero',
+      category_filter: 'popular_click'
+    }).catch(err => {
+      console.warn('Erreur tracking (ignorée):', err);
+    });
 
+    // Navigation immédiate
     const params = new URLSearchParams();
     params.set("q", query);
     if (location.trim()) params.set("location", location.trim());
@@ -88,42 +96,22 @@ export const HeroSection = () => {
   }, [location, navigate, trackSearch, user?.id]);
 
   /**
-   * Rendu simple et propre des recherches populaires
+   * Rendu des recherches populaires avec gestion d'état
    */
   const renderPopularSearches = () => {
-    // En cas d'erreur, afficher un fallback simple
-    if (searchesError) {
-      return (
-        <div className="mt-6">
-          <p className="text-white/70 text-sm mb-3">Recherches populaires :</p>
-          <div className="flex flex-wrap gap-2">
-            {["Téléphones", "Voitures", "Maisons", "Motos"].map((tag) => (
-              <button
-                key={tag}
-                onClick={() => handlePopularSearchClick(tag)}
-                className="px-3 py-1 bg-white/20 hover:bg-white/30 text-white text-sm rounded-full transition-colors"
-              >
-                {tag}
-              </button>
-            ))}
-          </div>
-        </div>
-      );
-    }
-
-    // Pendant le chargement
+    // Pendant le chargement initial
     if (searchesLoading) {
       return (
         <div className="mt-6">
           <p className="text-white/70 text-sm mb-3 flex items-center">
-            <Clock className="w-4 h-4 mr-1" />
-            Chargement...
+            <Clock className="w-4 h-4 mr-1.5 animate-spin" />
+            Chargement des recherches populaires...
           </p>
           <div className="flex flex-wrap gap-2">
             {[1, 2, 3, 4].map((i) => (
               <div
                 key={i}
-                className="h-7 w-20 bg-white/20 rounded-full animate-pulse"
+                className="h-8 w-24 bg-white/20 rounded-full animate-pulse"
               />
             ))}
           </div>
@@ -131,44 +119,48 @@ export const HeroSection = () => {
       );
     }
 
-    // Affichage des vraies recherches populaires
-    if (popularSearches.length > 0) {
-      return (
-        <div className="mt-6">
-          <p className="text-white/70 text-sm mb-3 flex items-center">
-            <TrendingUp className="w-4 h-4 mr-1" />
-            Recherches populaires :
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {popularSearches.map((search) => (
-              <button
-                key={search.normalized_query}
-                onClick={() => handlePopularSearchClick(search.display_query)}
-                className="px-3 py-1 bg-white/20 hover:bg-white/30 text-white text-sm rounded-full transition-colors"
-              >
-                {search.display_query}
-              </button>
-            ))}
-          </div>
-        </div>
-      );
-    }
+    // En cas d'erreur, utiliser le fallback silencieusement
+    const searches = searchesError ? FALLBACK_SEARCHES : displaySearches;
+    const isRealData = !searchesError && popularSearches.length > 0;
 
-    // Fallback si aucune recherche populaire
     return (
       <div className="mt-6">
-        <p className="text-white/70 text-sm mb-3">Recherches populaires :</p>
+        <p className="text-white/70 text-sm mb-3 flex items-center">
+          {isRealData ? (
+            <>
+              <TrendingUp className="w-4 h-4 mr-1.5" />
+              Recherches populaires
+              {totalSearches > 0 && (
+                <span className="ml-2 text-white/50 text-xs">
+                  ({totalSearches} recherches)
+                </span>
+              )}
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-4 h-4 mr-1.5" />
+              Suggestions de recherche
+            </>
+          )}
+        </p>
         <div className="flex flex-wrap gap-2">
-          {["Téléphones", "Voitures", "Maisons", "Motos"].map((tag) => (
+          {searches.map((query, index) => (
             <button
-              key={tag}
-              onClick={() => handlePopularSearchClick(tag)}
-              className="px-3 py-1 bg-white/20 hover:bg-white/30 text-white text-sm rounded-full transition-colors"
+              key={`${query}-${index}`}
+              onClick={() => handlePopularSearchClick(query)}
+              className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-sm rounded-full transition-all duration-200 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-white/50"
             >
-              {tag}
+              {query}
             </button>
           ))}
         </div>
+        
+        {/* Indicateur discret pour les admins en mode dev */}
+        {process.env.NODE_ENV === 'development' && isRealData && (
+          <p className="mt-2 text-white/40 text-xs">
+            ✓ Données en temps réel
+          </p>
+        )}
       </div>
     );
   };
@@ -233,7 +225,7 @@ export const HeroSection = () => {
             </div>
           </form>
 
-          {/* Section des recherches populaires*/}
+          {/* Section des recherches populaires */}
           {renderPopularSearches()}
         </div>
       </div>

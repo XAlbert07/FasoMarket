@@ -1,8 +1,8 @@
-// components/Header.tsx 
+// components/Header.tsx - Avec tracking des recherches
 
-import { useState, useEffect, useMemo, memo } from "react"
+import { useState, useEffect, useMemo, memo, useCallback } from "react"
 import { Link, useNavigate, useLocation } from "react-router-dom"
-import { Search, Plus, User, Menu, LogOut, Settings, PlusCircle, ListIcon, Heart, MessageCircle, X, Home, Grid3X3, Bell } from "lucide-react"
+import { Search, User, LogOut, Settings, PlusCircle, ListIcon, Heart, MessageCircle, X, Home, Grid3X3 } from "lucide-react"
 import { useAuthContext } from "@/contexts/AuthContext"
 import { Button } from "@/components/ui/button"
 import PublishButton from "@/components/PublishButton"
@@ -18,36 +18,54 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-   export const Header = memo(() => {
+export const Header = memo(() => {
   const navigate = useNavigate()
   const location = useLocation()
   const [searchQuery, setSearchQuery] = useState("")
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   
-  // Récupération de l'état d'authentification
+  // Authentification
   const { user, profile, signOut, loading } = useAuthContext()
-  // Mémoriser l'URL de l'avatar pour éviter les rechargements
+  
+  // Hook de tracking optimisé pour le header
+  const { trackSearch } = useSearchTracking()
+  
+  // Mémoriser l'URL de l'avatar
   const avatarUrl = useMemo(() => profile?.avatar_url || "", [profile?.avatar_url])
   
-
   // Fermer les menus lors du changement de route
   useEffect(() => {
     setIsMenuOpen(false)
     setIsSearchOpen(false)
   }, [location.pathname])
 
-  // Fonction de recherche
-  const handleSearch = (e) => {
+  // Fonction de recherche avec tracking
+  const handleSearch = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
-    if (searchQuery.trim()) {
-      navigate(`/listings?q=${encodeURIComponent(searchQuery.trim())}`)
-      setIsSearchOpen(false)
-    }
-  }
+    
+    const trimmedQuery = searchQuery.trim()
+    if (!trimmedQuery) return
+
+    // Tracking asynchrone (non-bloquant)
+    trackSearch({
+      search_query: trimmedQuery,
+      user_id: user?.id,
+      source_page: 'header',
+      category_filter: undefined
+    }).catch(err => {
+      // Le tracking ne doit pas bloquer la navigation
+      console.warn('Erreur tracking header (ignorée):', err)
+    })
+
+    // Navigation immédiate
+    navigate(`/listings?q=${encodeURIComponent(trimmedQuery)}`)
+    setIsSearchOpen(false)
+    setSearchQuery("") // Reset après navigation
+  }, [searchQuery, navigate, trackSearch, user?.id])
 
   // Gestion de la déconnexion
-  const handleSignOut = async () => {
+  const handleSignOut = useCallback(async () => {
     try {
       await signOut()
       navigate("/")
@@ -55,10 +73,10 @@ import {
     } catch (error) {
       console.error("Erreur lors de la déconnexion:", error)
     }
-  }
+  }, [signOut, navigate])
 
   // Obtenir les initiales pour l'avatar
-  const getUserInitials = () => {
+  const getUserInitials = useCallback(() => {
     if (profile?.full_name) {
       return profile.full_name
         .split(' ')
@@ -68,10 +86,7 @@ import {
         .slice(0, 2)
     }
     return user?.email?.charAt(0).toUpperCase() || 'U'
-  }
-
-  // Détecter si on est sur la page d'accueil pour adapter le style
-  const isHomePage = location.pathname === '/'
+  }, [profile?.full_name, user?.email])
 
   return (
     <>
@@ -94,7 +109,7 @@ import {
               </Link>
             </div>
 
-            {/* MOBILE: Actions principales - toujours visibles */}
+            {/* MOBILE: Actions principales */}
             <div className="flex items-center space-x-2 md:hidden">
               {/* Bouton recherche mobile */}
               <Button 
@@ -106,7 +121,7 @@ import {
                 <Search className="h-4 w-4" />
               </Button>
 
-              {/* Bouton publier - toujours visible sur mobile */}
+              {/* Bouton publier */}
               <PublishButton 
                 variant="cta" 
                 size="sm" 
@@ -115,7 +130,7 @@ import {
                 Publier
               </PublishButton>
 
-              {/* Avatar ou connexion - compact mobile */}
+              {/* Avatar ou connexion */}
               {loading ? (
                 <div className="w-9 h-9 rounded-full bg-muted animate-pulse" />
               ) : user && profile ? (
@@ -126,7 +141,7 @@ import {
                   onClick={() => setIsMenuOpen(!isMenuOpen)}
                 >
                   <Avatar className="h-7 w-7">
-                   <AvatarImage 
+                    <AvatarImage 
                       src={avatarUrl} 
                       alt={profile?.full_name || "User"}
                       loading="lazy"
@@ -134,21 +149,21 @@ import {
                     />
                     <AvatarFallback className="text-xs bg-slate-100 text-slate-700 border border-slate-200">
                       {getUserInitials()}
-                  </AvatarFallback>
-                 </Avatar>
+                    </AvatarFallback>
+                  </Avatar>
                 </Button>
               ) : (
-               <Button variant="outline" size="icon" className="h-9 w-9" asChild>
-               <Link to="/login">
-               <User className="h-4 w-4" />
-               </Link>
-           </Button>
-          )}
+                <Button variant="outline" size="icon" className="h-9 w-9" asChild>
+                  <Link to="/login">
+                    <User className="h-4 w-4" />
+                  </Link>
+                </Button>
+              )}
             </div>
 
-            {/* DESKTOP: Interface complète traditionnelle */}
+            {/* DESKTOP: Interface complète */}
             <div className="hidden md:flex items-center space-x-4 flex-1">
-              {/* Barre de recherche desktop */}
+              {/* Barre de recherche desktop avec tracking */}
               <form onSubmit={handleSearch} className="flex flex-1 max-w-md mx-8">
                 <div className="relative w-full">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -157,13 +172,13 @@ import {
                     className="pl-10 bg-surface border-border"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
+                    autoComplete="off"
                   />
                 </div>
               </form>
 
               {/* Actions desktop */}
               <div className="flex items-center space-x-2">
-                {/* Bouton publier desktop */}
                 <PublishButton variant="cta" size="sm">
                   Publier
                 </PublishButton>
@@ -176,16 +191,16 @@ import {
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon">
                         <Avatar className="h-8 w-8">
-                        <AvatarImage 
-                           src={avatarUrl} 
-                           alt={profile?.full_name || "User"}
-                           loading="lazy"
-                           crossOrigin="anonymous"
+                          <AvatarImage 
+                            src={avatarUrl} 
+                            alt={profile?.full_name || "User"}
+                            loading="lazy"
+                            crossOrigin="anonymous"
                           />
                           <AvatarFallback className="text-xs bg-slate-100 text-slate-700 border border-slate-200">
                             {getUserInitials()}
-                       </AvatarFallback>
-                       </Avatar>
+                          </AvatarFallback>
+                        </Avatar>
                       </Button>
                     </DropdownMenuTrigger>
                     
@@ -279,7 +294,7 @@ import {
             </div>
           </div>
 
-          {/* MOBILE: Barre de recherche expansible */}
+          {/* MOBILE: Barre de recherche expansible avec tracking */}
           {isSearchOpen && (
             <div className="md:hidden py-3 border-t border-border">
               <form onSubmit={handleSearch} className="flex items-center space-x-2">
@@ -291,6 +306,7 @@ import {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     autoFocus
+                    autoComplete="off"
                   />
                 </div>
                 <Button 
@@ -316,11 +332,11 @@ import {
             onClick={() => setIsMenuOpen(false)}
           />
           
-          {/* Menu principal - slide depuis la droite */}
+          {/* Menu principal */}
           <div className="absolute right-0 top-0 h-full w-80 max-w-[85vw] bg-background border-l shadow-xl">
             <div className="flex flex-col h-full">
               
-              {/* En-tête du menu avec profil utilisateur */}
+              {/* En-tête du menu */}
               <div className="p-4 border-b bg-gradient-to-r from-primary/5 to-accent/5">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-heading font-semibold">Mon compte</h2>
@@ -337,14 +353,14 @@ import {
                   <Avatar className="h-12 w-12">
                     <AvatarImage 
                       src={avatarUrl} 
-                        alt={profile?.full_name || "User"}
-                        loading="lazy"
-                        crossOrigin="anonymous"
+                      alt={profile?.full_name || "User"}
+                      loading="lazy"
+                      crossOrigin="anonymous"
                     />
                     <AvatarFallback className="text-sm bg-slate-100 text-slate-700 border border-slate-200">
-                     {getUserInitials()}
+                      {getUserInitials()}
                     </AvatarFallback>
-                    </Avatar>
+                  </Avatar>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium leading-none mb-1">
                       {profile.full_name || "Utilisateur"}
@@ -357,7 +373,7 @@ import {
               </div>
 
               {/* Navigation principale */}
-              <div className="flex-1 py-4">
+              <div className="flex-1 py-4 overflow-y-auto">
                 <nav className="space-y-1 px-4">
                   
                   {/* Actions principales */}
@@ -390,7 +406,6 @@ import {
                     </Link>
                   </div>
 
-                  {/* Séparateur */}
                   <div className="h-px bg-border my-4" />
 
                   {/* Mes contenus */}
@@ -429,10 +444,6 @@ import {
                     >
                       <MessageCircle className="mr-3 h-4 w-4" />
                       Messages
-                      {/* Espace pour badge de notifications */}
-                      <span className="ml-auto bg-primary text-primary-foreground text-xs px-1.5 py-0.5 rounded-full hidden">
-                        3
-                      </span>
                     </Link>
                   </div>
 
@@ -468,7 +479,7 @@ import {
                 </nav>
               </div>
 
-              {/* Pied du menu - déconnexion */}
+              {/* Pied du menu */}
               <div className="p-4 border-t">
                 <Button 
                   variant="ghost" 

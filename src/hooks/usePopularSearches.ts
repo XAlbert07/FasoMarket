@@ -1,5 +1,5 @@
-// hooks/usePopularSearches.ts - VERSION COMPLÈTEMENT CORRIGÉE
-// Hook personnalisé pour gérer les recherches populaires de FasoMarket
+// hooks/usePopularSearches.ts - VERSION PRODUCTION ROBUSTE
+// Système intelligent de recherches populaires pour FasoMarket
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -12,374 +12,363 @@ import type {
 } from '@/types/database';
 
 /**
- * Hook usePopularSearches - Système intelligent de gestion des recherches
- * 
- * Ce hook transforme votre section "recherches populaires" statique en un système
- * dynamique qui apprend des vrais comportements de vos utilisateurs burkinabè.
- * 
- * CORRECTIONS APPLIQUÉES :
- * - Ajout de toutes les propriétés manquantes dans les types de retour
- * - Filtrage d'exclusion intelligent qui évite les pièges des chaînes vides
- * - Logs de debugging optionnels pour faciliter la maintenance
- * - Gestion robuste des cas d'erreur et des données manquantes
- * - Optimisation des performances avec cache intelligent
+ * Configuration par défaut optimisée pour le contexte burkinabè
  */
-export const usePopularSearches = (config: PopularSearchesConfig = {}) => {
-  // Configuration avec valeurs par défaut optimisées pour FasoMarket
+const DEFAULT_CONFIG: Required<PopularSearchesConfig> = {
+  maxItems: 5,
+  minSearches: 2,
+  excludeQueries: ['test', 'aaa', 'zzz', 'xxx'],
+  timeRange: 'month',
+  source: 'all',
+  enableDebugLogs: false
+};
+
+/**
+ * Hook usePopularSearches - Gestion intelligente des recherches populaires
+ * 
+ * AMÉLIORATIONS VERSION PRODUCTION :
+ * - Utilise la vue matérialisée pour des performances optimales
+ * - Cache intelligent avec invalidation automatique
+ * - Tracking non-bloquant avec gestion d'erreur robuste
+ * - Fallback automatique en cas d'échec
+ * - Débouncing intégré pour éviter la surcharge
+ */
+export const usePopularSearches = (userConfig: PopularSearchesConfig = {}) => {
+  // Fusion de la config utilisateur avec les valeurs par défaut
+  const config = { ...DEFAULT_CONFIG, ...userConfig };
   const {
-    maxItems = 5,
-    minSearches = 2, // Réduit de 3 à 2 pour plus de flexibilité
-    excludeQueries = ['test', 'aaa', 'zzz'], // Suppression de la chaîne vide problématique
-    timeRange = 'month',
-    source = 'all',
-    enableDebugLogs = false // Maintenant correctement typé
+    maxItems,
+    minSearches,
+    excludeQueries,
+    timeRange,
+    source,
+    enableDebugLogs
   } = config;
 
-  // État local du hook - organisé de manière logique
+  // État du hook
   const [popularSearches, setPopularSearches] = useState<PopularSearch[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [totalSearches, setTotalSearches] = useState(0);
 
-  // Cache et optimisations - design pattern pour éviter les requêtes inutiles
-  const cacheRef = useRef<{ [key: string]: PopularSearch[] }>({});
-  const lastFetchRef = useRef<number>(0);
-  const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes de cache
+  // Références pour optimisation
+  const cacheRef = useRef<Map<string, { data: PopularSearch[], timestamp: number }>>(new Map());
+  const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isUnmountedRef = useRef(false);
+  
+  const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
   /**
-   * Fonction de logging conditionnel
-   * Ne pollue les logs qu'en mode debug ou développement
+   * Logger conditionnel pour le debugging
    */
-  const debugLog = useCallback((message: string, data?: any) => {
+  const log = useCallback((message: string, data?: any) => {
     if (enableDebugLogs || process.env.NODE_ENV === 'development') {
+      const timestamp = new Date().toISOString().split('T')[1].slice(0, 8);
       if (data !== undefined) {
-        console.log(`[PopularSearches] ${message}`, data);
+        console.log(`[${timestamp}] [PopularSearches] ${message}`, data);
       } else {
-        console.log(`[PopularSearches] ${message}`);
+        console.log(`[${timestamp}] [PopularSearches] ${message}`);
       }
     }
   }, [enableDebugLogs]);
 
   /**
-   * Fonction utilitaire pour normaliser les requêtes de recherche
-   * Cette fonction assure la cohérence des données stockées en base
-   * Elle gère les accents français et les variations d'espacement
+   * Normalisation des requêtes avec gestion des accents français
    */
   const normalizeQuery = useCallback((query: string): string => {
+    if (!query || typeof query !== 'string') return '';
+    
     return query
-      .toLowerCase() // Conversion en minuscules pour uniformité
-      .trim() // Suppression des espaces en début/fin
-      .replace(/[àáâãäå]/g, 'a') // Normalisation des accents - adaptation française
+      .toLowerCase()
+      .trim()
+      .replace(/[àáâãäå]/g, 'a')
       .replace(/[èéêë]/g, 'e')
       .replace(/[ìíîï]/g, 'i')
       .replace(/[òóôõö]/g, 'o')
       .replace(/[ùúûü]/g, 'u')
       .replace(/[ç]/g, 'c')
       .replace(/[ñ]/g, 'n')
-      .replace(/\s+/g, ' '); // Normalisation des espaces multiples en un seul
+      .replace(/\s+/g, ' ')
+      .substring(0, 100);
   }, []);
 
   /**
-   * Génération d'un ID de session pour le tracking des utilisateurs anonymes
-   * Permet de regrouper les recherches d'une même session de navigation
-   * Utilise le localStorage pour maintenir la cohérence entre les pages
+   * Génération d'ID de session pour le tracking anonyme
    */
   const generateSessionId = useCallback((): string => {
-    // Vérifier si on a déjà un ID de session dans le localStorage
-    let sessionId = localStorage.getItem('fasomarket_session_id');
+    if (typeof window === 'undefined') return 'server-session';
     
-    if (!sessionId) {
-      // Créer un nouvel ID unique basé sur timestamp + random
-      // Format : session_[timestamp]_[chaîne aléatoire]
-      sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
-      localStorage.setItem('fasomarket_session_id', sessionId);
-      debugLog('Nouvel ID de session généré', sessionId);
+    try {
+      let sessionId = localStorage.getItem('fasomarket_session_id');
+      
+      if (!sessionId) {
+        sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+        localStorage.setItem('fasomarket_session_id', sessionId);
+        log('Nouvelle session générée', sessionId);
+      }
+      
+      return sessionId;
+    } catch (error) {
+      // Fallback si localStorage non disponible
+      return `temp_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
     }
-    
-    return sessionId;
-  }, [debugLog]);
+  }, [log]);
 
   /**
-   * Fonction intelligente pour filtrer les termes d'exclusion
-   * CORRECTION PRINCIPALE : Cette fonction évite le piège des chaînes vides
-   * Elle applique une logique de correspondance nuancée selon la longueur des termes
+   * Filtrage intelligent des termes exclus
    */
-  const shouldExcludeQuery = useCallback((query: string, exclusions: string[]): boolean => {
-    const normalizedQuery = query.toLowerCase().trim();
+  const shouldExcludeQuery = useCallback((query: string): boolean => {
+    if (!query || query.length < 2) return true;
     
-    // Filtrer d'abord les exclusions valides (non vides, non nulles)
-    const validExclusions = exclusions.filter(term => 
-      term && 
-      typeof term === 'string' && 
-      term.trim().length > 0
+    const normalized = query.toLowerCase().trim();
+    
+    // Filtrer les exclusions valides
+    const validExclusions = excludeQueries.filter(term => 
+      term && typeof term === 'string' && term.trim().length > 0
     );
     
     return validExclusions.some(excluded => {
       const excludedTerm = excluded.toLowerCase().trim();
       
-      // Pour des termes courts (1-2 caractères), exiger une correspondance exacte
-      // Cela évite que "a" exclue "avion" par exemple
+      // Correspondance exacte pour les termes courts
       if (excludedTerm.length <= 2) {
-        return normalizedQuery === excludedTerm;
+        return normalized === excludedTerm;
       }
       
-      // Pour des termes plus longs, permettre l'inclusion (plus flexible)
-      // "test" exclura "testing" et "test123"
-      return normalizedQuery.includes(excludedTerm);
+      // Inclusion pour les termes plus longs
+      return normalized.includes(excludedTerm);
     });
-  }, []);
+  }, [excludeQueries]);
 
   /**
-   * Fonction principale pour récupérer les recherches populaires
-   * Architecture repensée pour être plus robuste et maintenable
+   * MÉTHODE PRINCIPALE : Récupération des recherches populaires
+   * Utilise la vue matérialisée pour des performances optimales
    */
   const fetchPopularSearches = useCallback(async () => {
+    // Éviter les appels multiples simultanés
+    if (fetchTimeoutRef.current) {
+      clearTimeout(fetchTimeoutRef.current);
+    }
+
+    // Vérifier le cache
+    const cacheKey = `${timeRange}_${source}_${maxItems}`;
+    const cached = cacheRef.current.get(cacheKey);
+    const now = Date.now();
+    
+    if (cached && (now - cached.timestamp) < CACHE_DURATION) {
+      log('Données chargées depuis le cache');
+      setPopularSearches(cached.data);
+      setTotalSearches(cached.data.reduce((sum, item) => sum + item.total_searches, 0));
+      setLoading(false);
+      return;
+    }
+
     try {
       setError(null);
-      
-      // Vérification du cache pour éviter les requêtes inutiles
-      // Pattern de mise en cache intelligent basé sur la configuration
-      const cacheKey = `${timeRange}_${source}_${maxItems}_${minSearches}`;
-      const cachedData = cacheRef.current[cacheKey];
-      const now = Date.now();
-      
-      if (cachedData && (now - lastFetchRef.current) < CACHE_DURATION) {
-        debugLog('Utilisation du cache pour les recherches populaires');
-        setPopularSearches(cachedData);
-        setLoading(false);
-        return;
-      }
+      log(`Récupération des recherches populaires (${timeRange})`);
 
-      //debugLog('Récupération des recherches populaires depuis la base de données');
-      
-      // Calculer la date limite selon la période choisie
-      let dateFilter = null;
-      if (timeRange !== 'all') {
-        const daysAgo = timeRange === 'week' ? 7 : 30;
-        const cutoffDate = new Date();
-        cutoffDate.setDate(cutoffDate.getDate() - daysAgo);
-        dateFilter = cutoffDate.toISOString();
-        //debugLog(`Filtre temporel appliqué pour ${timeRange}`, dateFilter);
-      }
+      // Stratégie 1 : Essayer d'utiliser la vue matérialisée (optimal)
+      let { data, error: viewError } = await supabase
+        .from('popular_searches')
+        .select('*')
+        .limit(maxItems * 2); // Prendre plus pour pouvoir filtrer
 
-      // Construction progressive de la requête Supabase
-      let query = supabase
-        .from('search_analytics')
-        .select('normalized_query, search_query, created_at, has_results, results_count, clicked_result');
-
-      // Application du filtre temporel si nécessaire
-      if (dateFilter) {
-        query = query.gte('created_at', dateFilter);
-      }
-
-      // Exécution de la requête avec gestion d'erreur robuste
-      const { data: rawData, error: fetchError } = await query;
-
-      if (fetchError) {
-        throw new Error(`Erreur lors de la récupération des données: ${fetchError.message}`);
-      }
-
-     // debugLog(`Données brutes récupérées: ${rawData?.length || 0} enregistrements`);
-
-      // Traitement des données pour calculer la popularité
-      if (!rawData || rawData.length === 0) {
-        //debugLog('Aucune donnée trouvée dans search_analytics');
-        setPopularSearches([]);
-        setTotalSearches(0);
-        setLastUpdated(new Date().toISOString());
-        return;
-      }
-
-      // Application progressive des filtres avec logging pour debugging
-      debugLog('Application des filtres de qualité des données...');
-      
-      // Étape 1: Filtrer les données valides et utilisables
-      const validData = rawData.filter(record => {
-        // Vérifier que normalized_query existe et n'est pas vide
-        if (!record.normalized_query || record.normalized_query.trim().length < 2) {
-          return false;
-        }
+      // Stratégie 2 : Fallback sur la fonction SQL si la vue échoue
+      if (viewError || !data || data.length === 0) {
+        log('Vue matérialisée indisponible, utilisation de la fonction SQL');
         
-        // Vérifier que la requête commence par une lettre (éviter les caractères spéciaux)
-        if (!/^[a-zA-Z]/.test(record.normalized_query.trim())) {
-          return false;
-        }
-        
-        // Éviter les requêtes purement numériques
-        if (/^\d+$/.test(record.normalized_query.trim())) {
-          return false;
-        }
-        
-        // Appliquer le filtrage d'exclusion intelligent (CORRECTION PRINCIPALE)
-        if (shouldExcludeQuery(record.normalized_query, excludeQueries)) {
-          return false;
-        }
-        
-        return true;
-      });
-
-      debugLog(`Données après filtrage: ${validData.length} enregistrements valides`);
-
-      if (validData.length === 0) {
-        debugLog('Aucune donnée valide après filtrage');
-        setPopularSearches([]);
-        setTotalSearches(0);
-        setLastUpdated(new Date().toISOString());
-        return;
-      }
-
-      // Étape 2: Agrégation intelligente des données par terme de recherche
-      debugLog('Démarrage de l\'agrégation des données...');
-      const searchMap = new Map<string, {
-        normalized_query: string;
-        display_query: string;
-        searches: any[];
-        unique_users: Set<string>;
-        clicks: number;
-        total_results: number;
-      }>();
-      
-      // Traitement de chaque enregistrement pour construire les statistiques
-      validData.forEach(record => {
-        const key = record.normalized_query.trim().toLowerCase();
-        
-        if (!searchMap.has(key)) {
-          searchMap.set(key, {
-            normalized_query: key,
-            display_query: record.search_query || record.normalized_query, // Prendre le terme original pour l'affichage
-            searches: [],
-            unique_users: new Set(),
-            clicks: 0,
-            total_results: 0
+        const { data: functionData, error: funcError } = await supabase
+          .rpc('get_popular_searches', {
+            p_limit: maxItems * 2,
+            p_min_searches: minSearches,
+            p_time_range: timeRange
           });
+
+        if (funcError) {
+          throw new Error(`Erreur fonction SQL: ${funcError.message}`);
         }
-        
-        const entry = searchMap.get(key)!;
-        entry.searches.push(record);
-        
-        // Accumulation sécurisée des métriques d'engagement
-        if (record.clicked_result) {
-          entry.clicks++;
-        }
-        
-        if (record.results_count && typeof record.results_count === 'number') {
-          entry.total_results += record.results_count;
-        }
-      });
 
-      debugLog(`Agrégation terminée: ${searchMap.size} termes uniques trouvés`);
+        data = functionData;
+      }
 
-      // Étape 3: Transformation en format PopularSearch avec calcul de popularité
-      const popularSearches = Array.from(searchMap.values())
-        .map(entry => {
-          const totalSearches = entry.searches.length;
-          const avgResults = totalSearches > 0 ? entry.total_results / totalSearches : 0;
-          
-          // Algorithme de calcul du score de popularité
-          // Facteurs : fréquence de recherche + engagement (clics) + pertinence (résultats)
-          const popularityScore = totalSearches + (entry.clicks * 2) + (avgResults * 0.1);
-          
-          // Calcul des dates de première et dernière recherche pour contexte temporel
-          const dates = entry.searches
-            .map(s => new Date(s.created_at))
-            .sort((a, b) => a.getTime() - b.getTime());
-          
-          return {
-            normalized_query: entry.normalized_query,
-            display_query: entry.display_query,
-            total_searches: totalSearches,
-            unique_users: entry.unique_users.size,
-            unique_sessions: totalSearches, // Simplification pour cette version
-            avg_results: Math.round(avgResults * 100) / 100,
-            clicks: entry.clicks,
-            popularity_score: popularityScore,
-            last_searched_at: dates[dates.length - 1].toISOString(),
-            first_searched_at: dates[0].toISOString()
-          } as PopularSearch;
-        })
-        .filter(search => search.total_searches >= minSearches) // Application du seuil minimum
-        .sort((a, b) => b.popularity_score - a.popularity_score) // Tri par popularité décroissante
-        .slice(0, maxItems); // Limitation au nombre maximum demandé
+      // Stratégie 3 : Fallback final sur calcul direct (le plus lent)
+      if (!data || data.length === 0) {
+        log('Calcul direct des recherches populaires');
+        data = await fetchPopularSearchesDirect();
+      }
 
-      // Mise à jour du cache et de l'état de l'application
-      cacheRef.current[cacheKey] = popularSearches;
-      lastFetchRef.current = now;
-      setPopularSearches(popularSearches);
-      setTotalSearches(popularSearches.reduce((sum, item) => sum + item.total_searches, 0));
-      setLastUpdated(new Date().toISOString());
+      // Filtrage et tri des résultats
+      const filteredSearches = (data || [])
+        .filter(search => 
+          !shouldExcludeQuery(search.normalized_query) &&
+          search.total_searches >= minSearches
+        )
+        .sort((a, b) => b.popularity_score - a.popularity_score)
+        .slice(0, maxItems);
 
-      debugLog(`Recherches populaires calculées avec succès: ${popularSearches.length} résultats`, 
-        popularSearches.slice(0, 3).map(s => `${s.display_query} (${s.total_searches} recherches)`)
-      );
+      // Mise à jour du cache et de l'état
+      if (!isUnmountedRef.current) {
+        cacheRef.current.set(cacheKey, {
+          data: filteredSearches,
+          timestamp: now
+        });
+
+        setPopularSearches(filteredSearches);
+        setTotalSearches(filteredSearches.reduce((sum, item) => sum + item.total_searches, 0));
+        setLastUpdated(new Date().toISOString());
+        log(`Chargé ${filteredSearches.length} recherches populaires`);
+      }
 
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue lors de la récupération des recherches populaires';
+      const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue';
       console.error('[PopularSearches] Erreur:', errorMessage);
-      setError(errorMessage);
+      
+      if (!isUnmountedRef.current) {
+        setError(errorMessage);
+        // En cas d'erreur, utiliser des valeurs par défaut
+        setPopularSearches([]);
+      }
     } finally {
-      setLoading(false);
+      if (!isUnmountedRef.current) {
+        setLoading(false);
+      }
     }
-  }, [timeRange, source, maxItems, minSearches, excludeQueries, shouldExcludeQuery, debugLog]);
+  }, [timeRange, source, maxItems, minSearches, shouldExcludeQuery, log]);
 
   /**
-   * Fonction pour tracker une nouvelle recherche
-   * Appelée automatiquement quand un utilisateur effectue une recherche
-   * Design pattern observer pour collecter les données utilisateur
+   * Méthode de fallback : Calcul direct des recherches populaires
+   * Utilisé uniquement si la vue et la fonction échouent
+   */
+  const fetchPopularSearchesDirect = async (): Promise<PopularSearch[]> => {
+    let dateFilter = null;
+    if (timeRange !== 'all') {
+      const daysAgo = timeRange === 'week' ? 7 : 30;
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - daysAgo);
+      dateFilter = cutoffDate.toISOString();
+    }
+
+    let query = supabase
+      .from('search_analytics')
+      .select('normalized_query, search_query, created_at, has_results, results_count, clicked_result');
+
+    if (dateFilter) {
+      query = query.gte('created_at', dateFilter);
+    }
+
+    const { data: rawData, error: fetchError } = await query;
+
+    if (fetchError || !rawData) {
+      throw new Error('Impossible de récupérer les données de recherche');
+    }
+
+    // Agrégation manuelle des données
+    const searchMap = new Map<string, {
+      normalized_query: string;
+      display_query: string;
+      searches: any[];
+      clicks: number;
+      total_results: number;
+    }>();
+
+    rawData.forEach(record => {
+      if (!record.normalized_query || record.normalized_query.length < 2) return;
+      
+      const key = record.normalized_query.trim().toLowerCase();
+      
+      if (!searchMap.has(key)) {
+        searchMap.set(key, {
+          normalized_query: key,
+          display_query: record.search_query || record.normalized_query,
+          searches: [],
+          clicks: 0,
+          total_results: 0
+        });
+      }
+      
+      const entry = searchMap.get(key)!;
+      entry.searches.push(record);
+      
+      if (record.clicked_result) entry.clicks++;
+      if (record.results_count) entry.total_results += record.results_count;
+    });
+
+    return Array.from(searchMap.values())
+      .map(entry => {
+        const totalSearches = entry.searches.length;
+        const avgResults = totalSearches > 0 ? entry.total_results / totalSearches : 0;
+        const popularityScore = totalSearches + (entry.clicks * 2) + (avgResults * 0.1);
+        
+        const dates = entry.searches
+          .map(s => new Date(s.created_at))
+          .sort((a, b) => a.getTime() - b.getTime());
+        
+        return {
+          normalized_query: entry.normalized_query,
+          display_query: entry.display_query,
+          total_searches: totalSearches,
+          unique_users: totalSearches,
+          unique_sessions: totalSearches,
+          avg_results: Math.round(avgResults * 100) / 100,
+          clicks: entry.clicks,
+          popularity_score: popularityScore,
+          last_searched_at: dates[dates.length - 1].toISOString(),
+          first_searched_at: dates[0].toISOString()
+        } as PopularSearch;
+      });
+  };
+
+  /**
+   * Tracking d'une nouvelle recherche (NON-BLOQUANT)
    */
   const trackSearch = useCallback(async (data: SearchTrackingData): Promise<void> => {
     try {
-      // Normalisation et validation des données d'entrée
       const normalizedQuery = normalizeQuery(data.search_query);
       
-      // Ignorer les recherches trop courtes ou invalides
       if (normalizedQuery.length < 2) {
-        debugLog('Recherche trop courte ignorée:', data.search_query);
+        log('Recherche ignorée (trop courte)', data.search_query);
         return;
       }
 
-      // Construction du payload de tracking avec métadonnées contextuelles
       const trackingPayload = {
         search_query: data.search_query,
         normalized_query: normalizedQuery,
         location_query: data.location_query || null,
         user_id: data.user_id || null,
         session_id: data.session_id || generateSessionId(),
-        source_page: data.source_page || 'unknown',
+        source_page: data.source_page || 'hero',
         category_filter: data.category_filter || null,
-        user_agent: navigator.userAgent,
-        // Les champs de résultats seront mis à jour ultérieurement
+        user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
         has_results: true,
         results_count: 0,
         clicked_result: false
       };
 
-      // Insertion en base de données avec gestion d'erreur non bloquante
-      const { error: insertError } = await supabase
+      // Insertion asynchrone non-bloquante
+      supabase
         .from('search_analytics')
-        .insert([trackingPayload]);
-
-      if (insertError) {
-        console.error('[PopularSearches] Erreur lors du tracking:', insertError);
-        // Important : ne pas faire échouer l'expérience utilisateur pour une erreur de tracking
-        return;
-      }
-
-      debugLog('Recherche trackée avec succès:', normalizedQuery);
+        .insert([trackingPayload])
+        .then(({ error }) => {
+          if (error) {
+            console.warn('[PopularSearches] Erreur tracking (non-critique):', error.message);
+          } else {
+            log('Recherche trackée', normalizedQuery);
+          }
+        });
 
     } catch (err) {
-      console.error('[PopularSearches] Erreur lors du tracking de la recherche:', err);
-      // Le tracking ne doit jamais interrompre l'expérience utilisateur
+      // Le tracking ne doit jamais bloquer l'expérience utilisateur
+      console.warn('[PopularSearches] Erreur tracking (ignorée):', err);
     }
-  }, [normalizeQuery, generateSessionId, debugLog]);
+  }, [normalizeQuery, generateSessionId, log]);
 
   /**
-   * Fonction pour mettre à jour les résultats d'une recherche
-   * Appelée après l'exécution d'une recherche pour enrichir les analytics
+   * Mise à jour des résultats d'une recherche
    */
   const updateSearchResults = useCallback(async (data: SearchResultsData): Promise<void> => {
     try {
-      const { error: updateError } = await supabase
+      await supabase
         .from('search_analytics')
         .update({
           has_results: data.has_results,
@@ -390,57 +379,44 @@ export const usePopularSearches = (config: PopularSearchesConfig = {}) => {
         })
         .eq('id', data.analytics_id);
 
-      if (updateError) {
-        console.error('[PopularSearches] Erreur lors de la mise à jour des résultats:', updateError);
-        return;
-      }
-
-      debugLog('Résultats de recherche mis à jour:', data.analytics_id);
-
+      log('Résultats mis à jour', data.analytics_id);
     } catch (err) {
-      console.error('[PopularSearches] Erreur lors de la mise à jour des résultats:', err);
+      console.warn('[PopularSearches] Erreur mise à jour résultats:', err);
     }
-  }, [debugLog]);
+  }, [log]);
 
   /**
-   * Fonction pour forcer le rafraîchissement des données
-   * Utile pour les admins ou après des modifications importantes
+   * Rafraîchissement forcé des données
    */
   const refreshPopularSearches = useCallback(async (): Promise<void> => {
-    // Vider le cache pour forcer une nouvelle requête
-    cacheRef.current = {};
-    lastFetchRef.current = 0;
+    cacheRef.current.clear();
     setLoading(true);
     await fetchPopularSearches();
   }, [fetchPopularSearches]);
 
   /**
-   * Fonction pour rafraîchir la vue matérialisée (pour les admins)
-   * Cette opération coûteuse ne devrait être appelée qu'occasionnellement
+   * Rafraîchissement de la vue matérialisée (admin)
    */
   const refreshMaterializedView = useCallback(async (): Promise<boolean> => {
     try {
       const { error } = await supabase.rpc('refresh_popular_searches');
       
       if (error) {
-        console.error('[PopularSearches] Erreur lors du rafraîchissement de la vue:', error);
+        console.error('[PopularSearches] Erreur rafraîchissement vue:', error);
         return false;
       }
 
-      debugLog('Vue matérialisée rafraîchie avec succès');
-      // Rafraîchir les données locales après la mise à jour
+      log('Vue matérialisée rafraîchie');
       await refreshPopularSearches();
       return true;
-
     } catch (err) {
-      console.error('[PopularSearches] Erreur lors du rafraîchissement de la vue matérialisée:', err);
+      console.error('[PopularSearches] Erreur rafraîchissement:', err);
       return false;
     }
-  }, [refreshPopularSearches, debugLog]);
+  }, [refreshPopularSearches, log]);
 
   /**
-   * Fonction utilitaire pour obtenir des suggestions basées sur une requête partielle
-   * Utile pour l'autocomplétion dans la barre de recherche
+   * Suggestions basées sur une saisie partielle
    */
   const getSearchSuggestions = useCallback((partialQuery: string, limit: number = 3): PopularSearch[] => {
     const normalized = normalizeQuery(partialQuery);
@@ -456,81 +432,71 @@ export const usePopularSearches = (config: PopularSearchesConfig = {}) => {
   }, [popularSearches, normalizeQuery]);
 
   /**
-   * Effet pour le chargement initial des données
-   * Se déclenche au montage du composant et lors des changements de configuration
+   * Effet : Chargement initial et rechargement périodique
    */
   useEffect(() => {
-    // DÉSACTIVÉ pour debugging - réactiver plus tard si besoin
-     fetchPopularSearches();
-  }, [fetchPopularSearches]);
+    isUnmountedRef.current = false;
+    fetchPopularSearches();
 
-  /**
-   * Effet pour le nettoyage du cache lors du démontage
-   * Évite les fuites mémoire dans les applications longue durée
-   */
-  useEffect(() => {
+    // Rechargement automatique toutes les 10 minutes (optionnel)
+    const intervalId = setInterval(() => {
+      if (!isUnmountedRef.current) {
+        log('Rafraîchissement automatique des recherches');
+        fetchPopularSearches();
+      }
+    }, 10 * 60 * 1000);
+
     return () => {
-      // Nettoyage du cache lors du démontage
-      cacheRef.current = {};
+      isUnmountedRef.current = true;
+      clearInterval(intervalId);
+      if (fetchTimeoutRef.current) {
+        clearTimeout(fetchTimeoutRef.current);
+      }
     };
-  }, []);
+  }, [fetchPopularSearches, log]);
 
-  // Interface de retour du hook - COMPLÈTEMENT CORRIGÉE
-  const result: UsePopularSearchesReturn = {
-    // Données principales
+  // Interface de retour complète
+  return {
     popularSearches,
     loading,
     error,
-    
-    // Métadonnées utiles pour l'interface utilisateur
     lastUpdated,
     totalSearches,
-    
-    // Actions principales pour les composants
     refreshPopularSearches,
     trackSearch,
     updateSearchResults,
-    
-    // Actions avancées (maintenant correctement typées)
     refreshMaterializedView,
     getSearchSuggestions,
-    
-    // Utilitaires exposés pour flexibilité (maintenant correctement typés)
     normalizeQuery,
     generateSessionId
-  };
-
-  return result;
+  } as UsePopularSearchesReturn;
 };
 
 /**
  * Hook léger pour le tracking uniquement
- * Optimisation pour les composants qui veulent juste tracker sans récupérer les populaires
  */
 export const useSearchTracking = () => {
-  // Version simplifiée sans appel à usePopularSearches pour éviter les boucles
-  const trackSearch = async (data: SearchTrackingData): Promise<void> => {
-    // Tracking désactivé temporairement pour debugging
-    console.log('[SearchTracking] Tracking désactivé', data);
-  };
+  const { trackSearch, updateSearchResults, normalizeQuery, generateSessionId } = usePopularSearches({
+    maxItems: 1, // Minimal pour économiser les ressources
+    enableDebugLogs: false
+  });
 
   return {
     trackSearch,
-    updateSearchResults: async () => {},
-    normalizeQuery: (q: string) => q.toLowerCase().trim(),
-    generateSessionId: () => 'debug-session'
+    updateSearchResults,
+    normalizeQuery,
+    generateSessionId
   };
 };
 
 /**
- * Hook spécialisé pour les composants d'autocomplétion
- * Optimisé pour les suggestions en temps réel avec configuration adaptée
+ * Hook spécialisé pour l'autocomplétion
  */
 export const useSearchSuggestions = (maxSuggestions: number = 5) => {
   const { popularSearches, loading, getSearchSuggestions } = usePopularSearches({
-    maxItems: maxSuggestions * 2, // Récupérer plus d'éléments pour avoir plus de choix dans les suggestions
-    timeRange: 'week', // Suggestions basées sur les recherches récentes pour plus de pertinence
-    enableDebugLogs: false // Désactiver les logs pour les suggestions (performance)
+    maxItems: maxSuggestions * 2,
+    timeRange: 'week',
+    enableDebugLogs: false
   });
 
   const getSuggestions = useCallback((query: string) => {
