@@ -45,7 +45,7 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { formatRelativeTime, formatPrice, formatViewsCount, isListingNew } from "@/lib/utils";
+import { formatRelativeTime, formatPrice, isListingNew } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthContext } from "@/contexts/AuthContext";
 
@@ -54,12 +54,14 @@ import { useSellerProfile } from '@/hooks/useSellerProfile';
 import { useSellerListings } from '@/hooks/useSellerListings';
 import { useSellerReviews } from '@/hooks/useSellerReviews';
 import { useFavorites } from '@/hooks/useFavorites';
+import { useListingViews } from "@/hooks/useListingViews";
 
 const SellerProfile = () => {
   const { sellerId } = useParams<{ sellerId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuthContext();
+  const { formatViewsDisplay } = useListingViews();
   
   //  Gestion intelligente de la navigation de retour
   const searchParams = new URLSearchParams(window.location.search);
@@ -763,7 +765,7 @@ const SellerProfile = () => {
                                   <div className="flex items-center gap-3 pt-1">
                                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                                       <Eye className="w-3 h-3" />
-                                      <span>{formatViewsCount(listing.views_count)}</span>
+                                      <span>{formatViewsDisplay(listing.views_count || 0)}</span>
                                     </div>
                                   </div>
                                 )}
@@ -828,7 +830,7 @@ const SellerProfile = () => {
                             {listing.views_count > 0 && (
                               <div className="absolute bottom-3 left-3 flex items-center gap-1 bg-black/50 text-white px-2 py-1 rounded text-sm">
                                 <Eye className="h-3 w-3" />
-                                <span>{formatViewsCount(listing.views_count)}</span>
+                                <span>{formatViewsDisplay(listing.views_count || 0)}</span>
                               </div>
                             )}
                           </div>

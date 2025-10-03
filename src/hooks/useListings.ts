@@ -42,7 +42,7 @@ export const useListings = (): UseListingsReturn => {
   const [error, setError] = useState<string | null>(null);
   const [lastUserId, setLastUserId] = useState<string | null>(null);
   const { toast } = useToast();
-
+  const { user } = useAuthContext();
   /**
    * Construction de requête optimisée avec les bonnes relations
    * Utilise les vraies clés étrangères du schéma
@@ -476,6 +476,7 @@ export const useListing = (id: string) => {
   const [listing, setListing] = useState<Listing | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { user } = useAuthContext();
 
   /**
    * Enrichissement d'une annonce individuelle
@@ -567,26 +568,33 @@ export const useListing = (id: string) => {
       const enrichedListing = await enrichSingleListing(data);
       setListing(enrichedListing);
       
-      // Comptage des vues asynchrone (non-bloquant)
-      supabase
-        .from('listings')
-        .update({ views_count: (data.views_count || 0) + 1 })
-        .eq('id', id)
-        .then(({ error }) => {
-          if (error) {
-            console.warn('Erreur comptage vue:', error);
-          } else {
-            console.log('Vue comptabilisée');
-          }
-        });
-
+      // ✨ MODIFICATION CRITIQUE : Ne pas incrémenter si c'est le propriétaire
+      const isOwner = user?.id && data.user_id === user.id;
+      
+      if (isOwner) {
+        console.log('👤 Propriétaire de l\'annonce - pas d\'incrémentation des vues');
+      } else {
+        // Comptage des vues uniquement pour les visiteurs externes
+        console.log('👁️ Visiteur externe - incrémentation des vues');
+        supabase
+          .from('listings')
+          .update({ views_count: (data.views_count || 0) + 1 })
+          .eq('id', id)
+          .then(({ error }) => {
+            if (error) {
+              console.warn('Erreur comptage vue:', error);
+            } else {
+              console.log('Vue comptabilisée');
+            }
+          });
+      }
     } catch (err) {
       console.error('Erreur annonce individuelle:', err);
       setError(err instanceof Error ? err.message : 'Annonce introuvable');
     } finally {
       setLoading(false);
     }
-  }, [id, enrichSingleListing]);
+  }, [id, enrichSingleListing, user?.id]);
 
   useEffect(() => {
     fetchListing();

@@ -1,24 +1,118 @@
-// ===============================================
-// HOOK USELISTINGVIEWS - GESTION CENTRALISÉE DES VUES
-// ===============================================
-// Ce hook centralise toute la logique de comptage et d'affichage des vues
+// hooks/useListingViews.ts - SYSTÈME DE VUES PROFESSIONNEL
+// Inspiré des meilleures pratiques de YouTube, Leboncoin, etc.
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuthContext } from '@/contexts/AuthContext';
 
 /**
- * Interface pour typer les données de vues que nous retournons
- * Cela aide TypeScript à comprendre la structure de nos données
+ * GESTION DE L'IDENTITÉ VISITEUR
+ * Stratégie à 3 niveaux pour identifier les visiteurs de manière stable
  */
-interface ViewsData {
-  count: number;           // Nombre total de vues
-  isLoading: boolean;      // Indicateur de chargement
-  error: string | null;    // Erreur éventuelle
+class VisitorIdentityManager {
+  private static STORAGE_KEY = 'fasomarket_visitor_id';
+  private static CACHE_DURATION = 365 * 24 * 60 * 60 * 1000; // 1 an
+
+  /**
+   * Génère une empreinte digitale stable du navigateur
+   * Cette méthode est plus fiable que canvas fingerprinting
+   */
+  private static generateBrowserFingerprint(): string {
+    const components = [
+      navigator.userAgent,
+      navigator.language,
+      navigator.languages?.join(',') || '',
+      screen.width,
+      screen.height,
+      screen.colorDepth,
+      new Date().getTimezoneOffset(),
+      navigator.hardwareConcurrency || 0,
+      (navigator as any).deviceMemory || 0, // TypeScript fix: propriété non-standard
+      navigator.platform
+    ];
+
+    // Création d'un hash simple mais efficace
+    const fingerprint = components.join('|');
+    let hash = 0;
+    for (let i = 0; i < fingerprint.length; i++) {
+      const char = fingerprint.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    
+    return `fp_${Math.abs(hash).toString(36)}`;
+  }
+
+  /**
+   * Récupère ou crée l'identifiant visiteur
+   * Priorité : localStorage > fingerprint
+   */
+  static getVisitorId(userId?: string): string {
+    // Si utilisateur connecté, utiliser son ID
+    if (userId) {
+      return `user_${userId}`;
+    }
+
+    try {
+      // Vérifier si un ID existe déjà en localStorage
+      const stored = localStorage.getItem(this.STORAGE_KEY);
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          const age = Date.now() - parsed.timestamp;
+          
+          // Si l'ID est valide et pas trop ancien, le réutiliser
+          if (parsed.id && age < this.CACHE_DURATION) {
+            return parsed.id;
+          }
+        } catch {
+          // Si parsing échoue, continuer avec la génération
+        }
+      }
+
+      // Générer un nouvel ID basé sur le fingerprint
+      const newId = this.generateBrowserFingerprint();
+      
+      // Sauvegarder en localStorage pour persistance
+      localStorage.setItem(
+        this.STORAGE_KEY,
+        JSON.stringify({
+          id: newId,
+          timestamp: Date.now()
+        })
+      );
+
+      return newId;
+    } catch (error) {
+      // Fallback si localStorage n'est pas disponible
+      console.warn('localStorage non disponible, utilisation du fingerprint seul');
+      return this.generateBrowserFingerprint();
+    }
+  }
+
+  /**
+   * Nettoie l'identifiant stocké (utile pour les tests)
+   */
+  static clearVisitorId(): void {
+    try {
+      localStorage.removeItem(this.STORAGE_KEY);
+    } catch (error) {
+      console.warn('Impossible de nettoyer le visitor ID');
+    }
+  }
 }
 
 /**
- * Interface pour les statistiques avancées (pour le dashboard)
+ * Interface pour les données de vues
+ */
+interface ViewsData {
+  count: number;
+  isLoading: boolean;
+  error: string | null;
+}
+
+/**
+ * Interface pour les statistiques avancées
  */
 interface ViewsStats {
   totalViews: number;
@@ -26,86 +120,51 @@ interface ViewsStats {
   registeredUserViews: number;
   anonymousViews: number;
   todayViews: number;
+  last7DaysViews: number;
+  viewsGrowth: number; // Pourcentage de croissance
 }
 
 /**
- * Hook principal pour la gestion des vues
- * Ce hook est conçu pour être réutilisé partout où vous avez besoin de gérer les vues
+ * HOOK PRINCIPAL POUR LA GESTION DES VUES
  */
 export const useListingViews = () => {
-  // État pour stocker les données de vues en cache
-  // Cela évite de refaire des requêtes inutiles
   const [viewsCache, setViewsCache] = useState<Map<string, ViewsData>>(new Map());
-  
-  // Référence pour éviter les appels multiples simultanés
   const recordingViews = useRef<Set<string>>(new Set());
-  
-  // Contexte d'authentification pour identifier l'utilisateur
   const { user } = useAuthContext();
 
   /**
    * FONCTION PRINCIPALE : ENREGISTRER UNE VUE
-   * Cette fonction remplace l'ancienne recordView et peut être appelée depuis n'importe où
+   * Logique professionnelle avec déduplication sur 24h
    */
-  const recordView = useCallback(async (listingId: string): Promise<boolean> => {
-    // Éviter les appels multiples simultanés pour la même annonce
+  const recordView = useCallback(async (listingId: string, listingOwnerId?: string): Promise<boolean> => {
+    // Éviter les appels multiples simultanés
     if (recordingViews.current.has(listingId)) {
-      console.log(`⏳ Enregistrement de vue déjà en cours pour l'annonce ${listingId}`);
+      console.log(`⏳ Enregistrement déjà en cours pour ${listingId}`);
+      return false;
+    }
+    
+    //AJOUT : Vérifier si c'est le propriétaire
+    if (user?.id && listingOwnerId && user.id === listingOwnerId) {
+      console.log('👤 Propriétaire - pas d\'enregistrement de vue');
       return false;
     }
 
     recordingViews.current.add(listingId);
 
     try {
-      // Génération de l'identifiant de visiteur
-      // Cette logique unifie le traitement des utilisateurs connectés et anonymes
-      const generateVisitorId = (): string => {
-        if (user?.id) {
-          return user.id; // Utilisateur connecté = UUID direct
-        }
-        
-        // Visiteurs anonymes : création d'une empreinte digitale stable
-        const fingerprint = [
-          navigator.userAgent,
-          navigator.language,
-          screen.width + 'x' + screen.height,
-          Intl.DateTimeFormat().resolvedOptions().timeZone,
-          // Empreinte canvas pour plus d'unicité
-          (() => {
-            try {
-              const canvas = document.createElement('canvas');
-              const ctx = canvas.getContext('2d');
-              if (ctx) {
-                ctx.textBaseline = 'top';
-                ctx.font = '14px Arial';
-                ctx.fillText('FasoMarket-BF-2024', 2, 2);
-                return canvas.toDataURL().slice(-25);
-              }
-              return 'no-canvas';
-            } catch {
-              return 'canvas-blocked-' + Math.random().toString(36).substr(2, 8);
-            }
-          })()
-        ].join('|');
-        
-        // Création d'un hash reproductible
-        let hash = 0;
-        for (let i = 0; i < fingerprint.length; i++) {
-          const char = fingerprint.charCodeAt(i);
-          hash = ((hash << 5) - hash) + char;
-          hash = hash & hash;
-        }
-        
-        return `visitor_${Math.abs(hash)}`;
-      };
-
-      const visitorId = generateVisitorId();
-      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      // Obtenir l'identifiant visiteur stable
+      const visitorId = VisitorIdentityManager.getVisitorId(user?.id);
       
-      // Vérification des vues récentes
+      // Période de déduplication : 24 heures
+      const twentyFourHoursAgo = new Date();
+      twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
+
+      console.log(`🔍 Vérification vue récente pour visiteur ${visitorId}`);
+
+      // Vérifier si ce visiteur a déjà vu cette annonce récemment
       const { data: existingView, error: checkError } = await supabase
         .from('listing_views')
-        .select('id')
+        .select('id, viewed_at')
         .eq('listing_id', listingId)
         .eq('visitor_id', visitorId)
         .gte('viewed_at', twentyFourHoursAgo.toISOString())
@@ -115,46 +174,76 @@ export const useListingViews = () => {
         throw checkError;
       }
 
-      // Enregistrement d'une nouvelle vue si nécessaire
-      if (!existingView) {
-        const { error: insertError } = await supabase
-          .from('listing_views')
-          .insert({
-            listing_id: listingId,
-            user_id: user?.id || null,
-            visitor_id: visitorId,
-            ip_address: null,
-            user_agent: navigator.userAgent
-          });
-
-        if (insertError) throw insertError;
-
-        // Incrémentation du compteur dans la table listings
-        const { error: incrementError } = await supabase
-          .rpc('increment_listing_views', { listing_id: listingId });
-
-        if (incrementError) {
-          console.warn('Impossible d\'incrémenter le compteur:', incrementError);
-        }
-
-        // Mise à jour du cache local pour un affichage immédiat
-        setViewsCache(prev => {
-          const newCache = new Map(prev);
-          const existing = newCache.get(listingId);
-          if (existing) {
-            newCache.set(listingId, {
-              ...existing,
-              count: existing.count + 1
-            });
-          }
-          return newCache;
-        });
-
-        console.log(`✅ Nouvelle vue enregistrée pour ${listingId} par ${user?.id ? 'utilisateur' : 'anonyme'}`);
-        return true;
+      // Si une vue récente existe, ne pas comptabiliser
+      if (existingView) {
+        console.log(`✓ Vue déjà enregistrée récemment (${new Date(existingView.viewed_at).toLocaleString()})`);
+        return false;
       }
 
-      return false;
+      // Préparer les données de la vue
+      const viewData = {
+        listing_id: listingId,
+        user_id: user?.id || null,
+        visitor_id: visitorId,
+        ip_address: null, // À gérer côté backend si nécessaire
+        user_agent: navigator.userAgent,
+        viewed_at: new Date().toISOString()
+      };
+
+      // Insérer la nouvelle vue
+      const { error: insertError } = await supabase
+        .from('listing_views')
+        .insert(viewData);
+
+      if (insertError) {
+        console.error('❌ Erreur insertion vue:', insertError);
+        throw insertError;
+      }
+
+      console.log(`✅ Vue enregistrée avec succès pour ${listingId}`);
+
+      // Incrémenter le compteur dans la table listings de manière atomique
+      // Note : Cette méthode utilise une fonction RPC pour éviter les race conditions
+      try {
+        const { error: rpcError } = await supabase
+          .rpc('increment_listing_views', { listing_id: listingId });
+
+        if (rpcError) {
+          console.warn('⚠️ RPC non disponible, fallback sur update simple');
+          
+          // Fallback : récupérer le compteur actuel et incrémenter
+          const { data: listing } = await supabase
+            .from('listings')
+            .select('views_count')
+            .eq('id', listingId)
+            .single();
+
+          if (listing) {
+            await supabase
+              .from('listings')
+              .update({ views_count: (listing.views_count || 0) + 1 })
+              .eq('id', listingId);
+          }
+        }
+      } catch (rpcError) {
+        console.warn('⚠️ Erreur incrémentation compteur:', rpcError);
+      }
+
+      // Mise à jour du cache local pour affichage immédiat
+      setViewsCache(prev => {
+        const newCache = new Map(prev);
+        const existing = newCache.get(listingId);
+        if (existing) {
+          newCache.set(listingId, {
+            ...existing,
+            count: existing.count + 1
+          });
+        }
+        return newCache;
+      });
+
+      return true;
+
     } catch (error) {
       console.error('❌ Erreur lors de l\'enregistrement de la vue:', error);
       return false;
@@ -164,17 +253,16 @@ export const useListingViews = () => {
   }, [user?.id]);
 
   /**
-   * FONCTION POUR RÉCUPÉRER LE NOMBRE DE VUES D'UNE ANNONCE
-   * Cette fonction peut être utilisée dans les listes, cartes, etc.
+   * RÉCUPÉRER LE NOMBRE DE VUES (avec cache intelligent)
    */
   const getViewsCount = useCallback(async (listingId: string): Promise<ViewsData> => {
-    // Vérifier d'abord le cache
+    // Vérifier le cache d'abord
     const cached = viewsCache.get(listingId);
-    if (cached && !cached.isLoading) {
+    if (cached && !cached.isLoading && !cached.error) {
       return cached;
     }
 
-    // Mettre à jour le cache avec un état de chargement
+    // Mettre l'état en chargement
     setViewsCache(prev => new Map(prev).set(listingId, {
       count: cached?.count || 0,
       isLoading: true,
@@ -198,6 +286,7 @@ export const useListingViews = () => {
 
       setViewsCache(prev => new Map(prev).set(listingId, result));
       return result;
+
     } catch (error) {
       const result: ViewsData = {
         count: cached?.count || 0,
@@ -211,65 +300,92 @@ export const useListingViews = () => {
   }, [viewsCache]);
 
   /**
-   * FONCTION POUR RÉCUPÉRER LES STATISTIQUES AVANCÉES
-   * Utile pour les dashboards et les analyses
+   * STATISTIQUES AVANCÉES POUR LE DASHBOARD
    */
   const getViewsStats = useCallback(async (listingId: string): Promise<ViewsStats> => {
     try {
-      const { data: totalViewsData } = await supabase
+      // Récupérer le compteur total
+      const { data: totalData } = await supabase
         .from('listings')
         .select('views_count')
         .eq('id', listingId)
         .single();
 
-      const { data: detailedStats } = await supabase
+      // Récupérer les détails des vues
+      const { data: detailedViews } = await supabase
         .from('listing_views')
         .select('user_id, visitor_id, viewed_at')
-        .eq('listing_id', listingId);
+        .eq('listing_id', listingId)
+        .order('viewed_at', { ascending: false });
 
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      if (!detailedViews) {
+        return {
+          totalViews: totalData?.views_count || 0,
+          uniqueVisitors: 0,
+          registeredUserViews: 0,
+          anonymousViews: 0,
+          todayViews: 0,
+          last7DaysViews: 0,
+          viewsGrowth: 0
+        };
+      }
 
-      const uniqueVisitors = new Set(detailedStats?.map(v => v.visitor_id) || []).size;
-      const registeredUserViews = detailedStats?.filter(v => v.user_id !== null).length || 0;
-      const todayViews = detailedStats?.filter(v => 
-        new Date(v.viewed_at) >= today
-      ).length || 0;
+      // Calculs des statistiques
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+
+      const uniqueVisitors = new Set(detailedViews.map(v => v.visitor_id)).size;
+      const registeredUserViews = detailedViews.filter(v => v.user_id !== null).length;
+      const todayViews = detailedViews.filter(v => new Date(v.viewed_at) >= todayStart).length;
+      const last7DaysViews = detailedViews.filter(v => new Date(v.viewed_at) >= sevenDaysAgo).length;
+      const previous7DaysViews = detailedViews.filter(v => {
+        const viewDate = new Date(v.viewed_at);
+        return viewDate >= fourteenDaysAgo && viewDate < sevenDaysAgo;
+      }).length;
+
+      // Calcul de la croissance
+      const viewsGrowth = previous7DaysViews > 0
+        ? ((last7DaysViews - previous7DaysViews) / previous7DaysViews) * 100
+        : last7DaysViews > 0 ? 100 : 0;
 
       return {
-        totalViews: totalViewsData?.views_count || 0,
+        totalViews: totalData?.views_count || 0,
         uniqueVisitors,
         registeredUserViews,
-        anonymousViews: (detailedStats?.length || 0) - registeredUserViews,
-        todayViews
+        anonymousViews: detailedViews.length - registeredUserViews,
+        todayViews,
+        last7DaysViews,
+        viewsGrowth: Math.round(viewsGrowth * 10) / 10
       };
+
     } catch (error) {
-      console.error('Erreur lors de la récupération des statistiques:', error);
+      console.error('Erreur statistiques:', error);
       return {
         totalViews: 0,
         uniqueVisitors: 0,
         registeredUserViews: 0,
         anonymousViews: 0,
-        todayViews: 0
+        todayViews: 0,
+        last7DaysViews: 0,
+        viewsGrowth: 0
       };
     }
   }, []);
 
   /**
-   * FONCTION UTILITAIRE POUR FORMATER L'AFFICHAGE DES VUES
-   * Cette fonction peut être utilisée partout pour un affichage cohérent
+   * FORMATER L'AFFICHAGE DES VUES
    */
   const formatViewsDisplay = useCallback((count: number): string => {
-    if (count === 0) return 'Aucune vue';
-    if (count === 1) return '1 vue';
-    if (count < 1000) return `${count} vues`;
-    if (count < 1000000) return `${(count / 1000).toFixed(1)}k vues`;
-    return `${(count / 1000000).toFixed(1)}M vues`;
-  }, []);
+  if (count < 2) return `${count} vue`;  // 0 vue, 1 vue
+  if (count < 1000) return `${count} vues`;
+  if (count < 1000000) return `${(count / 1000).toFixed(1)}k vues`;
+  return `${(count / 1000000).toFixed(1)}M vues`;
+}, []);
 
   /**
-   * FONCTION POUR NETTOYER LE CACHE
-   * Utile pour forcer le rechargement des données
+   * NETTOYER LE CACHE
    */
   const clearViewsCache = useCallback((listingId?: string) => {
     if (listingId) {
@@ -283,12 +399,37 @@ export const useListingViews = () => {
     }
   }, []);
 
+  /**
+   * VÉRIFIER SI UNE VUE A DÉJÀ ÉTÉ ENREGISTRÉE
+   * Utile pour l'interface utilisateur
+   */
+  const hasViewedRecently = useCallback(async (listingId: string): Promise<boolean> => {
+    try {
+      const visitorId = VisitorIdentityManager.getVisitorId(user?.id);
+      const twentyFourHoursAgo = new Date();
+      twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
+
+      const { data, error } = await supabase
+        .from('listing_views')
+        .select('id')
+        .eq('listing_id', listingId)
+        .eq('visitor_id', visitorId)
+        .gte('viewed_at', twentyFourHoursAgo.toISOString())
+        .maybeSingle();
+
+      return !error && data !== null;
+    } catch {
+      return false;
+    }
+  }, [user?.id]);
+
   // Interface publique du hook
   return {
     // Fonctions principales
     recordView,
     getViewsCount,
     getViewsStats,
+    hasViewedRecently,
     
     // Utilitaires
     formatViewsDisplay,
@@ -297,4 +438,31 @@ export const useListingViews = () => {
     // Données
     viewsCache: Object.fromEntries(viewsCache)
   };
+};
+
+/**
+ * HOOK SIMPLIFIÉ POUR L'AUTO-TRACKING
+ * À utiliser dans les pages de détail d'annonce
+ */
+export const useAutoRecordView = (listingId: string | undefined) => {
+  const { recordView } = useListingViews();
+  const hasRecorded = useRef(false);
+
+  useEffect(() => {
+    if (!listingId || hasRecorded.current) return;
+
+    const recordViewWithDelay = async () => {
+      // Attendre 2 secondes avant d'enregistrer la vue
+      // Cela évite de compter les "bounces" (visiteurs qui quittent immédiatement)
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      const success = await recordView(listingId);
+      if (success) {
+        hasRecorded.current = true;
+        console.log(`📊 Vue auto-enregistrée pour ${listingId}`);
+      }
+    };
+
+    recordViewWithDelay();
+  }, [listingId, recordView]);
 };

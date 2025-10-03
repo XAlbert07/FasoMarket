@@ -8,11 +8,13 @@ import PublishButton from "@/components/PublishButton"
 import { SmartImage } from "@/components/ui/SmartImage"
 import { useListings } from "@/hooks/useListings"
 import { useFavorites } from "@/hooks/useFavorites"
-import { formatPrice, formatRelativeTime, isListingNew, formatViewsCount } from "@/lib/utils"
+import { useListingViews } from "@/hooks/useListingViews";
+import { formatPrice, formatRelativeTime, isListingNew } from "@/lib/utils"
 
 export const RecentListings = () => {
   const { listings, loading, fetchListings } = useListings();
   const { toggleFavorite, isFavorite } = useFavorites();
+  const { formatViewsDisplay } = useListingViews();
 
   useEffect(() => {
     fetchListings({ sortBy: "date" });
@@ -133,7 +135,7 @@ export const RecentListings = () => {
                           </div>
                           <div className="flex items-center gap-1 flex-shrink-0">
                             <Eye className="h-3 w-3" />
-                            <span>{formatViewsCount(listing.views_count || 0)}</span>
+                            <span>{formatViewsDisplay(listing.views_count || 0)}</span>
                           </div>
                         </div>
                         
@@ -193,7 +195,7 @@ export const RecentListings = () => {
                     <div className="absolute bottom-3 left-3 flex items-center gap-3 text-white text-sm">
                       <div className="flex items-center gap-1 bg-black/50 px-2 py-1 rounded">
                         <Eye className="h-3 w-3" />
-                        <span>{formatViewsCount(listing.views_count || 0)}</span>
+                       <span>{formatViewsDisplay(listing.views_count || 0)}</span>
                       </div>
                     </div>
                   </div>

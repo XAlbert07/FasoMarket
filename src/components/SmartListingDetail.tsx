@@ -29,7 +29,8 @@ import { ChatModal } from "@/components/ChatModal";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { Link } from "react-router-dom";
-import { formatPrice, formatRelativeTime, isListingNew, formatViewsCount } from "@/lib/utils"
+import { formatPrice, formatRelativeTime, isListingNew } from "@/lib/utils"
+import { useAutoRecordView } from "@/hooks/useListingViews";
 import {
   Star, Shield, MessageSquare, Phone, MapPin, Clock, Send, Flag, Heart, HeartOff, Eye, Share2,
   MoreVertical, AlertTriangle, CheckCircle, Info, Package, Crown, User, ChevronLeft, ChevronRight,
@@ -204,6 +205,8 @@ const BuyerListingDetailWithEnhancedFeatures = ({ listing }: BuyerListingDetailW
   const navigate = useNavigate();
   const { user } = useAuthContext();
   const { toast } = useToast();
+
+   useAutoRecordView(listing.id);
   
   const [reviewsRefreshKey, setReviewsRefreshKey] = useState(0);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);

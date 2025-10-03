@@ -7,12 +7,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { SmartImage } from '@/components/ui/SmartImage';
+import { useListingViews } from "@/hooks/useListingViews";
 import { Heart, MapPin, Eye, User, Clock } from 'lucide-react';
-import { formatPrice, formatRelativeTime, isListingNew, formatViewsCount } from '@/lib/utils';
+import { formatPrice, formatRelativeTime, isListingNew } from '@/lib/utils';
 
 const Favorites = () => {
   const { user } = useAuthContext();
   const { favorites, loading, toggleFavorite, isFavorite } = useFavorites();
+  const { formatViewsDisplay } = useListingViews();
 
   // Cette fonction extrait le nom du vendeur depuis les données enrichies du profil
   const getSellerName = (listing: any) => {
@@ -162,7 +164,7 @@ const Favorites = () => {
                             </div>
                             <div className="flex items-center gap-1 flex-shrink-0">
                               <Eye className="h-3 w-3" />
-                              <span>{formatViewsCount(listing.views_count || 0)}</span>
+                              <span>{formatViewsDisplay(listing.views_count || 0)}</span>
                             </div>
                           </div>
                         </div>
@@ -229,7 +231,7 @@ const Favorites = () => {
                       {/* Stats de vues */}
                       <div className="absolute bottom-3 left-3 flex items-center gap-1 bg-black/50 text-white px-2 py-1 rounded text-sm">
                         <Eye className="h-3 w-3" />
-                        <span>{formatViewsCount(listing.views_count || 0)}</span>
+                        <span>{formatViewsDisplay(listing.views_count || 0)}</span>
                       </div>
                     </div>
 

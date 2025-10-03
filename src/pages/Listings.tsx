@@ -13,12 +13,15 @@ import { useListings } from "@/hooks/useListings";
 import { useFavorites } from "@/hooks/useFavorites";
 import { SearchFilters } from "@/types/database";
 import { Link } from "react-router-dom";
-import { formatPrice, formatRelativeTime, isListingNew, formatViewsCount } from "@/lib/utils";
+import { useListingViews } from "@/hooks/useListingViews";
+import { formatPrice, formatRelativeTime, isListingNew, } from "@/lib/utils";
 
 const Listings = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { listings, loading, fetchListings } = useListings();
   const { toggleFavorite, isFavorite } = useFavorites();
+
+   const { formatViewsDisplay } = useListingViews();
   
   const [revealedPhones, setRevealedPhones] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false); 
@@ -318,7 +321,7 @@ const Listings = () => {
                           </div>
                           <div className="flex items-center gap-1 flex-shrink-0">
                             <Eye className="h-3 w-3" />
-                            <span>{formatViewsCount(listing.views_count || 0)}</span>
+                            <span>{formatViewsDisplay(listing.views_count || 0)}</span>
                           </div>
                         </div>
                       </div>
@@ -379,7 +382,7 @@ const Listings = () => {
                     {/* Stats de vues */}
                     <div className="absolute bottom-3 left-3 flex items-center gap-1 bg-black/50 text-white px-2 py-1 rounded text-sm">
                       <Eye className="h-3 w-3" />
-                      <span>{formatViewsCount(listing.views_count || 0)}</span>
+                      <span>{formatViewsDisplay(listing.views_count || 0)}</span>
                     </div>
                   </div>
 
