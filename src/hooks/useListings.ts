@@ -568,33 +568,16 @@ export const useListing = (id: string) => {
       const enrichedListing = await enrichSingleListing(data);
       setListing(enrichedListing);
       
-      // ✨ MODIFICATION CRITIQUE : Ne pas incrémenter si c'est le propriétaire
-      const isOwner = user?.id && data.user_id === user.id;
-      
-      if (isOwner) {
-        console.log('👤 Propriétaire de l\'annonce - pas d\'incrémentation des vues');
-      } else {
-        // Comptage des vues uniquement pour les visiteurs externes
-        console.log('👁️ Visiteur externe - incrémentation des vues');
-        supabase
-          .from('listings')
-          .update({ views_count: (data.views_count || 0) + 1 })
-          .eq('id', id)
-          .then(({ error }) => {
-            if (error) {
-              console.warn('Erreur comptage vue:', error);
-            } else {
-              console.log('Vue comptabilisée');
-            }
-          });
-      }
+      // Le comptage des vues est géré par useAutoRecordView
+      console.log('📊 Comptage délégué à useAutoRecordView');
+
     } catch (err) {
       console.error('Erreur annonce individuelle:', err);
       setError(err instanceof Error ? err.message : 'Annonce introuvable');
     } finally {
       setLoading(false);
     }
-  }, [id, enrichSingleListing, user?.id]);
+  }, [id, enrichSingleListing]);
 
   useEffect(() => {
     fetchListing();
