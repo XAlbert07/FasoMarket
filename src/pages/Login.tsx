@@ -37,12 +37,20 @@ const Login = () => {
 
 
   // Redirection automatique après connexion réussie
+// Dans Login.tsx
 useEffect(() => {
   if (user && !loading) {
-    const redirectTo = location.state?.from || '/merchant-dashboard';
-    console.log('Utilisateur connecté détecté - redirection vers:', redirectTo);
+    // Récupérer l'URL de destination depuis le state (si vient d'une page protégée)
+    const from = (location.state as { from?: string })?.from;
     
-    // Petit délai pour s'assurer que tout est bien chargé
+    // Logique de redirection :
+    // - Si `from` existe → l'utilisateur venait d'une page protégée
+    // - Si `from` est undefined → connexion normale, aller à l'accueil
+    const redirectTo = from || '/';
+    
+    console.log('Utilisateur connecté détecté - redirection vers:', redirectTo);
+    console.log('État de location:', location.state);
+    
     const timer = setTimeout(() => {
       navigate(redirectTo, { replace: true });
     }, 100);
