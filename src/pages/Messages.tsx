@@ -1,8 +1,8 @@
 // pages/Messages.tsx 
 
 import { useState, useEffect, useRef } from 'react';
-import { useMessages, Conversation, UnifiedMessage } from '@/hooks/useMessages';
-import { useGuestMessages } from '@/hooks/useGuestMessages';
+import { useRealtimeMessages } from '@/hooks/useRealtimeMessages';
+import type { Conversation, Message } from '@/hooks/useRealtimeMessages';
 import { usePresenceCleanup } from '@/hooks/usePresenceCleanup';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
@@ -20,10 +20,6 @@ import {
   ArrowLeft, 
   Mail, 
   Phone, 
-  User, 
-  UserCheck,
-  Clock,
-  ExternalLink,
   AlertCircle,
   Search,
   MoreVertical,
@@ -34,18 +30,13 @@ import {
   Circle,
   Plus,
   X,
-  Smile,
   Paperclip,
   Mic
 } from 'lucide-react';
-import { formatDistanceToNow, format, isToday, isYesterday } from 'date-fns';
+import { format, isToday, isYesterday } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
-/**
- * Fonction utilitaire pour formater intelligemment les séparateurs de date
- * Adopte le style moderne des apps de messagerie (dates, pas heures)
- */
 const formatDateSeparator = (date: Date): string => {
   if (isToday(date)) {
     return 'Aujourd\'hui';
@@ -56,9 +47,6 @@ const formatDateSeparator = (date: Date): string => {
   }
 };
 
-/**
- * Fonction pour formater la date du dernier message dans la liste
- */
 const formatLastMessageTime = (date: Date): string => {
   const now = new Date();
   const diffInMinutes = (now.getTime() - date.getTime()) / (1000 * 60);
@@ -71,10 +59,6 @@ const formatLastMessageTime = (date: Date): string => {
   return format(date, 'dd/MM');
 };
 
-/**
- * Fonction utilitaire pour créer l'URL de retour vers les messages
- * Préserve l'état de la conversation active pour une navigation fluide
- */
 const createReturnToMessagesUrl = (conversationId?: string, participantId?: string): string => {
   const params = new URLSearchParams({
     fromProfile: 'true'
@@ -92,7 +76,6 @@ const createReturnToMessagesUrl = (conversationId?: string, participantId?: stri
 };
 
 const Messages = () => {
-  // Contextes et hooks principaux
   const { user } = useAuthContext();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -105,17 +88,15 @@ const Messages = () => {
     isConnected,
     fetchMessages, 
     sendMessage,
-    sendTypingIndicator,
-    markConversationAsRead,
-    updateUserPresence,
+    markAsRead,
+    updatePresence,
+    sendTyping,
     fetchConversations,
     clearMessages
-  } = useMessages();
+  } = useRealtimeMessages();
   
-  const { markGuestMessageAsRead } = useGuestMessages();
   const { manualCleanup } = usePresenceCleanup();
   
-  // États pour l'interface mobile moderne
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [newMessage, setNewMessage] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -123,27 +104,19 @@ const Messages = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
-  
-  // Navigation mobile intelligente
   const [currentView, setCurrentView] = useState<'list' | 'chat'>('list');
   
-  // Références pour la gestion de l'UI
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  /**
-   * NOUVEAU: Gestion du retour depuis le profil vendeur
-   * Restaure automatiquement la conversation active
-   */
   useEffect(() => {
     const fromProfile = searchParams.get('fromProfile');
     const conversationId = searchParams.get('conversationId');
     const participantId = searchParams.get('participantId');
 
     if (fromProfile === 'true' && conversations.length > 0) {
-      // Restaurer la conversation active après retour du profil
       if (conversationId && participantId) {
         const targetConversation = conversations.find(conv => 
           conv.id === conversationId || 
@@ -156,15 +129,10 @@ const Messages = () => {
         }
       }
       
-      // Nettoyer les paramètres de navigation
       navigate('/messages', { replace: true });
     }
   }, [searchParams, conversations, navigate]);
 
-  /**
-   * Détection du scroll pour afficher le bouton "scroll to bottom"
-   * Comportement moderne des apps de messagerie
-   */
   useEffect(() => {
     const container = messagesContainerRef.current;
     if (!container) return;
@@ -179,9 +147,6 @@ const Messages = () => {
     return () => container.removeEventListener('scroll', handleScroll);
   }, [messages.length]);
 
-  /**
-   * Auto-scroll intelligent avec animation fluide
-   */
   const scrollToBottom = (smooth = true) => {
     messagesEndRef.current?.scrollIntoView({ 
       behavior: smooth ? 'smooth' : 'auto',
@@ -189,9 +154,6 @@ const Messages = () => {
     });
   };
 
-  /**
-   * Auto-scroll pour les nouveaux messages
-   */
   useEffect(() => {
     const container = messagesContainerRef.current;
     if (!container) return;
@@ -199,33 +161,27 @@ const Messages = () => {
     const { scrollTop, scrollHeight, clientHeight } = container;
     const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
     
-    // Auto-scroll seulement si l'utilisateur est déjà en bas
     if (isAtBottom || messages.length === 1) {
       setTimeout(() => scrollToBottom(true), 100);
     }
   }, [messages]);
 
-  /**
-   * Gestion moderne de la navigation mobile
-   */
   const handleSelectConversation = async (conversation: Conversation) => {
     console.log('Sélection de conversation:', conversation.id);
     setSelectedConversation(conversation);
-    setCurrentView('chat'); // Navigation mobile
+    setCurrentView('chat');
     
     if (conversation.id === 'new-conversation') {
       clearMessages();
       return;
     }
     
-    await fetchMessages(conversation.listing_id, conversation.participant_id);
+    await fetchMessages(conversation.participant_id, conversation.listing_id);
     
-    // Marquer comme lu et auto-focus sur mobile
     if (conversation.unread_count > 0) {
-      markConversationAsRead(conversation.listing_id, conversation.participant_id);
+      markAsRead(conversation.participant_id, conversation.listing_id);
     }
     
-    // Auto-focus sur input (mobile-friendly)
     setTimeout(() => {
       if (window.innerWidth < 768) {
         inputRef.current?.focus();
@@ -233,19 +189,12 @@ const Messages = () => {
     }, 300);
   };
 
-  /**
-   * Retour à la liste des conversations (mobile)
-   */
   const handleBackToList = () => {
     setCurrentView('list');
     setSelectedConversation(null);
     setNewMessage('');
   };
 
-  /**
-   * NOUVEAU: Fonction pour créer le lien vers le profil du participant
-   * Génère l'URL avec les paramètres de retour appropriés
-   */
   const getProfileLink = (participantId: string, conversationId?: string): string => {
     const returnUrl = createReturnToMessagesUrl(conversationId, participantId);
     return `/seller-profile/${participantId}?${new URLSearchParams({ 
@@ -254,9 +203,6 @@ const Messages = () => {
     }).toString()}`;
   };
 
-  /**
-   * Gestion des liens de conversation directs 
-   */
   useEffect(() => {
     const sellerId = searchParams.get('sellerId');
     const sellerName = searchParams.get('sellerName');
@@ -286,9 +232,9 @@ const Messages = () => {
         
         sessionStorage.setItem('pendingConversation', JSON.stringify(newConversationData));
         
-        const newConv = {
+        const newConv: Conversation = {
           id: 'new-conversation',
-          listing_id: listingId || '',
+          listing_id: listingId || null,
           listing_title: 'Nouvelle conversation',
           listing_price: 0,
           listing_currency: 'CFA',
@@ -300,11 +246,9 @@ const Messages = () => {
           last_message: '',
           last_message_at: new Date().toISOString(),
           unread_count: 0,
-          total_messages: 0,
-          conversation_type: 'standard',
           participant_status: userPresence[sellerId]?.status || 'offline',
           is_typing: false
-        } as Conversation;
+        };
         
         handleSelectConversation(newConv);
       }
@@ -313,9 +257,6 @@ const Messages = () => {
     }
   }, [searchParams, conversations, navigate, userPresence]);
 
-  /**
-   * Gestion moderne de l'indicateur de frappe
-   */
   const handleTypingChange = (value: string) => {
     setNewMessage(value);
     
@@ -323,7 +264,7 @@ const Messages = () => {
 
     if (value.length > 0 && !isTyping) {
       setIsTyping(true);
-      sendTypingIndicator(selectedConversation.id, true);
+      sendTyping(selectedConversation.id, true);
     }
 
     if (typingTimeoutRef.current) {
@@ -333,14 +274,11 @@ const Messages = () => {
     typingTimeoutRef.current = setTimeout(() => {
       if (isTyping) {
         setIsTyping(false);
-        sendTypingIndicator(selectedConversation.id, false);
+        sendTyping(selectedConversation.id, false);
       }
     }, 2000);
   };
 
-  /**
-   * Envoi de message amélioré
-   */
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -348,16 +286,16 @@ const Messages = () => {
     
     setIsSending(true);
     const messageToSend = newMessage.trim();
-    setNewMessage(''); // Clear immédiatement pour une UX fluide
+    setNewMessage('');
 
     try {
       if (isTyping) {
         setIsTyping(false);
-        sendTypingIndicator(selectedConversation.id, false);
+        sendTyping(selectedConversation.id, false);
       }
 
       let targetUserId: string;
-      let targetListingId: string;
+      let targetListingId: string | null;
 
       if (selectedConversation.id === 'new-conversation') {
         const pendingData = sessionStorage.getItem('pendingConversation');
@@ -365,10 +303,10 @@ const Messages = () => {
 
         const { sellerId, listingId } = JSON.parse(pendingData);
         targetUserId = sellerId;
-        targetListingId = listingId || selectedConversation.listing_id;
+        targetListingId = listingId || null;
         sessionStorage.removeItem('pendingConversation');
       } else {
-        if (!selectedConversation.participant_id || !selectedConversation.is_participant_registered) {
+        if (!selectedConversation.participant_id) {
           console.error('Impossible d\'envoyer un message à cet utilisateur');
           return;
         }
@@ -376,7 +314,7 @@ const Messages = () => {
         targetListingId = selectedConversation.listing_id;
       }
 
-      const success = await sendMessage(targetListingId, targetUserId, messageToSend);
+      const success = await sendMessage(targetUserId, messageToSend, targetListingId);
 
       if (success) {
         inputRef.current?.focus();
@@ -392,7 +330,7 @@ const Messages = () => {
               
               if (newConversation) {
                 setSelectedConversation(newConversation);
-                fetchMessages(newConversation.listing_id, newConversation.participant_id);
+                fetchMessages(newConversation.participant_id, newConversation.listing_id);
               }
             }, 1000);
           }, 500);
@@ -400,13 +338,12 @@ const Messages = () => {
       }
     } catch (error) {
       console.error('Erreur lors de l\'envoi du message:', error);
-      setNewMessage(messageToSend); // Restaurer le message en cas d'erreur
+      setNewMessage(messageToSend);
     } finally {
       setIsSending(false);
     }
   };
 
-  // Fonctions utilitaires pour l'affichage
   const getUserStatus = (userId: string | null): 'online' | 'offline' | 'away' => {
     if (!userId) return 'offline';
     return userPresence[userId]?.status || 'offline';
@@ -433,7 +370,7 @@ const Messages = () => {
 
     return (
       <div className={cn(
-        'rounded-full border-2 border-white shadow-sm animate-pulse',
+        'rounded-full border-2 border-white shadow-sm',
         sizeClasses[size],
         statusColors[status],
         status === 'online' && 'animate-pulse'
@@ -441,14 +378,12 @@ const Messages = () => {
     );
   };
 
-  // Conversations filtrées
   const filteredConversations = conversations.filter(conv =>
     conv.participant_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    conv.listing_title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (conv.listing_title && conv.listing_title.toLowerCase().includes(searchTerm.toLowerCase())) ||
     conv.last_message.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Interface pour utilisateur non connecté
   if (!user) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
@@ -479,7 +414,6 @@ const Messages = () => {
     <div className="min-h-screen bg-slate-50 flex flex-col">
       <Header />
       
-      {/* Indicateur de connexion moderne */}
       {!isConnected && (
         <div className="bg-gradient-to-r from-red-500 to-red-600 text-white px-4 py-3 text-center text-sm flex items-center justify-center gap-2 shadow-lg">
           <WifiOff className="h-4 w-4 animate-pulse" />
@@ -487,18 +421,15 @@ const Messages = () => {
         </div>
       )}
       
-      {/* Container principal avec hauteur fixe mobile-friendly */}
       <main className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         
-        {/* LISTE DES CONVERSATIONS - Mobile First */}
+        {/* LISTE DES CONVERSATIONS */}
         <div className={cn(
           "flex flex-col bg-white border-r border-slate-200",
           "lg:w-1/3 xl:w-1/4",
-          // Navigation mobile moderne
           currentView === 'chat' ? "hidden lg:flex" : "flex"
         )}>
           
-          {/* En-tête moderne avec recherche intégrée */}
           <div className="bg-white border-b border-slate-100 p-4 space-y-4">
             <div className="flex items-center justify-between">
               <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
@@ -526,7 +457,6 @@ const Messages = () => {
               </div>
             </div>
             
-            {/* Barre de recherche moderne */}
             {showSearch && (
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -540,7 +470,6 @@ const Messages = () => {
               </div>
             )}
             
-            {/* Stats modernes */}
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>{conversations.length} conversation{conversations.length > 1 ? 's' : ''}</span>
               <div className="flex items-center gap-2">
@@ -552,7 +481,6 @@ const Messages = () => {
             </div>
           </div>
 
-          {/* Liste des conversations avec scroll moderne */}
           <ScrollArea className="flex-1">
             <div className="p-2 space-y-1">
               {loading && conversations.length === 0 ? (
@@ -578,7 +506,6 @@ const Messages = () => {
               ) : (
                 filteredConversations.map((conversation) => {
                   const participantStatus = getUserStatus(conversation.participant_id);
-                  const isOnline = participantStatus === 'online';
                   
                   return (
                     <div
@@ -593,7 +520,6 @@ const Messages = () => {
                       onClick={() => handleSelectConversation(conversation)}
                     >
                       <div className="flex items-center gap-3">
-                        {/* Avatar moderne avec indicateurs - NOUVEAU: Lien vers le profil */}
                         <div className="relative flex-shrink-0">
                           {conversation.is_participant_registered && conversation.participant_id ? (
                             <Link 
@@ -602,32 +528,21 @@ const Messages = () => {
                               className="block transition-transform hover:scale-105"
                             >
                               <Avatar className="h-12 w-12 border-2 border-white shadow-lg hover:shadow-xl transition-shadow">
-                                <AvatarImage src={conversation.participant_avatar} />
-                                <AvatarFallback className={cn(
-                                  "font-semibold text-sm",
-                                  conversation.is_participant_registered 
-                                    ? "bg-gradient-to-br from-blue-500 to-purple-600 text-white" 
-                                    : "bg-gradient-to-br from-orange-400 to-red-500 text-white"
-                                )}>
+                                <AvatarImage src={conversation.participant_avatar || undefined} />
+                                <AvatarFallback className="font-semibold text-sm bg-gradient-to-br from-blue-500 to-purple-600 text-white">
                                   {conversation.participant_name.charAt(0).toUpperCase()}
                                 </AvatarFallback>
                               </Avatar>
                             </Link>
                           ) : (
                             <Avatar className="h-12 w-12 border-2 border-white shadow-lg">
-                              <AvatarImage src={conversation.participant_avatar} />
-                              <AvatarFallback className={cn(
-                                "font-semibold text-sm",
-                                conversation.is_participant_registered 
-                                  ? "bg-gradient-to-br from-blue-500 to-purple-600 text-white" 
-                                  : "bg-gradient-to-br from-orange-400 to-red-500 text-white"
-                              )}>
+                              <AvatarImage src={conversation.participant_avatar || undefined} />
+                              <AvatarFallback className="font-semibold text-sm bg-gradient-to-br from-blue-500 to-purple-600 text-white">
                                 {conversation.participant_name.charAt(0).toUpperCase()}
                               </AvatarFallback>
                             </Avatar>
                           )}
                           
-                          {/* Badge de présence moderne */}
                           <div className="absolute -bottom-0.5 -right-0.5">
                             {conversation.is_participant_registered ? (
                               renderPresenceBadge(participantStatus, true, 'md')
@@ -639,7 +554,6 @@ const Messages = () => {
                           </div>
                         </div>
                         
-                        {/* Contenu de la conversation */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-2 mb-1">
                             <h4 className={cn(
@@ -647,11 +561,6 @@ const Messages = () => {
                               conversation.unread_count > 0 ? "text-slate-900" : "text-slate-700"
                             )}>
                               {conversation.participant_name}
-                              {!conversation.is_participant_registered && (
-                                <Badge variant="outline" className="ml-2 text-xs border-orange-300 text-orange-700">
-                                  Invité
-                                </Badge>
-                              )}
                             </h4>
                             
                             <div className="flex items-center gap-2 flex-shrink-0">
@@ -666,7 +575,6 @@ const Messages = () => {
                             </div>
                           </div>
                           
-                          {/* Dernier message avec typing indicator */}
                           <div className="flex items-center justify-between">
                             {conversation.is_typing ? (
                               <div className="flex items-center gap-2 text-blue-600">
@@ -689,14 +597,15 @@ const Messages = () => {
                             )}
                           </div>
                           
-                          {/* Info produit compacte */}
                           {conversation.listing_title && conversation.listing_title !== 'Nouvelle conversation' && (
                             <div className="flex items-center gap-1 text-xs text-slate-500 mt-1">
                               <Circle className="h-1 w-1 fill-current" />
                               <span className="truncate">{conversation.listing_title}</span>
-                              <span className="font-medium text-blue-600 whitespace-nowrap">
-                                {conversation.listing_price.toLocaleString()} {conversation.listing_currency}
-                              </span>
+                              {conversation.listing_price && (
+                                <span className="font-medium text-blue-600 whitespace-nowrap">
+                                  {conversation.listing_price.toLocaleString()} {conversation.listing_currency}
+                                </span>
+                              )}
                             </div>
                           )}
                         </div>
@@ -709,14 +618,13 @@ const Messages = () => {
           </ScrollArea>
         </div>
 
-        {/* ZONE DE CHAT - Mobile First */}
+        {/* ZONE DE CHAT */}
         <div className={cn(
           "flex-1 flex flex-col bg-white",
           currentView === 'list' ? "hidden lg:flex" : "flex"
         )}>
           
           {!selectedConversation ? (
-            /* État vide moderne */
             <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50">
               <div className="text-center max-w-sm px-6">
                 <div className="w-24 h-24 mx-auto mb-8 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center">
@@ -724,13 +632,12 @@ const Messages = () => {
                 </div>
                 <h3 className="text-xl font-bold mb-4">Commencez une conversation</h3>
                 <p className="text-muted-foreground leading-relaxed">
-                  Sélectionnez une conversation dans la liste pour commencer à discuter avec vos acheteurs.
+                  Sélectionnez une conversation dans la liste pour commencer à discuter.
                 </p>
               </div>
             </div>
           ) : (
             <>
-              {/* En-tête de conversation moderne - NOUVEAU: Lien vers le profil */}
               <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center gap-3 shadow-sm">
                 <Button
                   variant="ghost"
@@ -748,26 +655,16 @@ const Messages = () => {
                       className="block transition-transform hover:scale-105"
                     >
                       <Avatar className="h-10 w-10 border-2 border-slate-100 hover:shadow-md transition-shadow cursor-pointer">
-                        <AvatarImage src={selectedConversation.participant_avatar} />
-                        <AvatarFallback className={cn(
-                          "font-medium text-sm",
-                          selectedConversation.is_participant_registered 
-                            ? "bg-gradient-to-br from-blue-500 to-purple-600 text-white" 
-                            : "bg-gradient-to-br from-orange-400 to-red-500 text-white"
-                        )}>
+                        <AvatarImage src={selectedConversation.participant_avatar || undefined} />
+                        <AvatarFallback className="font-medium text-sm bg-gradient-to-br from-blue-500 to-purple-600 text-white">
                           {selectedConversation.participant_name.charAt(0).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
                     </Link>
                   ) : (
                     <Avatar className="h-10 w-10 border-2 border-slate-100">
-                      <AvatarImage src={selectedConversation.participant_avatar} />
-                      <AvatarFallback className={cn(
-                        "font-medium text-sm",
-                        selectedConversation.is_participant_registered 
-                          ? "bg-gradient-to-br from-blue-500 to-purple-600 text-white" 
-                          : "bg-gradient-to-br from-orange-400 to-red-500 text-white"
-                      )}>
+                      <AvatarImage src={selectedConversation.participant_avatar || undefined} />
+                      <AvatarFallback className="font-medium text-sm bg-gradient-to-br from-blue-500 to-purple-600 text-white">
                         {selectedConversation.participant_name.charAt(0).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
@@ -812,12 +709,10 @@ const Messages = () => {
                 </Button>
               </div>
               
-              {/* Zone des messages avec scroll intelligent */}
               <div className="flex-1 relative bg-slate-50">
                 <ScrollArea className="h-full" ref={messagesContainerRef}>
                   <div className="px-4 py-6 space-y-4">
                     {selectedConversation.id === 'new-conversation' ? (
-                      /* Interface de nouvelle conversation */
                       <div className="text-center py-16">
                         <div className="w-16 h-16 mx-auto mb-6 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center">
                           <Plus className="h-8 w-8 text-blue-500" />
@@ -837,7 +732,6 @@ const Messages = () => {
                         </div>
                       </div>
                     ) : messages.length === 0 ? (
-                      /* Conversation vide */
                       <div className="text-center py-16">
                         <div className="w-16 h-16 mx-auto mb-6 bg-white rounded-full flex items-center justify-center shadow-lg">
                           <MessageCircle className="h-8 w-8 text-slate-400" />
@@ -848,15 +742,11 @@ const Messages = () => {
                         </p>
                       </div>
                     ) : (
-                      /* Messages de la conversation */
                       <>
                         {messages.map((message, index) => {
-                          const isFromCurrentUser = message.sender_info.id === user.id;
-                          const isGuestMessage = message.type === 'guest';
-                          const isFirstGuestMessage = isGuestMessage && index === 0;
-                          const showAvatar = !isFromCurrentUser && (index === 0 || messages[index - 1]?.sender_info.id !== message.sender_info.id);
+                          const isFromCurrentUser = message.sender_id === user.id;
+                          const showAvatar = !isFromCurrentUser && (index === 0 || messages[index - 1]?.sender_id !== message.sender_id);
                           
-                          // Logique pour afficher les séparateurs de date (pas d'heure)
                           const currentMessageDate = new Date(message.created_at);
                           const previousMessageDate = index > 0 ? new Date(messages[index - 1].created_at) : null;
                           const showDateSeparator = index === 0 || 
@@ -865,7 +755,6 @@ const Messages = () => {
                           
                           return (
                             <div key={message.id} className="space-y-3">
-                              {/* Séparateur de date (moderne style WhatsApp/Telegram) */}
                               {showDateSeparator && (
                                 <div className="flex justify-center">
                                   <div className="bg-white px-4 py-2 rounded-full text-xs font-medium text-muted-foreground border border-slate-200 shadow-sm">
@@ -874,59 +763,33 @@ const Messages = () => {
                                 </div>
                               )}
                               
-                              {/* Alert pour messages d'invités */}
-                              {isFirstGuestMessage && (
-                                <Alert className="border-orange-200 bg-gradient-to-r from-orange-50 to-yellow-50 rounded-2xl">
-                                  <AlertCircle className="h-4 w-4 text-orange-600" />
-                                  <AlertDescription>
-                                    <div className="space-y-3">
-                                      <p className="font-semibold text-orange-800">Message d'un visiteur</p>
-                                      <div className="space-y-2 text-sm text-orange-700">
-                                        <div className="flex items-center gap-2 bg-white/50 px-3 py-2 rounded-xl">
-                                          <Mail className="h-4 w-4" />
-                                          <span className="font-medium">{message.sender_info.email}</span>
-                                        </div>
-                                        {message.sender_info.phone && (
-                                          <div className="flex items-center gap-2 bg-white/50 px-3 py-2 rounded-xl">
-                                            <Phone className="h-4 w-4" />
-                                            <span className="font-medium">{message.sender_info.phone}</span>
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </AlertDescription>
-                                </Alert>
-                              )}
-                              
-                              {/* Bulle de message moderne */}
                               <div className={cn(
                                 "flex items-end gap-3",
                                 isFromCurrentUser ? "justify-end" : "justify-start"
                               )}>
-                                {/* Avatar (côté gauche pour les autres) */}
                                 {showAvatar && !isFromCurrentUser && (
                                   <div className="relative mb-1">
-                                    {message.sender_info.is_registered && message.sender_info.id ? (
+                                    {message.sender_info?.is_registered && message.sender_info?.id ? (
                                       <Link 
                                         to={getProfileLink(message.sender_info.id, selectedConversation.id)}
                                         className="block transition-transform hover:scale-105"
                                       >
                                         <Avatar className="h-8 w-8 border-2 border-white shadow-md hover:shadow-lg transition-shadow cursor-pointer">
-                                          <AvatarImage src={message.sender_info.avatar_url} />
+                                          <AvatarImage src={message.sender_info?.avatar_url || undefined} />
                                           <AvatarFallback className="text-xs bg-gradient-to-br from-slate-400 to-slate-500 text-white">
-                                            {message.sender_info.name?.charAt(0) || 'U'}
+                                            {message.sender_info?.name?.charAt(0) || 'U'}
                                           </AvatarFallback>
                                         </Avatar>
                                       </Link>
                                     ) : (
                                       <Avatar className="h-8 w-8 border-2 border-white shadow-md">
-                                        <AvatarImage src={message.sender_info.avatar_url} />
+                                        <AvatarImage src={message.sender_info?.avatar_url || undefined} />
                                         <AvatarFallback className="text-xs bg-gradient-to-br from-slate-400 to-slate-500 text-white">
-                                          {message.sender_info.name?.charAt(0) || 'U'}
+                                          {message.sender_info?.name?.charAt(0) || 'U'}
                                         </AvatarFallback>
                                       </Avatar>
                                     )}
-                                    {message.sender_info.is_registered && message.sender_info.id && (
+                                    {message.sender_info?.is_registered && message.sender_info?.id && (
                                       <div className="absolute -bottom-0.5 -right-0.5">
                                         {renderPresenceBadge(getUserStatus(message.sender_info.id), true, 'sm')}
                                       </div>
@@ -934,25 +797,19 @@ const Messages = () => {
                                   </div>
                                 )}
                                 
-                                {/* Espace pour aligner les messages quand pas d'avatar */}
                                 {!showAvatar && !isFromCurrentUser && <div className="w-8"></div>}
                                 
-                                {/* Bulle de message avec design moderne */}
                                 <div className={cn(
                                   "max-w-[85%] sm:max-w-[75%] rounded-2xl px-4 py-3 shadow-sm relative",
                                   "break-words hyphens-auto",
                                   isFromCurrentUser
                                     ? "bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-br-md ml-auto"
-                                    : isGuestMessage
-                                    ? "bg-gradient-to-br from-orange-50 to-orange-100 text-orange-900 border border-orange-200 rounded-bl-md"
                                     : "bg-white text-slate-900 border border-slate-200 rounded-bl-md shadow-md"
                                 )}>
-                                  {/* Contenu du message */}
                                   <p className="text-sm leading-relaxed whitespace-pre-wrap">
                                     {message.content}
                                   </p>
                                   
-                                  {/* Métadonnées du message */}
                                   <div className={cn(
                                     "flex items-center justify-end gap-1.5 mt-2 text-xs",
                                     isFromCurrentUser 
@@ -966,26 +823,17 @@ const Messages = () => {
                                       })}
                                     </span>
                                     
-                                    {/* Indicateurs de lecture */}
                                     {isFromCurrentUser && (
                                       <div className="flex items-center">
-                                        {message.is_read ? (
+                                        {message.read ? (
                                           <CheckCheck className="h-3.5 w-3.5 text-blue-200" />
                                         ) : (
                                           <Check className="h-3.5 w-3.5 text-blue-300" />
                                         )}
                                       </div>
                                     )}
-                                    
-                                    {/* Badge invité */}
-                                    {isGuestMessage && (
-                                      <Badge variant="outline" className="text-xs border-orange-300 text-orange-700 bg-orange-50">
-                                        Invité
-                                      </Badge>
-                                    )}
                                   </div>
                                   
-                                  {/* Queue de la bulle (design moderne) */}
                                   <div className={cn(
                                     "absolute bottom-0 w-4 h-4",
                                     isFromCurrentUser 
@@ -998,7 +846,6 @@ const Messages = () => {
                           );
                         })}
                         
-                        {/* Indicateur de frappe en cours */}
                         {selectedConversation.is_typing && (
                           <div className="flex items-end gap-3">
                             <div className="w-8"></div>
@@ -1018,12 +865,10 @@ const Messages = () => {
                       </>
                     )}
                     
-                    {/* Marqueur de fin de messages */}
                     <div ref={messagesEndRef} className="h-4" />
                   </div>
                 </ScrollArea>
                 
-                {/* Bouton "Scroll to bottom" moderne */}
                 {showScrollToBottom && (
                   <div className="absolute bottom-4 right-4">
                     <Button
@@ -1038,14 +883,11 @@ const Messages = () => {
                 )}
               </div>
 
-              {/* Zone de saisie moderne */}
               <div className="bg-white border-t border-slate-200 p-4">
                 {selectedConversation.is_participant_registered && 
                  (selectedConversation.participant_id || selectedConversation.id === 'new-conversation') ? (
                   <form onSubmit={handleSendMessage} className="space-y-3">
-                    {/* Interface de saisie moderne */}
                     <div className="flex items-end gap-3">
-                      {/* Zone de texte avec design moderne */}
                       <div className="flex-1 relative">
                         <div className="relative bg-slate-100 rounded-3xl border border-slate-200 focus-within:border-blue-400 focus-within:bg-white transition-all duration-200">
                           <Input
@@ -1063,7 +905,6 @@ const Messages = () => {
                             }}
                           />
                           
-                          {/* Boutons d'actions dans l'input (style moderne) */}
                           <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-1">
                             <Button
                               type="button"
@@ -1078,7 +919,6 @@ const Messages = () => {
                         </div>
                       </div>
                       
-                      {/* Bouton d'envoi moderne */}
                       <Button 
                         type="submit" 
                         size="lg"
@@ -1101,7 +941,6 @@ const Messages = () => {
                       </Button>
                     </div>
                     
-                    {/* Indicateurs de statut modernes */}
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <div className="flex items-center gap-2">
                         {!isConnected ? (
@@ -1130,7 +969,6 @@ const Messages = () => {
                     </div>
                   </form>
                 ) : (
-                  /* Interface pour invités non-enregistrés */
                   <div className="text-center space-y-4 py-2">
                     <div className="bg-gradient-to-r from-orange-50 to-yellow-50 border border-orange-200 rounded-2xl p-4">
                       <p className="text-sm font-medium text-orange-800 mb-3">
@@ -1166,13 +1004,6 @@ const Messages = () => {
           )}
         </div>
       </main>
-      
-      {/* Footer masqué sur mobile en mode chat */}
-      <div className={cn(
-        currentView === 'chat' ? "hidden lg:block" : "block"
-      )}>
-        
-      </div>
     </div>
   );
 };

@@ -1,4 +1,4 @@
-// hooks/useMessages.ts - VERSION SIMPLIFIÉE ET ROBUSTE
+// hooks/useMessages.ts 
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
