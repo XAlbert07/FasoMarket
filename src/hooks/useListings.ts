@@ -136,7 +136,6 @@ export const useListings = (): UseListingsReturn => {
    */
   const resolveCategoryId = useCallback(async (categoryName: string): Promise<string | null> => {
     try {
-      console.log(`Résolution catégorie: "${categoryName}"`);
       
       // Recherche par nom exact (plus rapide)
       let { data, error } = await supabase
@@ -146,7 +145,6 @@ export const useListings = (): UseListingsReturn => {
         .single();
 
       if (data && !error) {
-        console.log(`Trouvée par nom: ${data.id}`);
         return data.id;
       }
 
@@ -163,7 +161,6 @@ export const useListings = (): UseListingsReturn => {
         .single());
 
       if (data && !error) {
-        console.log(`Trouvée par slug: ${data.id}`);
         return data.id;
       }
 
@@ -176,7 +173,6 @@ export const useListings = (): UseListingsReturn => {
         .single());
 
       if (data && !error) {
-        console.log(`Trouvée par recherche floue: ${data.id}`);
         return data.id;
       }
 
@@ -197,7 +193,6 @@ export const useListings = (): UseListingsReturn => {
     setError(null);
 
     try {
-      console.log('Requête optimisée avec filtres:', filters);
 
       // Construction de la requête base avec jointures
       let query = buildOptimizedQuery(
@@ -258,7 +253,6 @@ export const useListings = (): UseListingsReturn => {
         throw error;
       }
 
-      console.log(`${data?.length || 0} annonces récupérées avec catégories`);
 
       // Enrichissement avec profils utilisateur (1 requête supplémentaire)
       const enrichedListings = await enrichListingsBatch(data || []);
@@ -288,7 +282,6 @@ export const useListings = (): UseListingsReturn => {
     setError(null);
 
     try {
-      console.log('Requête simple optimisée');
 
       let query = supabase
         .from('listings')
@@ -365,7 +358,6 @@ export const useListings = (): UseListingsReturn => {
     setLastUserId(userId);
     
     try {
-      console.log("Annonces utilisateur optimisées:", userId);
       
       // Requête optimisée avec jointure catégorie pour MyListings
       const { data, error } = await supabase
@@ -384,7 +376,6 @@ export const useListings = (): UseListingsReturn => {
 
       if (error) throw error;
       
-      console.log("Récupérées:", data?.length || 0, "annonces utilisateur");
       
       // Transformation optimisée
       const processedListings: Listing[] = (data || []).map(listing => ({
@@ -544,7 +535,6 @@ export const useListing = (id: string) => {
     setError(null);
     
     try {
-      console.log(`Récupération annonce: ${id}`);
       
       // Requête principale avec jointure catégorie
       const { data, error } = await supabase
@@ -569,7 +559,6 @@ export const useListing = (id: string) => {
       setListing(enrichedListing);
       
       // Le comptage des vues est géré par useAutoRecordView
-      console.log('📊 Comptage délégué à useAutoRecordView');
 
     } catch (err) {
       console.error('Erreur annonce individuelle:', err);

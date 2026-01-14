@@ -76,6 +76,7 @@
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react-swc": "^3.11.0",
     "autoprefixer": "^10.4.21",
+    "baseline-browser-mapping": "^2.9.14",
     "cssnano": "^7.1.1",
     "eslint": "^9.32.0",
     "eslint-plugin-react-hooks": "^5.2.0",

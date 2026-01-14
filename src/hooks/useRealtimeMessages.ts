@@ -386,7 +386,6 @@ export const useRealtimeMessages = () => {
   useEffect(() => {
     if (!user?.id) return;
 
-    console.log('🔌 Initialisation Realtime pour:', user.id);
 
     messagesChannelRef.current = supabase
       .channel(`user_messages:${user.id}`)
@@ -400,7 +399,6 @@ export const useRealtimeMessages = () => {
           filter: `receiver_id=eq.${user.id}`
         },
         async (payload) => {
-          console.log('📨 Nouveau message reçu:', payload);
           
           const { data: senderData } = await supabase
             .from('profiles')
@@ -452,7 +450,6 @@ export const useRealtimeMessages = () => {
           filter: `sender_id=eq.${user.id}`
         },
         async (payload) => {
-          console.log('📤 Message envoyé confirmé:', payload);
           
           // Mettre à jour le message optimiste avec le vrai ID si nécessaire
           setMessages(prev => {
@@ -481,7 +478,6 @@ export const useRealtimeMessages = () => {
         }
       )
       .subscribe((status) => {
-        console.log('📡 Statut canal messages:', status);
         setIsConnected(status === 'SUBSCRIBED');
       });
 

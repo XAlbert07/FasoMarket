@@ -66,9 +66,7 @@ export const usePopularSearches = (userConfig: PopularSearchesConfig = {}) => {
     if (enableDebugLogs || process.env.NODE_ENV === 'development') {
       const timestamp = new Date().toISOString().split('T')[1].slice(0, 8);
       if (data !== undefined) {
-        console.log(`[${timestamp}] [PopularSearches] ${message}`, data);
       } else {
-        console.log(`[${timestamp}] [PopularSearches] ${message}`);
       }
     }
   }, [enableDebugLogs]);

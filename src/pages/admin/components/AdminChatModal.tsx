@@ -125,7 +125,6 @@ const AdminChatModal: React.FC<AdminChatModalProps> = ({
     setSending(true);
     
     try {
-      console.log('📧 [ADMIN_CHAT] Envoi message admin vers:', targetUser.email);
       
       // Récupérer le profil complet de l'admin pour les métadonnées
       const adminProfile = await fetchAdminProfile();
@@ -149,7 +148,6 @@ const AdminChatModal: React.FC<AdminChatModalProps> = ({
         read: false // Le message n'est pas lu par défaut
       };
 
-      console.log('📧 [ADMIN_CHAT] Données du message:', adminMessageData);
 
       // Insertion dans la table messages avec les champs spéciaux admin
       const { data: messageResult, error: messageError } = await supabase
@@ -163,7 +161,6 @@ const AdminChatModal: React.FC<AdminChatModalProps> = ({
         throw messageError;
       }
 
-      console.log('✅ [ADMIN_CHAT] Message admin envoyé avec succès:', messageResult.id);
 
       // Enregistrement de l'action dans les logs d'audit
       try {

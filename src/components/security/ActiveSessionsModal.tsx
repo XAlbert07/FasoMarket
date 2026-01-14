@@ -119,7 +119,6 @@ export const ActiveSessionsModal = ({
     setLocalError("");
 
     try {
-      console.log('Chargement des sessions actives...');
       
       // Appel à la vraie méthode du hook
       const rawSessions = await getActiveSessions();
@@ -138,7 +137,6 @@ export const ActiveSessionsModal = ({
       });
       
       setSessions(enrichedSessions);
-      console.log(`${enrichedSessions.length} sessions chargées`);
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Erreur lors du chargement des sessions";
@@ -173,7 +171,6 @@ export const ActiveSessionsModal = ({
     setLocalError("");
 
     try {
-      console.log('Terminaison de la session:', sessionId);
       
       await revokeSession(sessionId);
       
@@ -184,7 +181,6 @@ export const ActiveSessionsModal = ({
         onSuccess();
       }
       
-      console.log('Session terminée avec succès');
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Erreur lors de la déconnexion";
@@ -211,7 +207,6 @@ export const ActiveSessionsModal = ({
     setLocalError("");
 
     try {
-      console.log('Terminaison de toutes les autres sessions...');
       
       await revokeAllOtherSessions();
       
@@ -222,7 +217,6 @@ export const ActiveSessionsModal = ({
         onSuccess();
       }
       
-      console.log('Toutes les autres sessions terminées');
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Erreur lors de la déconnexion des sessions";

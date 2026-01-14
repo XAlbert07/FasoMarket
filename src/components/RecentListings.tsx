@@ -77,7 +77,6 @@ export const RecentListings = () => {
                         lazy={true}
                         quality="medium"
                         showLoadingState={true}
-                        onError={() => console.log(`Erreur de chargement pour l'annonce ${listing.id}`)}
                       />
                       
                       {/* Badge "Nouveau" - plus petit sur mobile */}
@@ -169,7 +168,6 @@ export const RecentListings = () => {
                       quality="high"
                       showLoadingState={true}
                       sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                      onLoad={() => console.log(`Image chargée pour l'annonce ${listing.id}`)}
                     />
                     
                     {/* Badge "Nouveau" */}

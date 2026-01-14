@@ -139,13 +139,11 @@ export const useListingViews = () => {
   const recordView = useCallback(async (listingId: string, listingOwnerId?: string): Promise<boolean> => {
     // Éviter les appels multiples simultanés
     if (recordingViews.current.has(listingId)) {
-      console.log(`⏳ Enregistrement déjà en cours pour ${listingId}`);
       return false;
     }
     
     //AJOUT : Vérifier si c'est le propriétaire
     if (user?.id && listingOwnerId && user.id === listingOwnerId) {
-      console.log('👤 Propriétaire - pas d\'enregistrement de vue');
       return false;
     }
 
@@ -159,7 +157,6 @@ export const useListingViews = () => {
       const twentyFourHoursAgo = new Date();
       twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
 
-      console.log(`🔍 Vérification vue récente pour visiteur ${visitorId}`);
 
       // Vérifier si ce visiteur a déjà vu cette annonce récemment
       const { data: existingView, error: checkError } = await supabase
@@ -176,7 +173,6 @@ export const useListingViews = () => {
 
       // Si une vue récente existe, ne pas comptabiliser
       if (existingView) {
-        console.log(`✓ Vue déjà enregistrée récemment (${new Date(existingView.viewed_at).toLocaleString()})`);
         return false;
       }
 
@@ -200,7 +196,6 @@ export const useListingViews = () => {
         throw insertError;
       }
 
-      console.log(`✅ Vue enregistrée avec succès pour ${listingId}`);
 
       // Incrémenter le compteur dans la table listings de manière atomique
       // Note : Cette méthode utilise une fonction RPC pour éviter les race conditions
@@ -488,7 +483,6 @@ export const useAutoRecordView = (
 
     // Vérification avant d'enregistrer
     if (checkIfAlreadyViewed()) {
-      console.log(`📊 Vue déjà enregistrée dans cette session pour ${listingId}`);
       hasRecorded.current = true;
       return;
     }
@@ -502,7 +496,6 @@ export const useAutoRecordView = (
       if (success) {
         hasRecorded.current = true;
         markAsViewed();
-        console.log(`📊 Vue auto-enregistrée pour ${listingId}`);
       }
     };
 

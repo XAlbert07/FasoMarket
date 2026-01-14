@@ -107,7 +107,6 @@ export const useSellerReviews = (sellerId: string, initialFilters?: ReviewsFilte
       setLoading(true);
       setError(null);
 
-      console.log('🔍 Récupération des avis pour le vendeur:', sellerId);
 
       let query = supabase
         .from('reviews')
@@ -159,7 +158,6 @@ export const useSellerReviews = (sellerId: string, initialFilters?: ReviewsFilte
       const offset = currentFilters.offset || 0;
       query = query.range(offset, offset + limit - 1);
 
-      console.log('🚀 Exécution de la requête...');
       const { data: reviewsData, error: reviewsError } = await query;
 
       if (reviewsError) {
@@ -167,8 +165,6 @@ export const useSellerReviews = (sellerId: string, initialFilters?: ReviewsFilte
         throw new Error(`Erreur lors de la récupération des avis: ${reviewsError.message}`);
       }
 
-      console.log('✅ Données reçues:', reviewsData?.length, 'avis');
-      console.log('📋 Premier avis exemple:', reviewsData?.[0]);
 
       const transformedReviews: SellerReview[] = (reviewsData || []).map(item => {
         // Gestion des données relationnelles avec vérification des types
@@ -200,8 +196,6 @@ export const useSellerReviews = (sellerId: string, initialFilters?: ReviewsFilte
       const calculatedStats = calculateReviewsStats(reviewsData || []);
       setStats(calculatedStats);
 
-      console.log('✨ Avis traités:', transformedReviews.length);
-      console.log('📊 Statistiques:', calculatedStats);
 
     } catch (err) {
       console.error('💥 Erreur dans useSellerReviews:', err);
@@ -270,7 +264,6 @@ export const useSellerReviewsSimple = (sellerId: string) => {
       }
 
       try {
-        console.log('🔍 Test simple pour sellerId:', sellerId);
         
         // Requête ultra-simple pour tester
         const { data, error } = await supabase
@@ -278,8 +271,6 @@ export const useSellerReviewsSimple = (sellerId: string) => {
           .select('*')
           .eq('seller_id', sellerId);
 
-        console.log('📊 Résultats bruts:', data);
-        console.log('❌ Erreur éventuelle:', error);
 
         if (error) throw error;
         

@@ -101,7 +101,6 @@ export const useFavorites = () => {
     setLoading(true);
 
     try {
-      console.log('Début de fetchFavorites avec enrichissement pour user:', user.id);
 
       // Étape 1 : Récupérer les favoris avec les données de base des listings
       const { data, error } = await supabase
@@ -118,7 +117,6 @@ export const useFavorites = () => {
         throw error;
       }
 
-      console.log(`Récupération réussie: ${data?.length || 0} favoris trouvés`);
 
       // Étape 2 : Enrichir chaque listing avec les données liées
       const enrichedFavorites: Favorite[] = [];
@@ -142,7 +140,6 @@ export const useFavorites = () => {
         }
       }
 
-      console.log(`Enrichissement terminé: ${enrichedFavorites.length} favoris enrichis`);
       setFavorites(enrichedFavorites);
 
     } catch (error) {

@@ -96,10 +96,8 @@ export interface AuthContextType {
 const createLogger = (context: string) => {
   return {
     info: (message: string, data?: any) => {
-      console.log(`🔵 [${context}] ${message}`, data ? data : '')
     },
     success: (message: string, data?: any) => {
-      console.log(`✅ [${context}] ${message}`, data ? data : '')
     },
     warning: (message: string, data?: any) => {
       console.warn(`⚠️ [${context}] ${message}`, data ? data : '')
@@ -108,7 +106,6 @@ const createLogger = (context: string) => {
       console.error(`❌ [${context}] ${message}`, error ? error : '')
     },
     debug: (message: string, data?: any) => {
-      console.log(`🔍 [${context}] ${message}`, data ? data : '')
     }
   }
 }
@@ -406,7 +403,6 @@ export const useAuth = (): AuthContextType => {
           ignoreDuplicates: false 
         })
 
-      console.log('Session courante trackée avec succès')
     } catch (error) {
       console.warn('Erreur lors du tracking de session (non critique):', error)
     }
@@ -430,7 +426,6 @@ export const useAuth = (): AuthContextType => {
         .eq('user_id', user.id)
         .lt('expires_at', now)
 
-      console.log('Initialisation du tracking de session terminée')
     } catch (error) {
       console.warn('Erreur lors de l\'initialisation du tracking:', error)
     }
@@ -445,7 +440,6 @@ export const useAuth = (): AuthContextType => {
     }
 
     try {
-      console.log('Récupération des sessions actives pour:', user.email)
 
       // APPROCHE HYBRIDE : Combiner session courante + historique de tracking
       const sessions: ActiveSession[] = []
@@ -536,7 +530,6 @@ export const useAuth = (): AuthContextType => {
     }
 
     try {
-      console.log('Révocation de la session:', sessionId)
 
       // 1. Marquer la session comme inactive dans notre table de tracking
       const { error: updateError } = await supabase
@@ -583,7 +576,6 @@ export const useAuth = (): AuthContextType => {
     }
 
     try {
-      console.log('Révocation de toutes les autres sessions pour:', user.email)
 
       const currentSessionId = session.access_token.substring(0, 16)
 
@@ -1022,7 +1014,6 @@ export const useAuth = (): AuthContextType => {
     }
 
     try {
-      console.log('Changement de mot de passe pour l\'utilisateur:', user.email)
 
       // Vérifier le mot de passe actuel
       const { error: verifyError } = await supabase.auth.signInWithPassword({
@@ -1043,7 +1034,6 @@ export const useAuth = (): AuthContextType => {
         throw updateError
       }
 
-      console.log('Mot de passe changé avec succès')
       
       toast({
         title: "Mot de passe modifié",
@@ -1068,7 +1058,6 @@ export const useAuth = (): AuthContextType => {
    */
   const resetPassword = async (email: string): Promise<void> => {
     try {
-      console.log('Demande de réinitialisation de mot de passe pour:', email)
       
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`
@@ -1101,23 +1090,19 @@ const setupMFA = async (): Promise<{ qr_code: string; secret: string; backup_cod
   }
 
   try {
-    console.log('Configuration MFA pour l\'utilisateur:', user.email)
 
     // ÉTAPE 1: Debug initial
     await debugMFAState()
 
     // ÉTAPE 2: Nettoyer les facteurs existants
-    console.log('Vérification des facteurs MFA existants...')
     
     const { data: existingFactors, error: listError } = await supabase.auth.mfa.listFactors()
     
     if (listError) {
       console.warn('Erreur lors de la vérification des facteurs existants:', listError)
     } else if (existingFactors?.totp && existingFactors.totp.length > 0) {
-      console.log(`${existingFactors.totp.length} facteur(s) TOTP existant(s) détecté(s)`)
       
       for (const factor of existingFactors.totp) {
-        console.log(`Suppression du facteur existant: ${factor.id} (status: ${factor.status})`)
         
         try {
           const { error: unenrollError } = await supabase.auth.mfa.unenroll({
@@ -1127,7 +1112,6 @@ const setupMFA = async (): Promise<{ qr_code: string; secret: string; backup_cod
           if (unenrollError) {
             console.warn(`Erreur lors de la suppression du facteur ${factor.id}:`, unenrollError)
           } else {
-            console.log(`Facteur ${factor.id} supprimé avec succès`)
           }
         } catch (factorError) {
           console.warn(`Exception lors de la suppression du facteur ${factor.id}:`, factorError)
@@ -1137,7 +1121,6 @@ const setupMFA = async (): Promise<{ qr_code: string; secret: string; backup_cod
       // Délai pour s'assurer que les suppressions sont prises en compte
       await new Promise(resolve => setTimeout(resolve, 1000))
     } else {
-      console.log('Aucun facteur MFA existant trouvé')
     }
 
     // ÉTAPE 3: Nettoyer les anciens codes de sauvegarde
@@ -1150,14 +1133,12 @@ const setupMFA = async (): Promise<{ qr_code: string; secret: string; backup_cod
       if (deleteBackupError && deleteBackupError.code !== 'PGRST116') {
         console.warn('Erreur lors de la suppression des anciens codes de sauvegarde:', deleteBackupError)
       } else {
-        console.log('Anciens codes de sauvegarde nettoyés')
       }
     } catch (backupCleanError) {
       console.warn('Exception lors du nettoyage des codes de sauvegarde:', backupCleanError)
     }
 
     // ÉTAPE 4: Créer un nouveau facteur TOTP
-    console.log('Création d\'un nouveau facteur TOTP...')
     
     const { data: factor, error: enrollError } = await supabase.auth.mfa.enroll({
       factorType: 'totp',
@@ -1173,7 +1154,6 @@ const setupMFA = async (): Promise<{ qr_code: string; secret: string; backup_cod
       throw new Error("Aucune donnée de facteur retournée lors de l'enrôlement")
     }
 
-    console.log('Nouveau facteur TOTP créé avec succès:', factor.id)
 
     // ÉTAPE 5: Vérifier immédiatement que le facteur existe
     await debugMFAState()
@@ -1201,13 +1181,11 @@ const setupMFA = async (): Promise<{ qr_code: string; secret: string; backup_cod
       if (backupError) {
         console.error('Erreur lors de la sauvegarde des codes de récupération:', backupError)
       } else {
-        console.log('Codes de sauvegarde stockés avec succès')
       }
     } catch (backupSaveError) {
       console.error('Exception lors de la sauvegarde des codes:', backupSaveError)
     }
 
-    console.log('Configuration MFA initialisée avec succès')
 
     return {
       qr_code: factor.totp.qr_code,
@@ -1247,13 +1225,10 @@ const setupMFA = async (): Promise<{ qr_code: string; secret: string; backup_cod
  */
 const debugMFAState = async (): Promise<void> => {
   if (!user) {
-    console.log('❌ Aucun utilisateur connecté')
     return
   }
 
   try {
-    console.log('🔍 === DIAGNOSTIC MFA COMPLET ===')
-    console.log('Utilisateur:', user.id, user.email)
     
     const { data: factors, error } = await supabase.auth.mfa.listFactors()
     
@@ -1262,35 +1237,21 @@ const debugMFAState = async (): Promise<void> => {
       return
     }
     
-    console.log('📋 Facteurs récupérés:', factors)
     
     // Analyser factors.all
     if (factors?.all) {
-      console.log(`📊 Nombre total de facteurs: ${factors.all.length}`)
       factors.all.forEach((factor, index) => {
-        console.log(`   [ALL-${index}] ID: ${factor.id}`)
-        console.log(`   [ALL-${index}] Type/Factor_type: ${factor.factor_type || factor.factor_type}`)
-        console.log(`   [ALL-${index}] Status: ${factor.status}`)
-        console.log(`   [ALL-${index}] Friendly name: ${factor.friendly_name}`)
-        console.log(`   [ALL-${index}] Créé: ${factor.created_at}`)
       })
     } else {
-      console.log('❌ Aucun facteur dans factors.all')
     }
     
     // Analyser factors.totp
     if (factors?.totp) {
-      console.log(`📊 Nombre de facteurs TOTP: ${factors.totp.length}`)
       factors.totp.forEach((factor, index) => {
-        console.log(`   [TOTP-${index}] ID: ${factor.id}`)
-        console.log(`   [TOTP-${index}] Status: ${factor.status}`)
-        console.log(`   [TOTP-${index}] Créé: ${factor.created_at}`)
       })
     } else {
-      console.log('❌ Aucun facteur TOTP trouvé')
     }
     
-    console.log('🔍 === FIN DIAGNOSTIC ===')
     
   } catch (error) {
     console.error('❌ Erreur lors du diagnostic:', error)
@@ -1309,7 +1270,6 @@ const verifyMFA = async (code: string): Promise<BackupCode[]> => {
   }
 
   try {
-    console.log('Vérification du code MFA pour l\'utilisateur:', user.email)
 
     // Récupérer les facteurs en attente de vérification
     const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors()
@@ -1318,9 +1278,6 @@ const verifyMFA = async (code: string): Promise<BackupCode[]> => {
       throw factorsError || new Error("Erreur lors de la récupération des facteurs MFA")
     }
 
-    console.log('Facteurs MFA récupérés:', factors)
-    console.log('Nombre total de facteurs:', factors.all?.length || 0)
-    console.log('Facteurs TOTP spécifiques:', factors.totp?.length || 0)
 
     // Chercher dans tous les facteurs, pas seulement TOTP
     let totpFactor = null
@@ -1328,12 +1285,10 @@ const verifyMFA = async (code: string): Promise<BackupCode[]> => {
     // Option 1: Chercher dans factors.totp d'abord
     if (factors.totp && factors.totp.length > 0) {
       totpFactor = factors.totp.find(factor => factor.status === 'unverified') || factors.totp[0]
-      console.log('Facteur trouvé dans factors.totp:', totpFactor?.id)
     }
 
     // Option 2: Si pas trouvé, chercher dans factors.all pour les facteurs TOTP
     if (!totpFactor && factors.all && factors.all.length > 0) {
-      console.log('Recherche dans factors.all...')
       
       // Filtrer les facteurs de type TOTP dans factors.all
       const allTotpFactors = factors.all.filter(factor => 
@@ -1342,7 +1297,6 @@ const verifyMFA = async (code: string): Promise<BackupCode[]> => {
         factor.friendly_name?.includes('Authenticator')
       )
       
-      console.log('Facteurs TOTP trouvés dans all:', allTotpFactors)
       
       if (allTotpFactors.length > 0) {
         // Prendre le facteur non vérifié ou le plus récent
@@ -1350,17 +1304,14 @@ const verifyMFA = async (code: string): Promise<BackupCode[]> => {
                      allTotpFactors.sort((a, b) => 
                        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
                      )[0]
-        console.log('Facteur sélectionné depuis all:', totpFactor?.id)
       }
     }
     
     if (!totpFactor) {
       console.error('Aucun facteur TOTP trouvé nulle part')
-      console.log('Structure complète des facteurs:', JSON.stringify(factors, null, 2))
       throw new Error("Aucun facteur TOTP trouvé. Veuillez recommencer la configuration.")
     }
 
-    console.log('Facteur TOTP sélectionné:', totpFactor.id, 'Status:', totpFactor.status)
 
     // Créer un challenge pour ce facteur
     const { data: challenge, error: challengeError } = await supabase.auth.mfa.challenge({
@@ -1372,7 +1323,6 @@ const verifyMFA = async (code: string): Promise<BackupCode[]> => {
       throw challengeError || new Error("Erreur lors de la création du challenge MFA")
     }
 
-    console.log('Challenge MFA créé:', challenge.id)
 
     // Vérifier le code TOTP
     const { error: verifyError } = await supabase.auth.mfa.verify({
@@ -1394,7 +1344,6 @@ const verifyMFA = async (code: string): Promise<BackupCode[]> => {
       }
     }
 
-    console.log('Code MFA vérifié avec succès')
 
     // Récupérer les codes de sauvegarde
     const { data: backupCodesData, error: backupCodesError } = await supabase
@@ -1405,7 +1354,6 @@ const verifyMFA = async (code: string): Promise<BackupCode[]> => {
 
     const backupCodes: BackupCode[] = backupCodesData || []
 
-    console.log('MFA activé avec succès')
     
     toast({
       title: "2FA activé",
@@ -1435,7 +1383,6 @@ const verifyMFA = async (code: string): Promise<BackupCode[]> => {
     }
 
     try {
-      console.log('Désactivation MFA pour l\'utilisateur:', user.email)
 
       // Récupérer tous les facteurs actifs
       const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors()
@@ -1467,7 +1414,6 @@ const verifyMFA = async (code: string): Promise<BackupCode[]> => {
         console.error('Erreur lors de la suppression des codes de sauvegarde:', deleteBackupError)
       }
 
-      console.log('MFA désactivé avec succès')
       
       toast({
         title: "2FA désactivé",
@@ -1530,7 +1476,6 @@ const verifyMFA = async (code: string): Promise<BackupCode[]> => {
     }
 
     try {
-      console.log('Nettoyage complet de la configuration MFA pour:', user.email)
       
       // 1. Supprimer tous les facteurs MFA
       const { data: factors, error: listError } = await supabase.auth.mfa.listFactors()
@@ -1539,7 +1484,6 @@ const verifyMFA = async (code: string): Promise<BackupCode[]> => {
         for (const factor of factors.totp) {
           try {
             await supabase.auth.mfa.unenroll({ factorId: factor.id })
-            console.log(`Facteur ${factor.id} supprimé`)
           } catch (error) {
             console.warn(`Erreur suppression facteur ${factor.id}:`, error)
           }
@@ -1552,7 +1496,6 @@ const verifyMFA = async (code: string): Promise<BackupCode[]> => {
         .delete()
         .eq('user_id', user.id)
       
-      console.log('Nettoyage MFA terminé')
       
       toast({
         title: "Nettoyage effectué",

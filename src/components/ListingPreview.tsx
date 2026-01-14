@@ -103,7 +103,6 @@ const ListingPreview = ({ formData, isOpen, onClose, userFullName = "Vous" }: Li
                         quality="high"
                         showLoadingState={true}
                         sizes="(max-width: 768px) 100vw, (max-width: 1200px) 66vw, 50vw"
-                        onError={() => console.log("Erreur de chargement de l'image principale")}
                       />
                     </AspectRatio>
                     
@@ -148,7 +147,6 @@ const ListingPreview = ({ formData, isOpen, onClose, userFullName = "Vous" }: Li
                               lazy={true}
                               quality="medium"
                               showLoadingState={false} // Pas de loading state pour les miniatures
-                              onError={() => console.log(`Erreur miniature ${index + 1}`)}
                             />
                             {index === 3 && displayImages.length > 4 && (
                               <div className="absolute inset-0 bg-black/50 flex items-center justify-center text-white font-semibold text-sm">

@@ -183,12 +183,10 @@ const UsersTab: React.FC<UsersTabProps> = ({
   };
 
   const handleViewProfile = (user: any) => {
-    console.log('Consultation du profil de:', user.full_name || user.email);
     navigate(`/seller-profile/${user.id}`);
   };
 
   const handleOpenAdminChat = (user: any) => {
-    console.log('Ouverture chat avec:', user.full_name || user.email);
     setSelectedUserForChat(user);
     setChatModalOpen(true);
   };
@@ -201,7 +199,6 @@ const UsersTab: React.FC<UsersTabProps> = ({
     const userId = user.id;
     const userName = user.full_name || user.email;
     
-    console.log(`🔧 Action ${actionType} sur utilisateur:`, userName);
     setActionLoading(userId);
     
     try {
@@ -224,12 +221,10 @@ const UsersTab: React.FC<UsersTabProps> = ({
         };
       }
 
-      console.log('🔧 Action envoyée au hook:', action);
       
       const success = await handleUserAction(userId, action);
       
       if (success) {
-        console.log(`✅ Action ${actionType} réussie pour:`, userName);
         
         // Rafraîchir les données pour avoir l'état le plus récent
         if (refreshUsers) {

@@ -196,7 +196,6 @@ const ReportsTab: React.FC<ReportsTabProps> = ({
   // Logique des actions selon le statut
 const handleQuickAction = async (reportId: string, actionType: string, reason: string) => {
   try {
-    console.log(`🔧 [REPORTS] Action rapide: ${actionType} sur ${reportId}`, { reason });
     
     const success = await handleReportAction(reportId, {
       type: actionType,
@@ -205,7 +204,6 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
     });
     
     if (success) {
-      console.log(`✅ [REPORTS] Action ${actionType} appliquée avec succès sur le signalement ${reportId}`);
       
       // Message de confirmation selon l'action
       const messages = {

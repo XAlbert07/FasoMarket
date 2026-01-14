@@ -71,7 +71,6 @@ export const useGuestMessages = () => {
     setLoading(true);
 
     try {
-      console.log('📧 Envoi d\'un message d\'invité pour l\'annonce:', listingId);
 
       // Insertion du message d'invité dans la table spécialisée
       const { error } = await supabase
@@ -92,7 +91,6 @@ export const useGuestMessages = () => {
         throw error;
       }
 
-      console.log('✅ Message d\'invité envoyé avec succès');
       
       toast({
         title: "Message envoyé !",
@@ -132,7 +130,6 @@ export const useGuestMessages = () => {
     setLoading(true);
 
     try {
-      console.log('📋 Récupération des messages d\'invités pour le vendeur:', sellerId);
 
       // Récupération des messages avec les données de l'annonce associée
       const { data, error } = await supabase
@@ -155,7 +152,6 @@ export const useGuestMessages = () => {
         throw error;
       }
 
-      console.log(`✅ ${data?.length || 0} messages d'invités récupérés`);
       return data || [];
 
     } catch (error) {
@@ -189,7 +185,6 @@ export const useGuestMessages = () => {
 
       if (error) throw error;
 
-      console.log('✅ Message d\'invité marqué comme lu:', messageId);
     } catch (error) {
       console.error('❌ Erreur lors du marquage comme lu:', error);
       // On ne montre pas d'erreur à l'utilisateur pour cette action secondaire
@@ -214,7 +209,6 @@ export const useGuestMessages = () => {
 
       if (error) throw error;
 
-      console.log('✅ Message d\'invité marqué comme ayant reçu une réponse:', messageId);
     } catch (error) {
       console.error('❌ Erreur lors du marquage comme répondu:', error);
     }
@@ -255,7 +249,6 @@ const notifySellerOfGuestMessage = async (sellerId: string, guestName: string): 
     //   body: { sellerId, guestName }
     // });
 
-    console.log('✅ Notification envoyée au vendeur');
   } catch (error) {
     console.error('⚠️ Erreur lors de l\'envoi de la notification:', error);
     // On ne bloque pas l'envoi du message si la notification échoue

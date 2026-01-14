@@ -21,7 +21,6 @@ export const usePresenceCleanup = () => {
     isRunningRef.current = true;
 
     try {
-      console.log('🧹 Nettoyage des statuts de présence obsolètes...');
       
       // Calculer la date limite (10 minutes dans le passé pour éviter les faux positifs)
       const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
@@ -44,7 +43,6 @@ export const usePresenceCleanup = () => {
       }
 
       if (data && data.length > 0) {
-        console.log(`📴 ${data.length} utilisateur(s) marqué(s) comme hors ligne après inactivité`);
       }
 
     } catch (error) {
@@ -62,7 +60,6 @@ export const usePresenceCleanup = () => {
     if (!user || isRunningRef.current) return;
 
     try {
-      console.log('⌨️ Nettoyage des indicateurs de frappe expirés...');
       
       // Supprimer les indicateurs expirés (délai plus long pour éviter les suppressions prématurées)
       const { data, error } = await supabase
@@ -77,7 +74,6 @@ export const usePresenceCleanup = () => {
       }
 
       if (data && data.length > 0) {
-        console.log(`🗑️ ${data.length} indicateur(s) de frappe supprimé(s)`);
       }
 
     } catch (error) {
@@ -119,7 +115,6 @@ export const usePresenceCleanup = () => {
       return;
     }
 
-    console.log('🚀 Démarrage du nettoyage automatique de présence');
 
     // Exécuter immédiatement au démarrage (avec délai pour éviter les conflits d'initialisation)
     const initialCleanupTimeout = setTimeout(() => {
@@ -149,11 +144,9 @@ export const usePresenceCleanup = () => {
    */
   const manualCleanup = useCallback(async () => {
     if (isRunningRef.current) {
-      console.log('⚠️ Nettoyage déjà en cours - opération ignorée');
       return;
     }
 
-    console.log('🚀 Nettoyage manuel déclenché');
     await runCleanupTasks();
   }, [runCleanupTasks]);
 
@@ -165,7 +158,6 @@ export const usePresenceCleanup = () => {
     if (!user) return;
 
     try {
-      console.log('👋 Nettoyage pour utilisateur actuel:', user.id);
       
       // Marquer l'utilisateur actuel comme hors ligne
       const { error } = await supabase
@@ -180,7 +172,6 @@ export const usePresenceCleanup = () => {
       if (error) {
         console.error('Erreur lors de la mise à jour du statut utilisateur:', error);
       } else {
-        console.log('✅ Utilisateur actuel marqué comme hors ligne');
       }
 
     } catch (error) {

@@ -70,7 +70,6 @@ export const TwoFactorAuthModal = ({
   const checkMFAStatus = async () => {
     try {
       setIsLoading(true);
-      console.log('🔍 Vérification du statut MFA...');
       
       const status = await getMFAStatus();
       setIsMfaEnabled(status.enabled);
@@ -107,7 +106,6 @@ export const TwoFactorAuthModal = ({
     setLocalError("");
 
     try {
-      console.log('⚙️ Démarrage de la configuration MFA...');
       
       // Appel à la vraie méthode du hook
       const setupData = await setupMFA();
@@ -115,7 +113,6 @@ export const TwoFactorAuthModal = ({
       setMfaSetupData(setupData);
       setCurrentStep(TwoFAStep.VERIFICATION);
       
-      console.log('✅ Configuration MFA initialisée avec succès');
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Erreur lors de la configuration 2FA";
@@ -145,7 +142,6 @@ const handleVerifyCode = async () => {
   setLocalError("");
   
   try {
-    console.log('Vérification du code TOTP...');
     
     // Appel à la vraie méthode du hook
     const receivedBackupCodes = await verifyMFA(verificationCode);
@@ -155,7 +151,6 @@ const handleVerifyCode = async () => {
     setCurrentStep(TwoFAStep.BACKUP_CODES);
     setIsMfaEnabled(true);
     
-    console.log('Code TOTP vérifié avec succès');
     
   } catch (error) {
     console.error('Erreur de vérification:', error);
@@ -189,7 +184,6 @@ const handleVerifyCode = async () => {
     setLocalError("");
     
     try {
-      console.log('🔓 Désactivation de la 2FA...');
       
       // Appel à la vraie méthode du hook
       await disableMFA();
@@ -202,7 +196,6 @@ const handleVerifyCode = async () => {
         onSuccess();
       }
       
-      console.log('✅ 2FA désactivée avec succès');
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Erreur lors de la désactivation 2FA";
@@ -222,7 +215,6 @@ const handleVerifyCode = async () => {
     try {
       // Finalisation - pas d'appel API supplémentaire nécessaire
       // car la vérification du code a déjà activé la 2FA
-      console.log('✅ Activation 2FA finalisée');
       
       resetModalState();
       onClose();

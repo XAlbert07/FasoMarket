@@ -61,10 +61,8 @@ const MyListings = () => {
 
   useEffect(() => {
     if (user?.id) {
-      console.log("🔄 Chargement des annonces utilisateur pour ID:", user.id);
       fetchUserListings(user.id);
     } else {
-      console.log("⚠️ Aucun utilisateur connecté - nettoyage des données");
       clearListings();
     }
   }, [user?.id, fetchUserListings, clearListings]);
@@ -566,7 +564,6 @@ const MyListings = () => {
                             lazy={true}
                             quality="medium"
                             showLoadingState={true}
-                            onError={() => console.log(`Erreur de chargement pour l'annonce ${listing.id}`)}
                           />
                           
                           {/* Badge de statut */}
@@ -649,7 +646,6 @@ const MyListings = () => {
                           quality="high"
                           showLoadingState={true}
                           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                          onLoad={() => console.log(`Image chargée pour l'annonce ${listing.id}`)}
                         />
                         <div className="absolute top-2 md:top-3 left-2 md:left-3">
                           {getStatusBadge(listing.status, listing.suspension_type)}

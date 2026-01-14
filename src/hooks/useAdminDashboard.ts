@@ -327,7 +327,6 @@ export const useAdminDashboard = () => {
 
     if (shouldSkip && !section.loading) return section.data
 
-    console.log('🔍 [CENTRAL] Récupération des profils utilisateurs...')
     updateSection('profiles', { loading: true, error: null })
 
     try {
@@ -339,7 +338,6 @@ export const useAdminDashboard = () => {
       if (error) throw error
 
       updateSection('profiles', { data: data || [], loading: false })
-      console.log(`✅ [CENTRAL] ${data?.length || 0} profils récupérés`)
       return data || []
 
     } catch (error) {
@@ -358,7 +356,6 @@ export const useAdminDashboard = () => {
 
     if (shouldSkip && !section.loading) return section.data
 
-    console.log('🔍 [CENTRAL] Récupération des annonces...')
     updateSection('listings', { loading: true, error: null })
 
     try {
@@ -377,7 +374,6 @@ export const useAdminDashboard = () => {
 
       const safeListingsData = Array.isArray(data) ? data : [];
       updateSection('listings', { data: safeListingsData, loading: false })
-      console.log(`✅ [CENTRAL] ${safeListingsData.length} annonces récupérées`)
       return safeListingsData
       
 
@@ -397,7 +393,6 @@ export const useAdminDashboard = () => {
 
     if (shouldSkip && !section.loading) return section.data
 
-    console.log('🔍 [CENTRAL] Récupération des catégories...')
     updateSection('categories', { loading: true, error: null })
 
     try {
@@ -410,7 +405,6 @@ export const useAdminDashboard = () => {
 
       const safeData = Array.isArray(data) ? data : [];
       updateSection('categories', { data: safeData, loading: false })
-      console.log(`✅ [CENTRAL] ${safeData.length} éléments récupérés`)
       return safeData
      
     } catch (error) {
@@ -429,7 +423,6 @@ export const useAdminDashboard = () => {
 
     if (shouldSkip && !section.loading) return section.data
 
-    console.log('🔍 [CENTRAL] Récupération des signalements...')
     updateSection('reports', { loading: true, error: null })
 
     try {
@@ -446,7 +439,6 @@ export const useAdminDashboard = () => {
       if (error) throw error
 
       updateSection('reports', { data: data || [], loading: false })
-      console.log(`✅ [CENTRAL] ${data?.length || 0} signalements récupérés`)
       return data || []
 
     } catch (error) {
@@ -465,7 +457,6 @@ export const useAdminDashboard = () => {
 
     if (shouldSkip && !section.loading) return section.data
 
-    console.log('🔍 [CENTRAL] Récupération des sanctions utilisateurs...')
     updateSection('userSanctions', { loading: true, error: null })
 
     try {
@@ -477,7 +468,6 @@ export const useAdminDashboard = () => {
       if (error) throw error
 
       updateSection('userSanctions', { data: data || [], loading: false })
-      console.log(`✅ [CENTRAL] ${data?.length || 0} sanctions utilisateurs récupérées`)
       return data || []
 
     } catch (error) {
@@ -490,7 +480,6 @@ export const useAdminDashboard = () => {
 
   // Récupération des données complémentaires
   const fetchSupplementaryData = useCallback(async (force = false) => {
-    console.log('🔍 [CENTRAL] Récupération des données complémentaires...')
 
     // Favoris
     const favoritesSection = stateRef.current.favorites
@@ -572,7 +561,6 @@ export const useAdminDashboard = () => {
 
   // Synchronisation automatique des annonces lors des actions utilisateur
   const syncUserListingsWithSuspension = useCallback(async (userId: string, userAction: 'suspend' | 'ban' | 'verify') => {
-    console.log(`🔄 [SYNC] Synchronisation des annonces pour l'utilisateur ${userId} - Action: ${userAction}`);
     
     try {
       let listingUpdateData: any = {
@@ -642,7 +630,6 @@ export const useAdminDashboard = () => {
       }
 
       const affectedCount = data ? (data as any[]).length : 0;
-      console.log(`✅ [SYNC] ${affectedCount} annonce(s) synchronisée(s) pour l'utilisateur ${userId}`);
       
       return true;
 
@@ -654,7 +641,6 @@ export const useAdminDashboard = () => {
 
   // Fonction pour vérifier et corriger les incohérences existantes
   const fixExistingInconsistencies = useCallback(async () => {
-    console.log('🔧 [MAINTENANCE] Correction des incohérences existantes...');
     
     try {
       // Récupérer tous les utilisateurs suspendus/bannis
@@ -666,7 +652,6 @@ export const useAdminDashboard = () => {
       if (usersError) throw usersError;
 
       if (!suspendedUsers || suspendedUsers.length === 0) {
-        console.log('✅ [MAINTENANCE] Aucun utilisateur suspendu trouvé');
         return { fixed: 0, total: 0 };
       }
 
@@ -710,13 +695,11 @@ export const useAdminDashboard = () => {
               console.error(`Erreur lors de la correction pour ${user.id}:`, updateError);
             } else {
               totalFixed += activeListings.length;
-              console.log(`✅ [MAINTENANCE] ${activeListings.length} annonce(s) corrigée(s) pour l'utilisateur ${user.id}`);
             }
           }
         }
       }
 
-      console.log(`✅ [MAINTENANCE] Correction terminée: ${totalFixed} annonce(s) corrigée(s)`);
       
       toast({
         title: "Maintenance terminée",
@@ -751,7 +734,6 @@ export const useAdminDashboard = () => {
 
     if (profiles.length === 0 && listings.length === 0) return null
 
-    console.log('📊 [CENTRAL] Calcul des statistiques dashboard...')
 
     const totalUsers = profiles.length
     const totalListings = listings.length
@@ -853,7 +835,6 @@ export const useAdminDashboard = () => {
 
     if (profiles.length === 0 && listings.length === 0) return []
 
-    console.log('📈 [CENTRAL] Calcul des données hebdomadaires...')
 
     const weeklyData = []
     const today = new Date()
@@ -902,7 +883,6 @@ export const useAdminDashboard = () => {
 
     if (listings.length === 0 || categories.length === 0) return []
 
-    console.log('🏷️ [CENTRAL] Calcul des données de catégories...')
 
     const categoriesMap = new Map(categories.map((cat: any) => [cat.id, cat]))
     const categoryStats = new Map<string, { count: number; category: any }>()
@@ -953,7 +933,6 @@ export const useAdminDashboard = () => {
 
     if (profiles.length === 0) return []
 
-    console.log('👥 [CENTRAL] Calcul des utilisateurs enrichis...')
 
     return profiles.map((user: any) => {
       const userListings = listings.filter((l: any) => l.user_id === user.id)
@@ -1045,7 +1024,6 @@ export const useAdminDashboard = () => {
 
     if (listings.length === 0) return []
 
-    console.log('📋 [CENTRAL] Calcul des annonces enrichies avec détection d\'incohérences...')
 
     const profilesMap = new Map(profiles.map((profile: any) => [profile.id, profile]))
     const categoriesMap = new Map(categories.map((category: any) => [category.id, category]))
@@ -1163,7 +1141,6 @@ export const useAdminDashboard = () => {
 
     if (reports.length === 0) return []
 
-    console.log('🚨 [CENTRAL] Calcul des signalements enrichis...')
 
     const enrichedReports: AdminReport[] = reports.map((report: any) => {
       let priority: 'low' | 'medium' | 'high' = 'medium'
@@ -1222,7 +1199,6 @@ export const useAdminDashboard = () => {
     const suspendedListings = centralState.listings.data.filter((l: any) => l.status === 'suspended')
     const profiles = centralState.profiles.data
 
-    console.log('⚖️ [CENTRAL] Calcul des sanctions actives...')
 
     const normalizedSanctions: ActiveSanction[] = []
     const now = new Date()
@@ -1361,7 +1337,6 @@ export const useAdminDashboard = () => {
     activeSanctions.forEach(sanction => {
       const user = centralState.profiles.data.find(u => u.id === sanction.target_id)
       if (user && user.status !== 'suspended' && user.status !== 'banned') {
-        console.log('🔄 [SYNC] Utilisateur avec sanction active détecté:', user.id)
       }
     })
   }, [computedSanctions, centralState.profiles.data])
@@ -1381,7 +1356,6 @@ export const useAdminDashboard = () => {
       return false
     }
 
-    console.log(`🔧 [CENTRAL] Action utilisateur ${action.type} sur ${userId}`)
     
     try {
       let updateData: any = {
@@ -1444,7 +1418,6 @@ export const useAdminDashboard = () => {
 
       // ÉTAPE 3: SYNCHRONISATION AUTOMATIQUE DES ANNONCES
       if (['suspend', 'ban', 'verify'].includes(action.type)) {
-        console.log(`🔄 [SYNC] Début de la synchronisation des annonces pour l'action ${action.type}`);
         
         const syncSuccess = await syncUserListingsWithSuspension(userId, action.type as 'suspend' | 'ban' | 'verify');
         
@@ -1524,7 +1497,6 @@ export const useAdminDashboard = () => {
       return false
     }
 
-    console.log(`🔧 [CENTRAL] Action annonce ${action.type} sur ${listingId}`)
     
     try {
       let updateData: any = {
@@ -1680,7 +1652,6 @@ export const useAdminDashboard = () => {
       return false
     }
 
-    console.log(`🔧 [CENTRAL] Action signalement ${action.type} sur ${reportId}`)
     
     try {
       const report = computedReports.find(r => r.id === reportId)
@@ -1855,7 +1826,6 @@ export const useAdminDashboard = () => {
   // ========================================
 
   const refreshSection = useCallback(async (section: keyof CentralState | 'all', force = false) => {
-    console.log(`🔄 [CENTRAL] Rafraîchissement de ${section}`)
 
     if (section === 'all' || section === 'profiles') {
       await fetchProfiles(force)
@@ -1880,7 +1850,6 @@ export const useAdminDashboard = () => {
   }, [fetchProfiles, fetchListings, fetchCategories, fetchReports, fetchUserSanctions, fetchSupplementaryData])
 
   const refreshAllData = useCallback(async () => {
-    console.log('🔄 [CENTRAL] Rafraîchissement global en cours...')
     setGlobalLoading(true)
 
     try {
@@ -1894,7 +1863,6 @@ export const useAdminDashboard = () => {
 
       await fetchSupplementaryData(true)
 
-      console.log('✅ [CENTRAL] Rafraîchissement global terminé')
       
       toast({
         title: "Données mises à jour",
@@ -1947,16 +1915,13 @@ export const useAdminDashboard = () => {
   // ========================================
 
   useEffect(() => {
-    console.log('🚀 [CENTRAL] Initialisation du hook centralisé')
     refreshAllData()
 
     const interval = setInterval(() => {
-      console.log('⏰ [CENTRAL] Rafraîchissement automatique')
       refreshSection('all', false)
     }, 3 * 60 * 1000)
 
     return () => {
-      console.log('🧹 [CENTRAL] Nettoyage des intervalles')
       clearInterval(interval)
     }
   }, [refreshAllData, refreshSection])
@@ -2045,7 +2010,6 @@ export const useAdminDashboard = () => {
         return false
       }
 
-      console.log(`🔧 [SANCTIONS] Révocation sanction ${sanctionId}`)
       
       try {
         if (sanctionType === 'user') {
@@ -2114,7 +2078,6 @@ export const useAdminDashboard = () => {
         return false
       }
 
-      console.log(`🔧 [SANCTIONS] Extension sanction ${sanctionId} de ${additionalDays} jours`)
       
       try {
         const newExpiration = new Date()
@@ -2180,7 +2143,6 @@ export const useAdminDashboard = () => {
         return false
       }
 
-      console.log(`🔧 [SANCTIONS] Conversion permanente sanction ${sanctionId}`)
       
       try {
         if (sanctionType === 'user') {

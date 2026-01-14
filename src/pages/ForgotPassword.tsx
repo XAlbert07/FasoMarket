@@ -22,16 +22,12 @@ const ForgotPassword = () => {
     setError("");
 
     try {
-      console.log("🔄 Envoi de l'email de réinitialisation pour:", email);
       
       // Construction automatique de l'URL de redirection basée sur l'environnement actuel
       // Ceci détecte automatiquement le port utilisé (8080, 5173, etc.)
       const currentOrigin = window.location.origin;
       const redirectUrl = `${currentOrigin}/reset-password`;
       
-      console.log("🔗 URL de redirection auto-détectée:", redirectUrl);
-      console.log("🔗 Port détecté:", window.location.port || "80/443 (défaut)");
-      console.log("🔗 Protocole:", window.location.protocol);
       
       // Utilisation de la vraie API Supabase pour envoyer l'email de réinitialisation
       const { data, error: resetError } = await supabase.auth.resetPasswordForEmail(
@@ -66,8 +62,6 @@ const ForgotPassword = () => {
         return;
       }
 
-      console.log("✅ Email de réinitialisation envoyé avec succès");
-      console.log("Données retournées:", data);
       
       setSuccess(true);
       

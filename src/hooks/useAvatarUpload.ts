@@ -25,7 +25,6 @@ export const useAvatarUpload = () => {
     setUploading(true);
 
     try {
-      console.log('Upload de l\'avatar rogné en cours...');
       
       // Nom de fichier unique
       const fileName = `${user.id}_${Date.now()}.jpg`;
@@ -55,7 +54,6 @@ export const useAvatarUpload = () => {
       // Mise à jour du profil utilisateur
       await updateProfile({ avatar_url: publicUrl });
 
-      console.log('Avatar mis à jour avec succès:', publicUrl);
 
       toast({
         title: "Avatar mis à jour",
@@ -172,7 +170,6 @@ const deleteOldAvatar = async (userId: string) => {
       if (deleteError) {
         console.warn('Erreur suppression ancien avatar:', deleteError);
       } else {
-        console.log(`Supprimé ${oldFiles.length} ancien(s) avatar(s)`);
       }
     }
   } catch (error) {

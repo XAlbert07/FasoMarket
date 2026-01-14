@@ -101,7 +101,6 @@ const Favorites = () => {
                           lazy={true}
                           quality="medium"
                           showLoadingState={true}
-                          onError={() => console.log(`Erreur de chargement pour l'annonce favorite ${listing.id}`)}
                         />
                         
                         {/* Badge "Nouveau" */}
@@ -198,7 +197,6 @@ const Favorites = () => {
                         quality="high"
                         showLoadingState={true}
                         sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                        onLoad={() => console.log(`Image favorite chargée pour l'annonce ${listing.id}`)}
                       />
                       
                       {/* Overlays desktop */}

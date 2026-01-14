@@ -34,7 +34,6 @@ export const Footer = () => {
     setNewsletterLoading(true)
     try {
       // Ici, vous ajouterez votre logique d'inscription newsletter
-      console.log('Newsletter subscription:', newsletterEmail)
       
       // Simulation d'un appel API
       await new Promise(resolve => setTimeout(resolve, 1000))

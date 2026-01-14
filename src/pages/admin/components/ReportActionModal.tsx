@@ -336,15 +336,6 @@ const ReportActionModal: React.FC<ReportActionModalProps> = ({
         notifyUser: notifyUser
       };
 
-      // Ajout de logs pour déboguer
-      console.log('📋 [MODAL] Données envoyées:', {
-        reportId: report.id,
-        actionData: actionData,
-        selectedActionConfig: selectedActionConfig
-      });
-
-      console.log('🔧 Exécution de l\'action avancée:', actionData);
-
       const success = await onAction(report.id, actionData);
       
       if (success) {

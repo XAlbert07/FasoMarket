@@ -48,8 +48,6 @@ useEffect(() => {
     // - Si `from` est undefined → connexion normale, aller à l'accueil
     const redirectTo = from || '/';
     
-    console.log('Utilisateur connecté détecté - redirection vers:', redirectTo);
-    console.log('État de location:', location.state);
     
     const timer = setTimeout(() => {
       navigate(redirectTo, { replace: true });
@@ -141,11 +139,9 @@ useEffect(() => {
     }
 
     try {
-      console.log('Tentative de connexion pour:', loginData.email);
       await signIn(loginData.email, loginData.password);
       
       // ⚠️ NE PAS rediriger ici - laisser useEffect s'en charger
-      console.log('Connexion réussie - redirection sera gérée par useEffect');
       
     } catch (error) {
       console.error('Erreur lors de la connexion:', error);
@@ -207,14 +203,12 @@ useEffect(() => {
     }
 
     try {
-      console.log('Création d\'un nouveau compte marchand pour:', registerData.email);
       await signUp(
         registerData.email, 
         registerData.password, 
         registerData.name.trim(), 
         registerData.phone.trim() || undefined
       );
-      console.log('Processus de création de compte marchand initié avec succès');
     } catch (error) {
       console.error('Erreur lors de la création du compte:', error);
     }

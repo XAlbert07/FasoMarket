@@ -117,7 +117,6 @@ const SellerProfile = () => {
     if (returnTo === 'messages' && returnUrl) {
       try {
         const decodedReturnUrl = decodeURIComponent(returnUrl);
-        console.log('Retour intelligent vers:', decodedReturnUrl);
         navigate(decodedReturnUrl);
         return;
       } catch (error) {

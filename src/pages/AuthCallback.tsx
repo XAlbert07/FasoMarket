@@ -15,18 +15,14 @@ const AuthCallback = () => {
     const type = params.get('type')
     const accessToken = params.get('access_token')
     
-    console.log('AuthCallback - Type:', type)
-    console.log('AuthCallback - Has access token:', !!accessToken)
     
     // Ne traiter que si c'est une vraie vérification email (avec token dans l'URL)
     if (!accessToken || type !== 'signup') {
-      console.log('Pas une vérification email, redirection immédiate')
       navigate('/', { replace: true })
       return
     }
 
     if (isProcessing) {
-      console.log('Traitement déjà en cours, ignorer')
       return
     }
 
@@ -49,7 +45,6 @@ const AuthCallback = () => {
         }
 
         if (data.session) {
-          console.log('Email vérifié avec succès')
           
           toast({
             title: "Email vérifié !",

@@ -124,7 +124,6 @@ const Messages = () => {
         );
         
         if (targetConversation) {
-          console.log('Restauration de la conversation après retour du profil:', targetConversation.id);
           handleSelectConversation(targetConversation);
         }
       }
@@ -167,7 +166,6 @@ const Messages = () => {
   }, [messages]);
 
   const handleSelectConversation = async (conversation: Conversation) => {
-    console.log('Sélection de conversation:', conversation.id);
     setSelectedConversation(conversation);
     setCurrentView('chat');
     
@@ -210,7 +208,6 @@ const Messages = () => {
     const isDirect = searchParams.get('direct') === 'true';
 
     if (sellerId && sellerName && isDirect && conversations.length > 0) {
-      console.log('Recherche de conversation existante pour:', sellerName);
       
       const existingConversation = conversations.find(conv => 
         conv.participant_id === sellerId || 
@@ -218,10 +215,8 @@ const Messages = () => {
       );
 
       if (existingConversation) {
-        console.log('Conversation existante trouvée:', existingConversation.id);
         handleSelectConversation(existingConversation);
       } else {
-        console.log('Création d\'une nouvelle conversation');
         
         const newConversationData = {
           sellerId,

@@ -100,7 +100,6 @@ export const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
         canvas.toBlob(
           (blob) => {
             if (blob) {
-              console.log(`Image rognée: ${outputSize}x${outputSize} (${Math.round(blob.size / 1024)}KB)`);
               resolve(blob);
             } else {
               reject(new Error('Échec de création du blob'));

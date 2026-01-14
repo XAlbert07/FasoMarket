@@ -85,13 +85,6 @@ export const useSellerProfile = (sellerId: string) => {
           totalReviews = reviewsData.length;
           const totalRating = reviewsData.reduce((sum, review) => sum + (review.rating || 0), 0);
           averageRating = Math.round((totalRating / totalReviews) * 10) / 10;
-          
-          console.log('📊 Notes calculées:', {
-            sellerId,
-            totalReviews,
-            averageRating,
-            allRatings: reviewsData.map(r => r.rating)
-          });
         }
 
         // Étape 2: Calcul des statistiques d'annonces

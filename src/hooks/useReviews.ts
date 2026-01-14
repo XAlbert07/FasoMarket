@@ -74,12 +74,6 @@ export const useReviews = () => {
         setUserRating(0);
       }
 
-      console.log('📊 Avis chargés pour l\'utilisateur:', {
-        userId,
-        totalReviews: reviewsData.length,
-        averageRating: userRating
-      });
-
     } catch (error) {
       console.error('Erreur lors du chargement des avis:', error);
       setReviews([]);

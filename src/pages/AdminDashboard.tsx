@@ -802,7 +802,6 @@ const AdminDashboard = () => {
         link.download = `utilisateurs_fasomarket_${timestamp}.csv`;
         link.click();
         
-        console.log(`Export CSV de ${usersData.length} utilisateurs terminé`);
       } else if (format === 'json') {
         const jsonContent = JSON.stringify(usersData, null, 2);
         const blob = new Blob([jsonContent], { type: 'application/json' });
@@ -811,7 +810,6 @@ const AdminDashboard = () => {
         link.download = `utilisateurs_fasomarket_${timestamp}.json`;
         link.click();
         
-        console.log(`Export JSON de ${usersData.length} utilisateurs terminé`);
       }
     } catch (error) {
       console.error('Erreur lors de l\'export des utilisateurs:', error);

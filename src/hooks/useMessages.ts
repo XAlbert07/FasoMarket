@@ -528,7 +528,6 @@ export const useMessages = () => {
    */
   const sendTypingIndicator = useCallback(async (conversationId: string, isTyping: boolean) => {
     // Implémentation simple pour l'instant - peut être étendue plus tard
-    console.log('Typing indicator:', { conversationId, isTyping });
   }, []);
 
   /**
@@ -537,7 +536,6 @@ export const useMessages = () => {
   const initializeRealtimeConnections = useCallback(() => {
     if (!currentUserIdRef.current || isInitializedRef.current) return;
 
-    console.log('Initialisation des connexions temps réel pour:', currentUserIdRef.current);
     isInitializedRef.current = true;
 
     // Configuration du canal de présence
@@ -596,7 +594,6 @@ export const useMessages = () => {
           filter: `receiver_id=eq.${currentUserIdRef.current}`
         },
         async (payload) => {
-          console.log('Nouveau message reçu');
           
           // Recharger les conversations automatiquement
           await fetchConversations();
@@ -696,7 +693,6 @@ export const useMessages = () => {
    * Cette fonction maintient l'encapsulation tout en permettant la réinitialisation
    */
   const clearMessages = useCallback(() => {
-    console.log('🗑️ Réinitialisation de la liste des messages');
     setMessages([]);
   }, []);
 
