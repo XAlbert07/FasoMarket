@@ -56,6 +56,24 @@ keytool -list -v -keystore <release-keystore.jks> -alias <alias>
 4. Build signed AAB/APK
 5. Test internal track in Play Console
 
+### Commandes type
+```bash
+# 1) Installer Bubblewrap
+npm i -g @bubblewrap/cli
+
+# 2) Generer twa-manifest.json a partir du domaine de prod
+TWA_HOST=ton-domaine.vercel.app \
+TWA_PACKAGE_NAME=com.fasomarket.app \
+TWA_APP_NAME=FasoMarket \
+npm run twa:manifest
+
+# 3) Initialiser projet Android TWA
+bubblewrap init --manifest https://ton-domaine.vercel.app/manifest.webmanifest
+
+# 4) Builder l'AAB
+bubblewrap build
+```
+
 ## 6) Play Console checklist
 - Privacy Policy URL
 - Data safety form

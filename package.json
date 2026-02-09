@@ -9,7 +9,8 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "assetlinks:generate": "node scripts/generate-assetlinks.mjs"
+    "assetlinks:generate": "node scripts/generate-assetlinks.mjs",
+    "twa:manifest": "node scripts/generate-twa-manifest.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
