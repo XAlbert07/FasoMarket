@@ -273,7 +273,7 @@ export const Header = memo(() => {
                   </Avatar>
                   <div className="min-w-0">
                     <p className="text-sm font-semibold">{profile.full_name || "Utilisateur"}</p>
-                    <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+                    <p className="truncate text-sm text-foreground/70">{user.email}</p>
                   </div>
                   <Button size="sm" className="ml-auto" asChild>
                     <Link to="/publish" onClick={() => setIsMenuOpen(false)}>
@@ -284,7 +284,7 @@ export const Header = memo(() => {
               ) : (
                 <div className="space-y-3">
                   <p className="text-sm font-medium">Bienvenue sur FasoMarket</p>
-                  <p className="text-xs text-muted-foreground">Connectez-vous pour gerer vos annonces, favoris et messages.</p>
+                  <p className="text-sm leading-6 text-foreground/70">Connectez-vous pour gerer vos annonces, favoris et messages.</p>
                   <Button asChild className="w-full">
                     <Link to="/login" onClick={() => setIsMenuOpen(false)}>
                       Se connecter
@@ -294,9 +294,9 @@ export const Header = memo(() => {
               )}
             </div>
 
-            <nav className="flex-1 space-y-5 overflow-y-auto px-4 py-4">
+            <nav className="flex-1 space-y-5 overflow-y-auto px-4 py-4 text-[15px]">
               <div>
-                <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Explorer</p>
+                <p className="mb-2 px-1 text-xs font-semibold uppercase tracking-[0.08em] text-foreground/70">Explorer</p>
                 <div className="space-y-1">
                   <Link to="/" onClick={() => setIsMenuOpen(false)} className="flex h-11 items-center rounded-lg px-3 hover:bg-muted">
                     <Home className="mr-3 h-4 w-4" />
@@ -315,7 +315,7 @@ export const Header = memo(() => {
 
               {user && profile ? (
                 <div>
-                  <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Mon compte</p>
+                  <p className="mb-2 px-1 text-xs font-semibold uppercase tracking-[0.08em] text-foreground/70">Mon compte</p>
                   <div className="space-y-1">
                     <Link to="/my-profile" onClick={() => setIsMenuOpen(false)} className="flex h-11 items-center rounded-lg px-3 hover:bg-muted">
                       <User className="mr-3 h-4 w-4" />
@@ -350,7 +350,7 @@ export const Header = memo(() => {
               ) : null}
 
               <div>
-                <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Support</p>
+                <p className="mb-2 px-1 text-xs font-semibold uppercase tracking-[0.08em] text-foreground/70">Support</p>
                 <div className="space-y-1">
                   <Link to="/help-support" onClick={() => setIsMenuOpen(false)} className="flex h-11 items-center rounded-lg px-3 hover:bg-muted">
                     <Settings className="mr-3 h-4 w-4" />

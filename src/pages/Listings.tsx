@@ -194,7 +194,7 @@ const Listings = () => {
               <section key={group.category}>
                 <div className="mb-3 flex items-center justify-between border-b border-border/80 pb-2">
                   <h2 className="text-base font-semibold text-foreground md:text-lg">{group.category}</h2>
-                  <span className="text-xs text-muted-foreground md:text-sm">
+                  <span className="text-sm text-foreground/70">
                     {group.items.length} annonce{group.items.length > 1 ? "s" : ""}
                   </span>
                 </div>

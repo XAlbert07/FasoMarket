@@ -96,7 +96,7 @@ export const ListingCard = ({
       </div>
 
       <div className="space-y-2 p-2.5 sm:space-y-2.5 sm:p-3">
-        <p className="line-clamp-2 min-h-[2.35rem] break-words text-[13px] font-semibold leading-tight text-foreground transition-colors group-hover:text-primary sm:min-h-0 sm:text-[15px] sm:leading-snug">
+        <p className="line-clamp-2 min-h-[2.45rem] break-words text-sm font-semibold leading-tight text-foreground transition-colors group-hover:text-primary sm:min-h-0 sm:text-[15px] sm:leading-snug">
           {listing.title}
         </p>
 
@@ -104,7 +104,7 @@ export const ListingCard = ({
           {formatPrice(listing.price, listing.currency || "XOF")}
         </p>
 
-        <div className="flex flex-col gap-1 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-1 text-[13px] text-foreground/75 sm:flex-row sm:items-center sm:justify-between sm:text-xs sm:text-muted-foreground">
           <span className="inline-flex min-w-0 items-center gap-1">
             <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
             <span className="truncate">{listing.location || "Non precise"}</span>
@@ -120,7 +120,7 @@ export const ListingCard = ({
         {(showSeller || showCategory) && (
           <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
             {showSeller ? (
-              <div className="inline-flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+              <div className="inline-flex min-w-0 items-center gap-1 text-[13px] text-foreground/75 sm:text-xs sm:text-muted-foreground">
                 <UserCheck className="h-3.5 w-3.5 flex-shrink-0 text-primary" />
                 <span className="truncate">{listing.profiles?.full_name || "Vendeur verifie"}</span>
               </div>
@@ -131,7 +131,7 @@ export const ListingCard = ({
             {showCategory && (
               <Badge
                 variant="outline"
-                className="h-6 w-fit max-w-full rounded-full border-border/80 px-2 py-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground"
+                className="h-6 w-fit max-w-full rounded-full border-border/80 px-2 py-0 text-[11px] font-medium uppercase tracking-wide text-foreground/75 sm:text-[10px] sm:text-muted-foreground"
               >
                 {listing.category || listing.categories?.name || "Non specifiee"}
               </Badge>

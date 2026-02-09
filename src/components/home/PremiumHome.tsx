@@ -111,12 +111,16 @@ export const PremiumHome = () => {
             <p className="mx-auto mt-5 hidden max-w-3xl text-lg text-muted-foreground md:block">
               FasoMarket simplifie la vente et l'achat entre particuliers et professionnels, avec une recherche claire et des annonces utiles.
             </p>
-            <p className="text-left text-sm font-medium text-foreground md:hidden">Rechercher une annonce</p>
+            <div className="md:hidden">
+              <h1 className="mt-3 text-left text-2xl font-heading font-bold leading-tight text-foreground">
+                Rechercher. Comparer. Contacter.
+              </h1>
+            </div>
           </div>
 
           <form
             onSubmit={handleSearch}
-            className="mx-auto mt-3 max-w-4xl rounded-xl border border-border bg-card p-3 shadow-lg md:mt-10"
+            className="mx-auto mt-4 max-w-4xl rounded-xl border border-primary/15 bg-card p-3 shadow-lg md:mt-10"
           >
             <div className="flex flex-col gap-3 md:flex-row">
               <div className="relative flex-1">
@@ -143,10 +147,10 @@ export const PremiumHome = () => {
             </div>
           </form>
 
-          <div className="mx-auto mt-3 w-full max-w-4xl rounded-xl border border-border bg-card p-4 md:hidden">
-            <p className="text-xs font-semibold uppercase tracking-[0.09em] text-muted-foreground">C'est le moment de vendre</p>
+          <div className="mx-auto mt-3 w-full max-w-4xl rounded-xl border border-primary/20 bg-gradient-to-r from-primary/5 to-transparent p-4 md:hidden">
+            <p className="text-sm font-semibold uppercase tracking-[0.09em] text-foreground/70">C'est le moment de vendre</p>
             <div className="mt-3 flex items-center justify-between gap-3">
-              <p className="text-sm text-foreground">Publiez gratuitement et trouvez rapidement des acheteurs.</p>
+              <p className="text-sm leading-6 text-foreground">Publiez gratuitement et trouvez rapidement des acheteurs.</p>
               <Button size="sm" asChild>
                 <Link to="/publish">Publier</Link>
               </Button>
@@ -158,7 +162,7 @@ export const PremiumHome = () => {
             {["Immobilier", "Vehicules", "Telephones", "Materiel pro"].map((term) => (
               <button
                 key={term}
-                className="whitespace-nowrap rounded-full border border-border bg-white px-3 py-1 text-foreground transition-colors hover:border-primary/40"
+                className="whitespace-nowrap rounded-full border border-border bg-background px-3 py-1 text-foreground transition-colors hover:border-primary/40"
                 onClick={() => navigate(`/listings?q=${encodeURIComponent(term)}`)}
               >
                 {term}
@@ -192,7 +196,7 @@ export const PremiumHome = () => {
         <div className="mb-5 flex items-end justify-between gap-3 md:mb-8">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.1em] text-muted-foreground">Categories prioritaires</p>
-            <h2 className="mt-2 text-3xl font-heading font-bold text-foreground">Commencez par les secteurs les plus actifs</h2>
+            <h2 className="mt-2 text-2xl font-heading font-bold text-foreground md:text-3xl">Commencez par les secteurs les plus actifs</h2>
           </div>
           <Button variant="ghost" className="hidden md:inline-flex" asChild>
             <Link to="/listings">
@@ -210,9 +214,9 @@ export const PremiumHome = () => {
                 to={category.href}
                 className="min-w-[190px] rounded-xl border border-border bg-card p-4"
               >
-                <p className="text-xs font-semibold uppercase tracking-[0.09em] text-muted-foreground">{category.name}</p>
+                <p className="text-sm font-semibold uppercase tracking-[0.09em] text-foreground/80">{category.name}</p>
                 <p className="mt-2 text-2xl font-heading font-bold text-foreground">{category.count}</p>
-                <p className="text-xs text-muted-foreground">annonces</p>
+                <p className="text-sm leading-6 text-foreground/70">annonces</p>
               </Link>
             ))}
           </div>
@@ -239,7 +243,7 @@ export const PremiumHome = () => {
         <div className="mb-5 flex items-end justify-between gap-3 md:mb-8">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.1em] text-muted-foreground">Collections</p>
-            <h2 className="mt-2 text-3xl font-heading font-bold text-foreground">Explorez par besoin</h2>
+            <h2 className="mt-2 text-2xl font-heading font-bold text-foreground md:text-3xl">Explorez par besoin</h2>
           </div>
           <Button variant="ghost" className="hidden md:inline-flex" asChild>
             <Link to="/listings">
@@ -253,9 +257,9 @@ export const PremiumHome = () => {
           <div className="flex w-max gap-3">
             {collectionCards.map((collection) => (
               <Link key={collection.id} to={collection.href} className="block w-[270px] rounded-2xl border border-border bg-card p-4">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{collection.label}</p>
+                <p className="text-sm font-semibold uppercase tracking-[0.1em] text-foreground/75">{collection.label}</p>
                 <h3 className="mt-2 text-lg font-heading font-bold leading-tight text-foreground">{collection.title}</h3>
-                <p className="mt-1 text-xs text-muted-foreground">{collection.listings.length} annonces recentes</p>
+                <p className="mt-1 text-sm leading-6 text-foreground/70">{collection.listings.length} annonces recentes</p>
                 {collection.listings.length > 0 ? (
                   <div className="mt-3 grid h-20 grid-cols-2 gap-2 overflow-hidden rounded-lg">
                     {collection.listings.slice(0, 2).map((listing) => (
