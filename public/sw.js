@@ -1,4 +1,4 @@
-const CACHE_NAME = "fasomarket-pwa-v1";
+const CACHE_NAME = "fasomarket-pwa-v2";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -37,6 +37,16 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
 
   const url = new URL(request.url);
+  const { pathname } = url;
+
+  // Never cache these files: they must always be fetched fresh.
+  if (
+    pathname.startsWith("/.well-known/") ||
+    pathname === "/manifest.webmanifest" ||
+    pathname === "/sw.js"
+  ) {
+    return;
+  }
 
   // Network first for HTML navigation, fallback offline page.
   if (request.mode === "navigate") {
