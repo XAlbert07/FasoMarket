@@ -1,0 +1,19 @@
+{
+  "packageId": "com.fasomarket.app",
+  "host": "fasomarket.example.com",
+  "name": "FasoMarket",
+  "launcherName": "FasoMarket",
+  "display": "standalone",
+  "themeColor": "#0f766e",
+  "navigationColor": "#ffffff",
+  "backgroundColor": "#ffffff",
+  "enableNotifications": false,
+  "startUrl": "/",
+  "iconUrl": "https://fasomarket.example.com/icons/icon-512.png",
+  "maskableIconUrl": "https://fasomarket.example.com/icons/icon-512-maskable.png",
+  "appVersionName": "1",
+  "appVersionCode": 1,
+  "fullScopeUrl": "https://fasomarket.example.com/",
+  "minSdkVersion": 21,
+  "orientation": "portrait"
+}
