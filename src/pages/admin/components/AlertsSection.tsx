@@ -3,7 +3,6 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { 
   AlertTriangle, 
   Package, 
@@ -11,9 +10,7 @@ import {
   Timer, 
   Activity, 
   ChevronRight,
-  Users,
-  Ban,
-  Clock
+  Users
 } from "lucide-react";
 
 // Interface 
@@ -24,7 +21,6 @@ interface AlertsSectionProps {
   suspendedUsersCount: number;
   sanctionsExpiringSoon?: number;
   activeSanctionsCount?: number;
-  urgentActionsCount?: number;
   
   // Actions fonctionnelles
   onNavigateToReports?: () => void;
@@ -43,7 +39,6 @@ const AlertsSection: React.FC<AlertsSectionProps> = ({
   suspendedUsersCount,
   sanctionsExpiringSoon = 0,
   activeSanctionsCount = 0,
-  urgentActionsCount = 0,
   onNavigateToReports,
   onNavigateToListings,
   onNavigateToUsers,
@@ -59,7 +54,6 @@ const AlertsSection: React.FC<AlertsSectionProps> = ({
       title: 'Signalements',
       count: pendingReportsCount,
       icon: AlertTriangle,
-      variant: 'critical' as const,
       action: onNavigateToReports,
       actionLabel: 'Traiter',
       show: pendingReportsCount > 0,
@@ -70,7 +64,6 @@ const AlertsSection: React.FC<AlertsSectionProps> = ({
       title: 'À réviser',
       count: needsReviewCount,
       icon: Package,
-      variant: 'warning' as const,
       action: onNavigateToListings,
       actionLabel: 'Réviser',
       show: needsReviewCount > 0,
@@ -81,7 +74,6 @@ const AlertsSection: React.FC<AlertsSectionProps> = ({
       title: 'Suspensions',
       count: suspendedUsersCount,
       icon: Users,
-      variant: 'warning' as const,
       action: onNavigateToUsers,
       actionLabel: 'Gérer',
       show: suspendedUsersCount > 0,
@@ -92,9 +84,8 @@ const AlertsSection: React.FC<AlertsSectionProps> = ({
       title: 'Sanctions expirent',
       count: sanctionsExpiringSoon,
       icon: Timer,
-      variant: 'critical' as const,
       action: onNavigateToSanctions,
-      actionLabel: 'Urgent',
+      actionLabel: 'Ouvrir',
       show: sanctionsExpiringSoon > 0,
       description: `${sanctionsExpiringSoon} sanction${sanctionsExpiringSoon > 1 ? 's' : ''} expire${sanctionsExpiringSoon > 1 ? 'nt' : ''} bientôt`
     }
@@ -104,29 +95,6 @@ const AlertsSection: React.FC<AlertsSectionProps> = ({
   const visibleAlerts = alertsConfig.filter(alert => alert.show);
   const totalAlerts = visibleAlerts.reduce((sum, alert) => sum + alert.count, 0);
   
-  // Calculer le niveau de criticité global
-  const criticalAlertsCount = visibleAlerts.filter(alert => alert.variant === 'critical').length;
-  const systemCriticality = criticalAlertsCount > 0 ? 'critical' : 
-                           visibleAlerts.length > 2 ? 'warning' : 'normal';
-
-  // Fonction utilitaire pour obtenir les styles selon la variante
-  const getAlertStyles = (variant: 'critical' | 'warning') => {
-    if (variant === 'critical') {
-      return {
-        container: 'border-red-200 bg-red-50 hover:bg-red-100',
-        icon: 'text-red-600',
-        badge: 'bg-red-500 text-white',
-        button: 'bg-red-500 hover:bg-red-600 text-white'
-      };
-    }
-    return {
-      container: 'border-orange-200 bg-orange-50 hover:bg-orange-100',
-      icon: 'text-orange-600',
-      badge: 'bg-orange-500 text-white',
-      button: 'bg-orange-500 hover:bg-orange-600 text-white'
-    };
-  };
-
   // État de système sain - Version mobile-first simplifiée
   if (visibleAlerts.length === 0 && !isLoading) {
     return (
@@ -166,43 +134,29 @@ const AlertsSection: React.FC<AlertsSectionProps> = ({
   // Interface principale des alertes 
   return (
     <div className="w-full mt-4">
-      <Card className={`border-2 ${
-        systemCriticality === 'critical' ? 'border-red-300 bg-gradient-to-br from-red-50 to-orange-50' :
-        systemCriticality === 'warning' ? 'border-orange-300 bg-gradient-to-br from-orange-50 to-yellow-50' :
-        'border-gray-300 bg-gray-50'
-      }`}>
+      <Card className="border border-border bg-card">
         
-        {/* Header avec indicateur de criticité */}
+        {/* Header */}
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                systemCriticality === 'critical' ? 'bg-red-500 animate-pulse' :
-                systemCriticality === 'warning' ? 'bg-orange-500' : 'bg-gray-500'
-              }`}>
-                <AlertTriangle className="h-4 w-4 text-white" />
+              <div className="w-8 h-8 rounded-full flex items-center justify-center bg-muted">
+                <AlertTriangle className="h-4 w-4 text-foreground" />
               </div>
               
               <div>
-                <CardTitle className={`text-lg ${
-                  systemCriticality === 'critical' ? 'text-red-800' :
-                  systemCriticality === 'warning' ? 'text-orange-800' : 'text-gray-800'
-                }`}>
+                <CardTitle className="text-lg text-foreground">
                   Centre d'alertes
                 </CardTitle>
-                <p className="text-sm text-gray-600 mt-1">
+                <p className="text-sm text-muted-foreground mt-1">
                   {totalAlerts} élément{totalAlerts > 1 ? 's' : ''} nécessitent une attention
                 </p>
               </div>
             </div>
 
-            {/* Badge de criticité */}
-            <Badge className={`${
-              systemCriticality === 'critical' ? 'bg-red-500 animate-bounce' :
-              systemCriticality === 'warning' ? 'bg-orange-500' : 'bg-gray-500'
-            } text-white`}>
+            <div className="text-sm font-semibold text-foreground rounded-md border border-border px-2 py-1">
               {totalAlerts}
-            </Badge>
+            </div>
           </div>
         </CardHeader>
 
@@ -222,35 +176,27 @@ const AlertsSection: React.FC<AlertsSectionProps> = ({
               <div className="space-y-3 mb-4">
                 {visibleAlerts.map((alert) => {
                   const Icon = alert.icon;
-                  const styles = getAlertStyles(alert.variant);
                   
                   return (
                     <div
                       key={alert.id}
-                      className={`relative p-4 rounded-lg border-2 transition-all duration-200 ${styles.container}`}
+                      className="relative p-4 rounded-lg border border-border bg-background transition-all duration-200"
                     >
-                      {/* Indicateur de criticité pour alertes critiques */}
-                      {alert.variant === 'critical' && (
-                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-ping">
-                          <div className="absolute inset-0 w-3 h-3 bg-red-600 rounded-full"></div>
-                        </div>
-                      )}
-
                       <div className="flex items-center justify-between">
                         {/* Contenu principal */}
                         <div className="flex items-center space-x-3 flex-1">
-                          <div className={`p-2 rounded-lg ${styles.container}`}>
-                            <Icon className={`h-5 w-5 ${styles.icon}`} />
+                          <div className="p-2 rounded-lg bg-muted">
+                            <Icon className="h-5 w-5 text-foreground" />
                           </div>
                           
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between mb-1">
-                              <h3 className="font-medium text-gray-900">{alert.title}</h3>
-                              <Badge className={styles.badge}>
+                              <h3 className="font-medium text-foreground">{alert.title}</h3>
+                              <span className="rounded-md border border-border px-2 py-0.5 text-sm font-medium text-foreground">
                                 {alert.count}
-                              </Badge>
+                              </span>
                             </div>
-                            <p className="text-sm text-gray-600">{alert.description}</p>
+                            <p className="text-sm text-muted-foreground">{alert.description}</p>
                           </div>
                         </div>
 
@@ -260,7 +206,8 @@ const AlertsSection: React.FC<AlertsSectionProps> = ({
                             size="sm"
                             onClick={alert.action}
                             disabled={!alert.action}
-                            className={`${styles.button} min-w-[80px] justify-center`}
+                            variant="outline"
+                            className="min-w-[80px] justify-center"
                           >
                             <span className="hidden sm:inline mr-2">{alert.actionLabel}</span>
                             <ChevronRight className="h-4 w-4" />
@@ -289,28 +236,28 @@ const AlertsSection: React.FC<AlertsSectionProps> = ({
 
                   {/* Actions contextuelles selon les alertes présentes */}
                   {pendingReportsCount > 0 && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={onNavigateToReports}
-                      className="flex-1 sm:flex-none text-red-700 border-red-300 hover:bg-red-50"
-                    >
-                      <AlertTriangle className="h-4 w-4 mr-2" />
-                      Signalements ({pendingReportsCount})
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onNavigateToReports}
+                    className="flex-1 sm:flex-none"
+                  >
+                    <AlertTriangle className="h-4 w-4 mr-2" />
+                    Signalements ({pendingReportsCount})
                     </Button>
                   )}
 
                   {sanctionsExpiringSoon > 0 && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={onNavigateToSanctions}
-                      className="flex-1 sm:flex-none text-orange-700 border-orange-300 hover:bg-orange-50 animate-pulse"
-                    >
-                      <Timer className="h-4 w-4 mr-2" />
-                      Sanctions urgentes
-                    </Button>
-                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onNavigateToSanctions}
+                    className="flex-1 sm:flex-none"
+                  >
+                    <Timer className="h-4 w-4 mr-2" />
+                    Sanctions à échéance
+                  </Button>
+                )}
                 </div>
 
                 {/* Résumé statistique compact - Mobile optimisé */}

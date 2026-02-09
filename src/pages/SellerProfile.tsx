@@ -15,6 +15,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useGuestMessages } from '@/hooks/useGuestMessages';
 import { SmartImage } from "@/components/ui/SmartImage"; 
+import ListingCard from "@/components/listings/ListingCard";
 import { 
   MapPin, 
   Calendar, 
@@ -32,8 +33,6 @@ import {
   Share2,
   AlertTriangle,
   Info,
-  Heart,
-  HeartOff,
   Mail,
   ArrowLeft,
   ChevronDown,
@@ -45,7 +44,7 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { formatRelativeTime, formatPrice, isListingNew } from "@/lib/utils";
+import { formatRelativeTime } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthContext } from "@/contexts/AuthContext";
 
@@ -54,14 +53,12 @@ import { useSellerProfile } from '@/hooks/useSellerProfile';
 import { useSellerListings } from '@/hooks/useSellerListings';
 import { useSellerReviews } from '@/hooks/useSellerReviews';
 import { useFavorites } from '@/hooks/useFavorites';
-import { useListingViews } from "@/hooks/useListingViews";
 
 const SellerProfile = () => {
   const { sellerId } = useParams<{ sellerId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuthContext();
-  const { formatViewsDisplay } = useListingViews();
   
   //  Gestion intelligente de la navigation de retour
   const searchParams = new URLSearchParams(window.location.search);
@@ -669,206 +666,20 @@ const SellerProfile = () => {
                 </Card>
               ) : (
                 <>
-                  {/* AFFICHAGE MOBILE : Liste horizontale avec SmartImage */}
-                  <div className="block md:hidden space-y-3">
-                    {listings.map((listing) => {
-                      const isFavorite = favorites.some(fav => fav.listing_id === listing.id);
-                      
-                      return (
-                        <Link
-                          key={listing.id}
-                          to={`/listing/${listing.id}`}
-                          className="group block bg-white border rounded-lg overflow-hidden hover:shadow-md transition-all duration-300 active:scale-[0.98]"
-                        >
-                          <div className="flex">
-                            {/* Image à gauche avec SmartImage - 35% de la largeur */}
-                            <div className="relative w-32 flex-shrink-0">
-                              <div className="relative aspect-square overflow-hidden">
-                                <SmartImage
-                                  src={listing.images && listing.images.length > 0 ? listing.images[0] : '/placeholder.svg'}
-                                  alt={listing.title}
-                                  context="thumbnail"
-                                  className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                  fallbackSrc="/placeholder.svg"
-                                  showLoadingState={true}
-                                />
-                                
-                                {/* Badge "Nouveau" */}
-                                {isListingNew(listing.created_at) && (
-                                  <div className="absolute top-1 left-1">
-                                    <Badge className="bg-white/90 text-slate-700 text-xs" variant="secondary">
-                                      Nouveau
-                                    </Badge>
-                                  </div>
-                                )}
-                                
-                                {/* Bouton favori */}
-                                <button
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    handleFavoriteToggle(listing.id);
-                                  }}
-                                  disabled={favLoading}
-                                  className="absolute top-1 right-1 w-7 h-7 bg-white/80 hover:bg-white text-muted-foreground hover:text-primary backdrop-blur-sm rounded-full flex items-center justify-center transition-colors"
-                                >
-                                  {isFavorite ? (
-                                    <Heart className="h-3 w-3 fill-red-500 text-red-500" />
-                                  ) : (
-                                    <HeartOff className="h-3 w-3" />
-                                  )}
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Contenu à droite - 65% de la largeur SANS nom du vendeur */}
-                            <div className="flex-1 p-3 flex flex-col justify-between min-h-32">
-                              <div className="flex-1">
-                                {/* Titre - 2 lignes max */}
-                                <h3 className="font-semibold text-sm leading-tight text-slate-900 mb-1 line-clamp-2 group-hover:text-primary transition-colors">
-                                  {listing.title}
-                                </h3>
-                                
-                                {/* Prix - plus visible */}
-                                <div className="text-lg font-bold text-primary mb-2">
-                                  {formatPrice(listing.price, listing.currency || 'XOF')}
-                                </div>
-
-                                {/* Catégorie */}
-                                {listing.category && (
-                                  <Badge variant="secondary" className="text-xs mb-2">
-                                    {listing.category}
-                                  </Badge>
-                                )}
-                              </div>
-
-                              <div className="space-y-1">
-                                {/* Localisation et date */}
-                                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                  <div className="flex items-center gap-1">
-                                    {listing.location && (
-                                      <>
-                                        <MapPin className="h-3 w-3 flex-shrink-0" />
-                                        <span className="truncate">{listing.location}</span>
-                                      </>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-1 flex-shrink-0">
-                                    <Clock className="h-3 w-3" />
-                                    <span>{formatRelativeTime(listing.created_at)}</span>
-                                  </div>
-                                </div>
-                                
-                                {/* Stats populaires */}
-                                {listing.views_count > 0 && (
-                                  <div className="flex items-center gap-3 pt-1">
-                                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                      <Eye className="w-3 h-3" />
-                                      <span>{formatViewsDisplay(listing.views_count || 0)}</span>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </Link>
-                      );
-                    })}
-                  </div>
-
-                  {/* AFFICHAGE DESKTOP : Grid classique avec SmartImage */}
-                  <div className="hidden md:grid md:grid-cols-2 gap-3">
-                    {listings.map((listing) => {
-                      const isFavorite = favorites.some(fav => fav.listing_id === listing.id);
-                      
-                      return (
-                        <Link
-                          key={listing.id}
-                          to={`/listing/${listing.id}`}
-                          className="group block bg-white border rounded-xl overflow-hidden hover:shadow-lg transition-all duration-300 hover:scale-[1.02]"
-                        >
-                          <div className="relative">
-                            <div className="aspect-[4/3] overflow-hidden">
-                              <SmartImage
-                                src={listing.images && listing.images.length > 0 ? listing.images[0] : '/placeholder.svg'}
-                                alt={listing.title}
-                                context="card"
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                fallbackSrc="/placeholder.svg"
-                                showLoadingState={true}
-                                lazy={true}
-                              />
-                            </div>
-                            
-                            {isListingNew(listing.created_at) && (
-                              <Badge 
-                                className="absolute top-3 left-3 text-xs bg-white/90 text-slate-700 backdrop-blur-sm"
-                                variant="secondary"
-                              >
-                                Nouveau
-                              </Badge>
-                            )}
-                            
-                            <button
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                handleFavoriteToggle(listing.id);
-                              }}
-                              disabled={favLoading}
-                              className="absolute top-3 right-3 w-8 h-8 bg-white/80 hover:bg-white text-muted-foreground hover:text-primary backdrop-blur-sm rounded-full flex items-center justify-center transition-colors"
-                            >
-                              {isFavorite ? (
-                                <Heart className="w-4 h-4 fill-red-500 text-red-500" />
-                              ) : (
-                                <HeartOff className="w-4 h-4" />
-                              )}
-                            </button>
-                            
-                            {/* Stats de vues */}
-                            {listing.views_count > 0 && (
-                              <div className="absolute bottom-3 left-3 flex items-center gap-1 bg-black/50 text-white px-2 py-1 rounded text-sm">
-                                <Eye className="h-3 w-3" />
-                                <span>{formatViewsDisplay(listing.views_count || 0)}</span>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Contenu de la carte desktop */}
-                          <div className="p-4">
-                            <h3 className="font-semibold text-lg text-slate-900 mb-2 line-clamp-2 group-hover:text-blue-600 transition-colors">
-                              {listing.title}
-                            </h3>
-                            
-                            {/* Prix et catégorie */}
-                            <div className="flex items-center justify-between mb-3">
-                              <div className="text-2xl font-bold text-blue-600">
-                                {formatPrice(listing.price, listing.currency || 'XOF')}
-                              </div>
-                              {listing.category && (
-                                <Badge variant="secondary">{listing.category}</Badge>
-                              )}
-                            </div>
-
-                            {/* Localisation et temps */}
-                            <div className="flex items-center justify-between text-sm text-muted-foreground">
-                              <div className="flex items-center gap-1">
-                                {listing.location && (
-                                  <>
-                                    <MapPin className="h-3 w-3" />
-                                    <span className="truncate">{listing.location}</span>
-                                  </>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Clock className="h-3 w-3" />
-                                <span>{formatRelativeTime(listing.created_at)}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </Link>
-                      );
-                    })}
+                  <div className="grid grid-cols-2 gap-5 sm:grid-cols-2">
+                    {listings.map((listing) => (
+                      <ListingCard
+                        key={listing.id}
+                        listing={listing}
+                        isFavorite={favorites.some((fav) => fav.listing_id === listing.id)}
+                        onToggleFavorite={handleFavoriteToggle}
+                        showCta={true}
+                        showCategory={true}
+                        showSeller={false}
+                        showViews={true}
+                        className={favLoading ? "pointer-events-none opacity-70" : ""}
+                      />
+                    ))}
                   </div>
                   
                   {hasResults && pagination.hasNextPage && (

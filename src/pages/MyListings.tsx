@@ -1,11 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { SmartImage } from "@/components/ui/SmartImage";
-import { MapPin } from "lucide-react";
+import OwnerListingCard from "@/components/listings/OwnerListingCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import {
@@ -333,10 +332,6 @@ const MyListings = () => {
     }
   };
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('fr-FR').format(price) + ' FCFA';
-  };
-
   const getActiveTabLabel = () => {
     switch (activeTab) {
       case 'all': return `Toutes (${userListings.length})`;
@@ -544,167 +539,32 @@ const MyListings = () => {
                 </CardContent>
               </Card>
             ) : (
-              <>
-                {/* AFFICHAGE MOBILE optimisé avec SmartImage */}
-                <div className="block md:hidden space-y-3">
-                  {getListingsToShow().map((listing) => (
-                    <div
-                      key={listing.id}
-                      className="group bg-card border border-card-border rounded-lg overflow-hidden hover:shadow-md transition-all duration-300"
-                    >
-                      <div className="flex">
-                        {/* Image à gauche optimisée */}
-                        <div className="relative w-28 flex-shrink-0">
-                          <SmartImage
-                            src={listing.images?.[0] || "/placeholder.svg"}
-                            alt={listing.title}
-                            context="thumbnail"
-                            className="aspect-square w-full group-hover:scale-105 transition-transform duration-300"
-                            objectFit="cover"
-                            lazy={true}
-                            quality="medium"
-                            showLoadingState={true}
-                          />
-                          
-                          {/* Badge de statut */}
-                          <div className="absolute top-1 left-1">
-                            {getStatusBadge(listing.status, listing.suspension_type)}
-                          </div>
-                          
-                          {/* Menu actions */}
-                          <div className="absolute top-1 right-1">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon"
-                                  className="bg-background hover:bg-accent h-7 w-7 border border-border shadow-sm"
-                                  disabled={operationLoading === listing.id}
-                                >
-                                  <MoreVertical className="h-3 w-3" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              {getActionMenuItems(listing)}
-                            </DropdownMenu>
-                          </div>
-                        </div>
-
-                        {/* Contenu à droite */}
-                        <div className="flex-1 p-3 flex flex-col justify-between min-h-28">
-                          <div className="flex-1">
-                            <h3 className="font-semibold text-sm leading-tight text-card-foreground mb-1 line-clamp-2 group-hover:text-primary transition-colors">
-                              <Link to={`/listing/${listing.id}`} className="hover:underline">
-                                {listing.title}
-                              </Link>
-                            </h3>
-                            
-                            <div className="text-lg font-bold text-primary mb-2">
-                              {formatPrice(listing.price)}
-                            </div>
-                          </div>
-
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between text-xs text-muted-foreground">
-                              <div className="flex items-center gap-1">
-                                <MapPin className="h-3 w-3 flex-shrink-0" />
-                                <span className="truncate">{listing.location}</span>
-                              </div>
-                              <div className="flex items-center gap-1 flex-shrink-0">
-                                <Eye className="h-3 w-3" />
-                                <span>{listing.views_count || 0}</span>
-                              </div>
-                            </div>
-                            
-                            <div className="text-xs text-muted-foreground/80">
-                              Créée le {new Date(listing.created_at).toLocaleDateString('fr-FR')}
-                            </div>
-
-                            {listing.status === 'suspended' && (
-                              <div className="mt-1 p-1.5 bg-muted/50 rounded text-xs text-muted-foreground">
-                                {getSuspensionExplanation(listing)}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* AFFICHAGE DESKTOP optimisé avec SmartImage */}
-                <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-                  {getListingsToShow().map((listing) => (
-                    <Card key={listing.id} className="overflow-hidden hover:shadow-lg transition-shadow">
-                      <div className="relative">
-                        <SmartImage
-                          src={listing.images?.[0] || '/placeholder.svg'}
-                          alt={listing.title}
-                          context="card"
-                          className="w-full h-40 md:h-48"
-                          objectFit="cover"
-                          lazy={true}
-                          quality="high"
-                          showLoadingState={true}
-                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                        />
-                        <div className="absolute top-2 md:top-3 left-2 md:left-3">
-                          {getStatusBadge(listing.status, listing.suspension_type)}
-                        </div>
-                        <div className="absolute top-2 md:top-3 right-2 md:right-3">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button 
-                                variant="secondary" 
-                                size="sm" 
-                                className="bg-background hover:bg-accent h-7 w-7 border border-border shadow-sm"
-                                disabled={operationLoading === listing.id}
-                              >
-                                <MoreVertical className="h-3 w-3 md:h-4 md:w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            {getActionMenuItems(listing)}
-                          </DropdownMenu>
-                        </div>
-                      </div>
-                      <CardContent className="p-3 md:p-4">
-                        <h3 className="font-semibold mb-2 text-sm md:text-base line-clamp-2">
-                          <Link to={`/listing/${listing.id}`} className="hover:text-primary transition-colors">
-                            {listing.title}
-                          </Link>
-                        </h3>
-                        <p className="text-lg md:text-2xl font-bold text-primary mb-2">
-                          {formatPrice(listing.price)}
-                        </p>
-                        <p className="text-xs md:text-sm text-muted-foreground mb-3">
-                          {listing.location}
-                        </p>
-
-                        {listing.status === 'suspended' && (
-                          <div className="mb-3 p-2 bg-muted rounded-md">
-                            <p className="text-xs text-muted-foreground">
-                              {getSuspensionExplanation(listing)}
-                            </p>
-                            {listing.suspension_type === 'admin' && (
-                              <p className="text-xs text-red-600 mt-1">
-                                Contactez le support pour plus d'informations
-                              </p>
-                            )}
-                          </div>
-                        )}
-
-                        <div className="flex items-center justify-between text-xs text-muted-foreground">
-                          <span>
-                            Créée le {new Date(listing.created_at).toLocaleDateString('fr-FR')}
-                          </span>
-                          <span>
-                            {listing.views_count || 0} vues
-                          </span>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </>
+              <div className="grid grid-cols-2 gap-4 md:gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {getListingsToShow().map((listing) => (
+                  <OwnerListingCard
+                    key={listing.id}
+                    listing={listing}
+                    statusBadge={getStatusBadge(listing.status, listing.suspension_type)}
+                    actionMenu={
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="bg-background hover:bg-accent h-8 w-8 border border-border shadow-sm"
+                            disabled={operationLoading === listing.id}
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        {getActionMenuItems(listing)}
+                      </DropdownMenu>
+                    }
+                    suspensionExplanation={listing.status === 'suspended' ? getSuspensionExplanation(listing) : undefined}
+                    adminHint={listing.status === 'suspended' && listing.suspension_type === 'admin'}
+                  />
+                ))}
+              </div>
             )}
           </TabsContent>
         </Tabs>

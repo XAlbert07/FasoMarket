@@ -6,12 +6,14 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { SmartImage } from "@/components/ui/SmartImage"; 
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import ListingCard from "@/components/listings/ListingCard";
+import OwnerListingCard from "@/components/listings/OwnerListingCard";
 import { formatPrice } from "@/lib/utils";
 import { 
   Plus, Eye, Edit, Trash2, Package, MessageCircle, Settings, 
   Star, Calendar, Phone, Mail, MapPin, AlertCircle, CheckCircle2, 
-  Clock, PauseCircle, XCircle, Send, ArrowLeft, Menu
+  Clock, PauseCircle, XCircle, Send, ArrowLeft, Menu, MoreVertical
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthContext } from "@/contexts/AuthContext";
@@ -243,6 +245,27 @@ const MerchantDashboard = () => {
       return date.toLocaleDateString('fr-FR');
     }
   };
+
+  const getActionMenuItems = (listing: any) => (
+    <DropdownMenuContent align="end">
+      <DropdownMenuItem onClick={() => navigate(`/listing/${listing.id}`)}>
+        <Eye className="mr-2 h-4 w-4" />
+        Voir
+      </DropdownMenuItem>
+      <DropdownMenuItem onClick={() => navigate(`/edit-listing/${listing.id}`)}>
+        <Edit className="mr-2 h-4 w-4" />
+        Modifier
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem
+        onClick={() => handleDeleteListing(listing.id, listing.title)}
+        className="text-red-600 focus:text-red-700"
+      >
+        <Trash2 className="mr-2 h-4 w-4" />
+        Supprimer
+      </DropdownMenuItem>
+    </DropdownMenuContent>
+  );
 
   // Gestion des états de chargement 
   if (authLoading || profileLoading) {
@@ -493,33 +516,18 @@ const MerchantDashboard = () => {
                       </Button>
                     </div>
                   ) : (
-                    <div className="space-y-3">
-                      {listings.slice(0, 5).map((listing) => (
-                        <div key={listing.id} className="flex items-center justify-between p-3 border rounded-lg">
-                          <div className="flex items-center space-x-3 min-w-0 flex-1">
-                            <SmartImage 
-                              src={listing.images?.[0] || '/placeholder.svg'}
-                              alt={listing.title}
-                              context="thumbnail"
-                              className="w-10 h-10 md:w-12 md:h-12 object-cover rounded flex-shrink-0"
-                              fallbackSrc="/placeholder.svg"
-                              lazy={false} // Pas de lazy loading pour les 5 premières images visibles
-                              showLoadingState={false} // Pas de loading state pour les petites images
-                            />
-                            <div className="min-w-0 flex-1">
-                              <p className="font-medium text-sm line-clamp-1">{listing.title}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {formatPrice(listing.price, listing.currency)}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-2 flex-shrink-0">
-                            {getStatusBadge(listing.status)}
-                            <span className="text-xs text-muted-foreground hidden md:inline">
-                              {listing.views_count} vues
-                            </span>
-                          </div>
-                        </div>
+                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-2">
+                      {listings.slice(0, 4).map((listing) => (
+                        <ListingCard
+                          key={listing.id}
+                          listing={listing}
+                          showCta={false}
+                          showCategory={true}
+                          showSeller={false}
+                          showViews={true}
+                          showFavorite={false}
+                          showFeatured={true}
+                        />
                       ))}
                     </div>
                   )}
@@ -599,118 +607,23 @@ const MerchantDashboard = () => {
                 </CardContent>
               </Card>
             ) : (
-              <div className="grid gap-4">
-                {listings.map((listing, index) => (
-                  <Card key={listing.id} className="overflow-hidden">
-                    <CardContent className="p-4 md:p-6">
-                      {/* Version mobile - Layout vertical avec SmartImage */}
-                      <div className="block md:hidden">
-                        <div className="flex items-start gap-3 mb-3">
-                          <SmartImage 
-                            src={listing.images?.[0] || '/placeholder.svg'}
-                            alt={listing.title}
-                            context="thumbnail"
-                            className="w-16 h-16 object-cover rounded-lg flex-shrink-0"
-                            fallbackSrc="/placeholder.svg"
-                            lazy={index > 2} // Lazy loading après les 3 premières annonces
-                            showLoadingState={true}
-                          />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-start justify-between gap-2 mb-2">
-                              <h3 className="font-semibold text-sm line-clamp-2 flex-1">{listing.title}</h3>
-                              {getStatusBadge(listing.status)}
-                            </div>
-                            <p className="text-lg font-bold text-primary mb-1">
-                              {formatPrice(listing.price, listing.currency)}
-                            </p>
-                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                              <span className="flex items-center">
-                                <Eye className="mr-1 h-3 w-3" />
-                                {listing.views_count}
-                              </span>
-                              <span className="flex items-center">
-                                <MapPin className="mr-1 h-3 w-3" />
-                                {listing.location}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" onClick={() => navigate(`/listing/${listing.id}`)} className="flex-1">
-                            <Eye className="h-3 w-3 mr-1" />
-                            Voir
+              <div className="grid grid-cols-2 gap-4 md:gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {listings.map((listing) => (
+                  <OwnerListingCard
+                    key={listing.id}
+                    listing={listing}
+                    statusBadge={getStatusBadge(listing.status)}
+                    actionMenu={
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="secondary" size="sm" className="bg-background hover:bg-accent h-8 w-8 border border-border shadow-sm">
+                            <MoreVertical className="h-4 w-4" />
                           </Button>
-                          <Button variant="outline" size="sm" onClick={() => navigate(`/edit-listing/${listing.id}`)} className="flex-1">
-                            <Edit className="h-3 w-3 mr-1" />
-                            Modifier
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => handleDeleteListing(listing.id, listing.title)}
-                            className="px-2"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
-
-                      {/* Version desktop - Layout horizontal avec SmartImage */}
-                      <div className="hidden md:block">
-                        <div className="flex justify-between items-start">
-                          <div className="flex space-x-4">
-                            <SmartImage 
-                              src={listing.images?.[0] || '/placeholder.svg'}
-                              alt={listing.title}
-                              context="thumbnail"
-                              className="w-20 h-20 object-cover rounded-lg"
-                              fallbackSrc="/placeholder.svg"
-                              lazy={index > 5} // Lazy loading après les 5 premières annonces
-                              showLoadingState={true}
-                            />
-                            <div className="space-y-2 flex-1">
-                              <div className="flex items-center gap-2">
-                                <h3 className="font-semibold text-lg line-clamp-1">{listing.title}</h3>
-                                {getStatusBadge(listing.status)}
-                              </div>
-                              <p className="text-2xl font-bold text-primary">
-                                {formatPrice(listing.price, listing.currency)}
-                              </p>
-                              <div className="flex items-center space-x-4 text-sm text-muted-foreground">
-                                <span className="flex items-center">
-                                  <Eye className="mr-1 h-4 w-4" />
-                                  {listing.views_count} vues
-                                </span>
-                                <span className="flex items-center">
-                                  <MapPin className="mr-1 h-4 w-4" />
-                                  {listing.location}
-                                </span>
-                                <span>
-                                  Créée le {formatDate(listing.created_at)}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Button variant="outline" size="sm" onClick={() => navigate(`/listing/${listing.id}`)}>
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <Button variant="outline" size="sm" onClick={() => navigate(`/edit-listing/${listing.id}`)}>
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => handleDeleteListing(listing.id, listing.title)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                        </DropdownMenuTrigger>
+                        {getActionMenuItems(listing)}
+                      </DropdownMenu>
+                    }
+                  />
                 ))}
               </div>
             )}

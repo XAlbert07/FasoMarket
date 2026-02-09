@@ -10,7 +10,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import { 
   AlertTriangle, Package, Users, TrendingUp, TrendingDown,
   Activity, Clock, CheckCircle, Eye, MessageSquare, Shield,
-  Search, Zap, BarChart3, AlertCircle, ThermometerSun,
+  Search, Zap, BarChart3, AlertCircle,
   ChevronRight, Menu, Maximize2, X
 } from "lucide-react";
 import { DashboardStats, WeeklyData, CategoryData } from '@/hooks/useAdminDashboard';
@@ -83,46 +83,45 @@ interface OverviewTabProps {
  */
 const MobileAlertSummary: React.FC<{
   urgentActions: number;
-  healthScore: number;
   moderationWorkload: number;
   onActionClick: (tab: string) => void;
-}> = ({ urgentActions, healthScore, moderationWorkload, onActionClick }) => {
+}> = ({ urgentActions, moderationWorkload, onActionClick }) => {
   
   // Logique de calcul de santé 
   const getAlertStatus = () => {
-    if (urgentActions > 5 || healthScore < 30) {
+    if (urgentActions > 5) {
       return { 
         level: 'critical', 
-        color: 'bg-red-500', 
-        borderColor: 'border-l-red-500',
-        bgColor: 'bg-red-50',
+        color: 'bg-red-600', 
+        borderColor: 'border-red-500/20',
+        bgColor: 'bg-card',
         text: 'CRITIQUE',
-        message: `${urgentActions} actions critiques`
+        message: `${urgentActions} actions prioritaires`
       };
-    } else if (urgentActions > 2 || moderationWorkload > 20 || healthScore < 60) {
+    } else if (urgentActions > 0 || moderationWorkload > 20) {
       return { 
         level: 'warning', 
-        color: 'bg-orange-500', 
-        borderColor: 'border-l-orange-500',
-        bgColor: 'bg-orange-50',
+        color: 'bg-amber-600', 
+        borderColor: 'border-amber-500/20',
+        bgColor: 'bg-card',
         text: 'ATTENTION',
         message: `${moderationWorkload} tâches en cours`
       };
-    } else if (healthScore > 80 && urgentActions === 0) {
+    } else if (urgentActions === 0 && moderationWorkload === 0) {
       return { 
         level: 'excellent', 
-        color: 'bg-green-500', 
-        borderColor: 'border-l-green-500',
-        bgColor: 'bg-green-50',
+        color: 'bg-emerald-600', 
+        borderColor: 'border-emerald-500/20',
+        bgColor: 'bg-card',
         text: 'EXCELLENT',
         message: 'Performance optimale'
       };
     } else {
       return { 
         level: 'good', 
-        color: 'bg-blue-500', 
-        borderColor: 'border-l-blue-500',
-        bgColor: 'bg-blue-50',
+        color: 'bg-slate-600', 
+        borderColor: 'border-border',
+        bgColor: 'bg-card',
         text: 'NORMAL',
         message: 'Fonctionnement normal'
       };
@@ -132,32 +131,19 @@ const MobileAlertSummary: React.FC<{
   const alert = getAlertStatus();
 
   return (
-    <Card className={`border-l-4 ${alert.borderColor} ${alert.bgColor}`}>
+    <Card className={`border ${alert.borderColor} ${alert.bgColor} shadow-sm`}>
       <CardContent className="p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className={`w-3 h-3 rounded-full ${alert.color} ${alert.level === 'critical' ? 'animate-pulse' : ''}`}></div>
             <div>
               <h3 className="font-bold text-sm">{alert.text}</h3>
-              <p className="text-xs text-gray-600">{alert.message}</p>
+              <p className="text-xs text-muted-foreground">{alert.message}</p>
             </div>
           </div>
           <div className="text-right">
-            <div className="text-2xl font-bold">{healthScore}</div>
-            <div className="text-xs text-gray-500">Score/100</div>
-          </div>
-        </div>
-        
-        {/* Barre de progression de santé mobile */}
-        <div className="mt-3">
-          <div className="w-full bg-gray-200 rounded-full h-2">
-            <div 
-              className={`h-2 rounded-full transition-all duration-500 ${
-                healthScore >= 80 ? 'bg-green-500' :
-                healthScore >= 60 ? 'bg-yellow-500' : 'bg-red-500'
-              }`}
-              style={{ width: `${healthScore}%` }}
-            ></div>
+            <div className="text-2xl font-bold">{moderationWorkload}</div>
+            <div className="text-xs text-muted-foreground">En attente</div>
           </div>
         </div>
         
@@ -191,8 +177,8 @@ const MobileEssentialMetrics: React.FC<{
       label: "Croissance",
       value: `+${crossStats.platformGrowth}`,
       subtitle: "cette semaine",
-      color: "text-green-600",
-      bgColor: crossStats.platformGrowth > 10 ? "bg-green-50" : "bg-gray-50",
+      color: "text-foreground",
+      bgColor: "bg-background",
       icon: TrendingUp,
       action: () => onTabChange("users"),
       clickable: crossStats.platformGrowth > 0
@@ -201,8 +187,8 @@ const MobileEssentialMetrics: React.FC<{
       label: "Engagement",
       value: `${crossStats.engagementHealth}%`,
       subtitle: "moyen pondéré",
-      color: "text-blue-600",
-      bgColor: "bg-blue-50",
+      color: "text-foreground",
+      bgColor: "bg-background",
       icon: Activity,
       action: null,
       clickable: false
@@ -211,8 +197,8 @@ const MobileEssentialMetrics: React.FC<{
       label: "Modération",
       value: crossStats.moderationWorkload.toString(),
       subtitle: "tâches",
-      color: crossStats.moderationWorkload > 20 ? "text-orange-600" : "text-gray-600",
-      bgColor: crossStats.moderationWorkload > 20 ? "bg-orange-50" : "bg-gray-50",
+      color: "text-foreground",
+      bgColor: "bg-background",
       icon: Package,
       action: () => onTabChange("listings"),
       clickable: crossStats.moderationWorkload > 0
@@ -221,8 +207,8 @@ const MobileEssentialMetrics: React.FC<{
       label: "Résolution",
       value: `${dashboardStats?.qualityMetrics?.reportResolutionRate?.toFixed(0) || 0}%`,
       subtitle: "signalements",
-      color: "text-purple-600",
-      bgColor: "bg-purple-50",
+      color: "text-foreground",
+      bgColor: "bg-background",
       icon: CheckCircle,
       action: null,
       clickable: false
@@ -237,9 +223,9 @@ const MobileEssentialMetrics: React.FC<{
         const cardProps = metric.clickable && metric.action ? {
           variant: "ghost" as const,
           onClick: metric.action,
-          className: `h-auto p-3 ${metric.bgColor} border hover:shadow-md transition-all duration-200`
+          className: `h-auto p-3 ${metric.bgColor} border border-border hover:bg-muted/40 transition-colors duration-200`
         } : {
-          className: `p-3 ${metric.bgColor} border rounded-lg`
+          className: `p-3 ${metric.bgColor} border border-border rounded-lg`
         };
 
         return (
@@ -250,10 +236,10 @@ const MobileEssentialMetrics: React.FC<{
                 <div className={`text-lg font-bold ${metric.color} truncate`}>
                   {metric.value}
                 </div>
-                <div className="text-xs text-gray-600">{metric.label}</div>
-                <div className="text-xs text-gray-400">{metric.subtitle}</div>
+                <div className="text-xs text-muted-foreground">{metric.label}</div>
+                <div className="text-xs text-muted-foreground">{metric.subtitle}</div>
               </div>
-              {metric.clickable && <ChevronRight className="h-3 w-3 text-gray-400" />}
+              {metric.clickable && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
             </div>
           </CardComponent>
         );
@@ -275,7 +261,7 @@ const MobileTrendChart: React.FC<{
       <Card>
         <CardContent className="p-4 text-center">
           <Activity className="h-8 w-8 mx-auto mb-3 opacity-50 animate-pulse" />
-          <p className="text-sm text-gray-500">Chargement des tendances...</p>
+          <p className="text-sm text-muted-foreground">Chargement des tendances...</p>
         </CardContent>
       </Card>
     );
@@ -310,7 +296,7 @@ const reportTrend = (previousData && latestData.reports && previousData.reports 
       <CardContent className="p-3">
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600">Utilisateurs</span>
+            <span className="text-sm text-muted-foreground">Utilisateurs</span>
             <div className="flex items-center space-x-2">
               <span className="font-medium">{latestData.users}</span>
               <div className={`flex items-center text-xs ${userTrend >= 0 ? 'text-green-600' : 'text-red-600'}`}>
@@ -323,7 +309,7 @@ const reportTrend = (previousData && latestData.reports && previousData.reports 
           
           
           <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600">Annonces</span>
+            <span className="text-sm text-muted-foreground">Annonces</span>
             <div className="flex items-center space-x-2">
               <span className="font-medium">{latestData.listings}</span>
               <div className={`flex items-center text-xs ${listingTrend >= 0 ? 'text-green-600' : 'text-red-600'}`}>
@@ -335,7 +321,7 @@ const reportTrend = (previousData && latestData.reports && previousData.reports 
            
           {latestData.reports !== undefined && (
             <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Signalements</span>
+              <span className="text-sm text-muted-foreground">Signalements</span>
               <div className="flex items-center space-x-2">
                 <span className="font-medium">{latestData.reports}</span>
                 <div className={`flex items-center text-xs ${reportTrend <= 0 ? 'text-green-600' : 'text-red-600'}`}>
@@ -348,7 +334,7 @@ const reportTrend = (previousData && latestData.reports && previousData.reports 
 
           {/* Mini graphique en barres pour visualisation rapide */}
           <div className="mt-4">
-            <div className="text-xs text-gray-500 mb-2">Activité hebdomadaire</div>
+            <div className="text-xs text-muted-foreground mb-2">Activité hebdomadaire</div>
             <div className="flex items-end space-x-1 h-16">
               {weeklyData.slice(-7).map((day, index) => {
                 const maxValue = Math.max(...weeklyData.map(d => d.users + d.listings));
@@ -356,11 +342,11 @@ const reportTrend = (previousData && latestData.reports && previousData.reports 
                 return (
                   <div key={index} className="flex-1 flex flex-col items-center">
                     <div 
-                      className="w-full bg-blue-500 rounded-t transition-all duration-300"
+                      className="w-full bg-foreground/70 rounded-t transition-all duration-300"
                       style={{ height: `${Math.max(height, 2)}%` }}
                       title={`${day.name}: ${day.users + day.listings} total`}
                     ></div>
-                    <span className="text-xs text-gray-400 mt-1">
+                    <span className="text-xs text-muted-foreground mt-1">
                      {typeof day.name === 'string' ? day.name.slice(0, 1) : String(day.name).slice(0, 1)}
                     </span>
                   </div>
@@ -371,7 +357,7 @@ const reportTrend = (previousData && latestData.reports && previousData.reports 
 
           {/* Métriques qualité additionnelles */}
           {dashboardStats?.qualityMetrics && (
-            <div className="pt-2 border-t border-gray-100 text-xs text-gray-500">
+            <div className="pt-2 border-t border-border text-xs text-muted-foreground">
               Temps de réponse: {dashboardStats.qualityMetrics.averageResponseTime?.toFixed(1) || 0}h
             </div>
           )}
@@ -424,7 +410,7 @@ const MobileSearchBar: React.FC<{
     <Card>
       <CardContent className="p-3">
         <div className="flex items-center space-x-2">
-          <Search className="h-4 w-4 text-gray-400" />
+          <Search className="h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Recherche globale rapide..."
             value={searchTerm}
@@ -445,7 +431,7 @@ const MobileSearchBar: React.FC<{
         
         {isSearching && (
           <div className="mt-3 text-center">
-            <div className="inline-flex items-center space-x-2 text-xs text-gray-500">
+            <div className="inline-flex items-center space-x-2 text-xs text-muted-foreground">
               <Activity className="h-3 w-3 animate-spin" />
               <span>Recherche en cours...</span>
             </div>
@@ -454,13 +440,13 @@ const MobileSearchBar: React.FC<{
         
         {results && totalResults > 0 && !isSearching && (
           <div className="mt-3 space-y-2">
-            <div className="text-xs text-gray-600 flex items-center justify-between">
+            <div className="text-xs text-muted-foreground flex items-center justify-between">
               <span>{totalResults} résultats trouvés</span>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={clearSearch}
-                className="text-xs text-gray-500 p-0 h-auto"
+                className="text-xs text-muted-foreground p-0 h-auto"
               >
                 Effacer
               </Button>
@@ -471,11 +457,11 @@ const MobileSearchBar: React.FC<{
                   variant="outline"
                   size="sm"
                   onClick={() => onNavigate('users')}
-                  className="h-auto p-2 flex flex-col items-center text-xs bg-blue-50 border-blue-200 hover:bg-blue-100"
+                  className="h-auto p-2 flex flex-col items-center text-xs bg-background border-border hover:bg-muted/40"
                 >
-                  <Users className="h-3 w-3 mb-1 text-blue-600" />
+                  <Users className="h-3 w-3 mb-1 text-foreground" />
                   <span className="font-medium">{results.users.length}</span>
-                  <span className="text-gray-600">utilisateurs</span>
+                  <span className="text-muted-foreground">utilisateurs</span>
                 </Button>
               )}
               {results.listings.length > 0 && (
@@ -483,11 +469,11 @@ const MobileSearchBar: React.FC<{
                   variant="outline"
                   size="sm"
                   onClick={() => onNavigate('listings')}
-                  className="h-auto p-2 flex flex-col items-center text-xs bg-green-50 border-green-200 hover:bg-green-100"
+                  className="h-auto p-2 flex flex-col items-center text-xs bg-background border-border hover:bg-muted/40"
                 >
-                  <Package className="h-3 w-3 mb-1 text-green-600" />
+                  <Package className="h-3 w-3 mb-1 text-foreground" />
                   <span className="font-medium">{results.listings.length}</span>
-                  <span className="text-gray-600">annonces</span>
+                  <span className="text-muted-foreground">annonces</span>
                 </Button>
               )}
               {results.reports.length > 0 && (
@@ -495,22 +481,22 @@ const MobileSearchBar: React.FC<{
                   variant="outline"
                   size="sm"
                   onClick={() => onNavigate('reports')}
-                  className="h-auto p-2 flex flex-col items-center text-xs bg-orange-50 border-orange-200 hover:bg-orange-100"
+                  className="h-auto p-2 flex flex-col items-center text-xs bg-background border-border hover:bg-muted/40"
                 >
-                  <AlertTriangle className="h-3 w-3 mb-1 text-orange-600" />
+                  <AlertTriangle className="h-3 w-3 mb-1 text-foreground" />
                   <span className="font-medium">{results.reports.length}</span>
-                  <span className="text-gray-600">signalements</span>
+                  <span className="text-muted-foreground">signalements</span>
                 </Button>
               )}
               {results.sanctions.length > 0 && (
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-auto p-2 flex flex-col items-center text-xs bg-red-50 border-red-200 hover:bg-red-100"
+                  className="h-auto p-2 flex flex-col items-center text-xs bg-background border-border hover:bg-muted/40"
                 >
-                  <Shield className="h-3 w-3 mb-1 text-red-600" />
+                  <Shield className="h-3 w-3 mb-1 text-foreground" />
                   <span className="font-medium">{results.sanctions.length}</span>
-                  <span className="text-gray-600">sanctions</span>
+                  <span className="text-muted-foreground">sanctions</span>
                 </Button>
               )}
             </div>
@@ -518,7 +504,7 @@ const MobileSearchBar: React.FC<{
         )}
 
         {results && totalResults === 0 && !isSearching && (
-          <div className="mt-3 text-center text-xs text-gray-500">
+          <div className="mt-3 text-center text-xs text-muted-foreground">
             Aucun résultat trouvé pour "{searchTerm}"
           </div>
         )}
@@ -555,50 +541,15 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
     users: "#3B82F6",
     listings: "#10B981",
     reports: "#F59E0B",
-    growth: "#8B5CF6",
-    health: "#EF4444"
+    growth: "#8B5CF6"
   };
 
-  // Fonction de calcul de santé 
-  const getPlatformHealthStatus = () => {
-    if (!dashboardStats) return { status: 'loading', color: 'gray', message: 'Chargement...', score: 0 };
-    
-    const score = crossStats.healthScore;
-    const urgentActions = crossStats.urgentActions;
-    const moderationWorkload = crossStats.moderationWorkload;
-    
-    if (urgentActions > 5 || score < 30) {
-      return { 
-        status: 'critical', 
-        color: 'red', 
-        message: `${urgentActions} actions critiques`, 
-        score 
-      };
-    } else if (urgentActions > 2 || moderationWorkload > 20 || score < 60) {
-      return { 
-        status: 'warning', 
-        color: 'orange', 
-        message: `${moderationWorkload} tâches en cours`, 
-        score 
-      };
-    } else if (score > 80 && urgentActions === 0) {
-      return { 
-        status: 'excellent', 
-        color: 'green', 
-        message: 'Performance optimale', 
-        score 
-      };
-    } else {
-      return { 
-        status: 'good', 
-        color: 'blue', 
-        message: 'Fonctionnement normal', 
-        score 
-      };
-    }
-  };
-
-  const healthStatus = getPlatformHealthStatus();
+  const operationalStatus =
+    crossStats.urgentActions > 5
+      ? 'critical'
+      : crossStats.urgentActions > 0 || crossStats.moderationWorkload > 20
+      ? 'warning'
+      : 'normal';
 
   // Gestionnaire de recherche globale 
   const handleSearch = (term: string) => {
@@ -616,13 +567,13 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
   // Actions prioritaires 
   const priorityActions = [
     {
-      title: "Actions urgentes",
+      title: "Actions prioritaires",
       description: "Nécessitent une intervention immédiate",
       count: crossStats.urgentActions,
       icon: AlertCircle,
       color: crossStats.urgentActions > 5 ? "destructive" : crossStats.urgentActions > 0 ? "default" : "secondary",
-      bgColor: crossStats.urgentActions > 5 ? "bg-red-50 border-red-200" : 
-               crossStats.urgentActions > 0 ? "bg-orange-50 border-orange-200" : "bg-gray-50 border-gray-200",
+      bgColor: crossStats.urgentActions > 5 ? "bg-red-500/5 border-red-500/20" : 
+               crossStats.urgentActions > 0 ? "bg-amber-500/5 border-amber-500/20" : "bg-background border-border",
       action: () => {
         if (pendingReportsCount > 0) onTabChange("reports");
         else if (needsReviewCount > 0) onTabChange("listings");
@@ -635,7 +586,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
       count: crossStats.moderationWorkload,
       icon: Package,
       color: crossStats.moderationWorkload > 20 ? "default" : "secondary",
-      bgColor: crossStats.moderationWorkload > 20 ? "bg-blue-50 border-blue-200" : "bg-gray-50 border-gray-200",
+      bgColor: crossStats.moderationWorkload > 20 ? "bg-blue-500/5 border-blue-500/20" : "bg-background border-border",
       action: () => onTabChange("listings"),
       show: crossStats.moderationWorkload > 0
     },
@@ -645,7 +596,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
       count: crossStats.platformGrowth,
       icon: Users,
       color: "secondary",
-      bgColor: crossStats.platformGrowth > 10 ? "bg-green-50 border-green-200" : "bg-gray-50 border-gray-200",
+      bgColor: crossStats.platformGrowth > 10 ? "bg-emerald-500/5 border-emerald-500/20" : "bg-background border-border",
       action: () => onTabChange("users"),
       show: crossStats.platformGrowth > 0
     }
@@ -660,10 +611,10 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
         {/* En-tête mobile avec indicateur de statut */}
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <h2 className="text-lg font-bold">Dashboard</h2>
+            <h2 className="text-lg font-bold">Vue d'ensemble</h2>
             <Badge 
-              variant={healthStatus.status === 'critical' ? "destructive" : 
-                      healthStatus.status === 'warning' ? "default" : "secondary"}
+              variant={operationalStatus === 'critical' ? "destructive" : 
+                      operationalStatus === 'warning' ? "default" : "secondary"}
               className="text-xs"
             >
               {breakpoint.toUpperCase()}
@@ -689,7 +640,6 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
           <TabsContent value="overview" className="space-y-4 mt-4">
             <MobileAlertSummary 
               urgentActions={crossStats.urgentActions}
-              healthScore={crossStats.healthScore}
               moderationWorkload={crossStats.moderationWorkload}
               onActionClick={onTabChange}
             />
@@ -732,21 +682,21 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
                         <Button
                           key={index}
                           variant="outline"
-                          className={`w-full h-auto p-3 flex items-center justify-between text-left ${action.bgColor} hover:shadow-md transition-all duration-200`}
+                          className={`w-full h-auto p-3 flex items-center justify-between text-left border ${action.bgColor} hover:bg-muted/40 transition-colors duration-200`}
                           onClick={action.action}
                         >
                           <div className="flex items-center space-x-3">
                             <Icon className="h-4 w-4" />
                             <div>
                               <h3 className="font-medium text-sm">{action.title}</h3>
-                              <p className="text-xs text-gray-600">{action.description}</p>
+                              <p className="text-xs text-muted-foreground">{action.description}</p>
                             </div>
                           </div>
                           <div className="flex items-center space-x-2">
                             <Badge variant={action.color as any} className="text-xs">
                               {action.count > 99 ? "99+" : action.count}
                             </Badge>
-                            <ChevronRight className="h-3 w-3 text-gray-400" />
+                            <ChevronRight className="h-3 w-3 text-muted-foreground" />
                           </div>
                         </Button>
                       );
@@ -759,10 +709,10 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
 
           <TabsContent value="detailed" className="space-y-4 mt-4">
             {/* Section analytiques avancées mobile */}
-            <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
+            <Card className="border border-border bg-card shadow-sm">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm flex items-center">
-                  <BarChart3 className="h-4 w-4 mr-2 text-blue-600" />
+                  <BarChart3 className="h-4 w-4 mr-2 text-foreground" />
                   Métriques avancées
                 </CardTitle>
                 <CardDescription className="text-xs">
@@ -771,30 +721,30 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
               </CardHeader>
               <CardContent className="p-3">
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="text-center p-2 bg-white rounded border">
-                    <div className="text-lg font-bold text-blue-600">{crossStats.totalElements}</div>
-                    <div className="text-xs text-gray-600">Éléments</div>
-                    <div className="text-xs text-gray-400">Total BD</div>
+                  <div className="text-center p-2 bg-background rounded border border-border">
+                    <div className="text-lg font-bold text-foreground">{crossStats.totalElements}</div>
+                    <div className="text-xs text-muted-foreground">Éléments</div>
+                    <div className="text-xs text-muted-foreground">Total BD</div>
                   </div>
-                  <div className="text-center p-2 bg-white rounded border">
-                    <div className="text-lg font-bold text-purple-600">{crossStats.healthScore}</div>
-                    <div className="text-xs text-gray-600">Score santé</div>
-                    <div className="text-xs text-gray-400">Sur 100</div>
+                  <div className="text-center p-2 bg-background rounded border border-border">
+                    <div className="text-lg font-bold text-foreground">{pendingReportsCount}</div>
+                    <div className="text-xs text-muted-foreground">Signalements</div>
+                    <div className="text-xs text-muted-foreground">En attente</div>
                   </div>
-                  <div className="text-center p-2 bg-white rounded border">
-                    <div className="text-lg font-bold text-orange-600">{crossStats.moderationWorkload}</div>
-                    <div className="text-xs text-gray-600">Modération</div>
-                    <div className="text-xs text-gray-400">En cours</div>
+                  <div className="text-center p-2 bg-background rounded border border-border">
+                    <div className="text-lg font-bold text-foreground">{crossStats.moderationWorkload}</div>
+                    <div className="text-xs text-muted-foreground">Modération</div>
+                    <div className="text-xs text-muted-foreground">En cours</div>
                   </div>
-                  <div className="text-center p-2 bg-white rounded border">
+                  <div className="text-center p-2 bg-background rounded border border-border">
                     <div className={`text-lg font-bold ${
                       crossStats.urgentActions > 5 ? 'text-red-600' :
                       crossStats.urgentActions > 2 ? 'text-orange-600' : 'text-green-600'
                     }`}>
                       {crossStats.urgentActions}
                     </div>
-                    <div className="text-xs text-gray-600">Urgentes</div>
-                    <div className="text-xs text-gray-400">Actions</div>
+                    <div className="text-xs text-muted-foreground">Urgentes</div>
+                    <div className="text-xs text-muted-foreground">Actions</div>
                   </div>
                 </div>
               </CardContent>
@@ -994,7 +944,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
       <Card className="border-dashed">
         <CardContent className="p-4">
           <div className="flex items-center space-x-3">
-            <Search className="h-5 w-5 text-gray-400" />
+            <Search className="h-5 w-5 text-muted-foreground" />
             <Input
               placeholder="Rechercher dans toutes les données (utilisateurs, annonces, sanctions...)..."
               value={searchTerm}
@@ -1010,7 +960,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
                   setSearchResults(null);
                   setSearchActive(false);
                 }}
-                className="text-gray-500"
+                className="text-muted-foreground"
               >
                 Effacer
               </Button>
@@ -1020,7 +970,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
           {/* Résultats de recherche */}
           {searchResults && (
             <div className="mt-4 space-y-3">
-              <div className="text-sm text-gray-600">
+              <div className="text-sm text-muted-foreground">
                 Résultats trouvés: {searchResults.users.length + searchResults.listings.length + searchResults.reports.length + searchResults.sanctions.length} éléments
               </div>
               
@@ -1129,59 +1079,29 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
         </CardContent>
       </Card>
 
-      {/* Indicateur de santé */}
-      <Card className={`border-l-4 ${
-        healthStatus.color === 'red' ? 'border-l-red-500 bg-red-50' :
-        healthStatus.color === 'orange' ? 'border-l-orange-500 bg-orange-50' :
-        healthStatus.color === 'green' ? 'border-l-green-500 bg-green-50' :
-        'border-l-blue-500 bg-blue-50'
-      }`}>
+      {/* État opérationnel */}
+      <Card className="border shadow-sm border-border bg-card">
         <CardContent className="p-3 sm:p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div className="relative">
-                <ThermometerSun className={`h-6 w-6 ${
-                  healthStatus.color === 'red' ? 'text-red-600' :
-                  healthStatus.color === 'orange' ? 'text-orange-600' :
-                  healthStatus.color === 'green' ? 'text-green-600' :
-                  'text-blue-600'
-                }`} />
-                <div className={`absolute -top-2 -right-2 w-5 h-5 rounded-full text-xs font-bold flex items-center justify-center text-white ${
-                  healthStatus.score >= 80 ? 'bg-green-500' :
-                  healthStatus.score >= 60 ? 'bg-yellow-500' : 'bg-red-500'
-                }`}>
-                  {Math.round(healthStatus.score / 10)}
-                </div>
-              </div>
+              <Activity className="h-6 w-6 text-foreground" />
               <div>
-                <h3 className="font-medium text-sm sm:text-base">État de la plateforme</h3>
-                <p className="text-xs sm:text-sm text-gray-600">
-                  {healthStatus.message} • Score: {healthStatus.score}/100
+                <h3 className="font-medium text-sm sm:text-base">État opérationnel</h3>
+                <p className="text-xs sm:text-sm text-muted-foreground">
+                  {crossStats.urgentActions > 0
+                    ? `${crossStats.urgentActions} action(s) urgente(s) à traiter`
+                    : 'Aucune action urgente'}
                 </p>
               </div>
             </div>
             <div className="text-right">
-              <div className="flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm text-gray-500">
+              <div className="flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm text-muted-foreground">
                 <Activity className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span>Temps réel</span>
               </div>
-              {crossStats.urgentActions > 0 && (
-                <div className="text-xs text-red-600 font-medium mt-1">
-                  {crossStats.urgentActions} action(s) urgente(s)
-                </div>
-              )}
-            </div>
-          </div>
-          
-          <div className="mt-3">
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
-                className={`h-2 rounded-full transition-all duration-500 ${
-                  healthStatus.score >= 80 ? 'bg-green-500' :
-                  healthStatus.score >= 60 ? 'bg-yellow-500' : 'bg-red-500'
-                }`}
-                style={{ width: `${healthStatus.score}%` }}
-              ></div>
+              <div className="text-xs text-muted-foreground mt-1">
+                {crossStats.moderationWorkload} élément(s) en file
+              </div>
             </div>
           </div>
         </CardContent>
@@ -1194,9 +1114,9 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
             <CardTitle className="text-base sm:text-lg flex items-center justify-between">
               <div className="flex items-center">
                 <Zap className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
-                Tableau de bord actions
+                Actions opérationnelles
               </div>
-              <div className="flex items-center text-sm text-gray-500">
+              <div className="flex items-center text-sm text-muted-foreground">
                 <BarChart3 className="h-4 w-4 mr-1" />
                 {crossStats.totalElements} éléments total
               </div>
@@ -1213,7 +1133,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
                   <Button
                     key={index}
                     variant="outline"
-                    className={`h-auto p-3 sm:p-4 flex flex-col items-start text-left ${action.bgColor} hover:shadow-md transition-all duration-200`}
+                    className={`h-auto p-3 sm:p-4 flex flex-col items-start text-left border ${action.bgColor} hover:bg-muted/40 transition-colors duration-200`}
                     onClick={action.action}
                   >
                     <div className="flex items-center justify-between w-full mb-2">
@@ -1224,7 +1144,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
                     </div>
                     <div className="space-y-1">
                       <h3 className="font-medium text-sm">{action.title}</h3>
-                      <p className="text-xs text-gray-600">{action.description}</p>
+                      <p className="text-xs text-muted-foreground">{action.description}</p>
                     </div>
                   </Button>
                 );
@@ -1245,8 +1165,8 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
               <div className="text-lg sm:text-xl font-bold text-green-600">
                 +{crossStats.platformGrowth}
               </div>
-              <p className="text-xs sm:text-sm text-gray-600">Croissance</p>
-              <p className="text-xs text-gray-400">Cette semaine</p>
+              <p className="text-xs sm:text-sm text-muted-foreground">Croissance</p>
+              <p className="text-xs text-muted-foreground">Cette semaine</p>
             </div>
           </CardContent>
         </Card>
@@ -1260,8 +1180,8 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
               <div className="text-lg sm:text-xl font-bold text-blue-600">
                 {crossStats.engagementHealth}%
               </div>
-              <p className="text-xs sm:text-sm text-gray-600">Engagement</p>
-              <p className="text-xs text-gray-400">Moyen pondéré</p>
+              <p className="text-xs sm:text-sm text-muted-foreground">Engagement</p>
+              <p className="text-xs text-muted-foreground">Moyen pondéré</p>
             </div>
           </CardContent>
         </Card>
@@ -1275,8 +1195,8 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
               <div className="text-lg sm:text-xl font-bold text-orange-600">
                 {dashboardStats?.qualityMetrics?.averageResponseTime?.toFixed(1) || 0}h
               </div>
-              <p className="text-xs sm:text-sm text-gray-600">Réponse</p>
-              <p className="text-xs text-gray-400">Temps moyen</p>
+              <p className="text-xs sm:text-sm text-muted-foreground">Réponse</p>
+              <p className="text-xs text-muted-foreground">Temps moyen</p>
             </div>
           </CardContent>
         </Card>
@@ -1290,8 +1210,8 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
               <div className="text-lg sm:text-xl font-bold text-purple-600">
                 {dashboardStats?.qualityMetrics?.reportResolutionRate?.toFixed(0) || 0}%
               </div>
-              <p className="text-xs sm:text-sm text-gray-600">Résolution</p>
-              <p className="text-xs text-gray-400">Signalements</p>
+              <p className="text-xs sm:text-sm text-muted-foreground">Résolution</p>
+              <p className="text-xs text-muted-foreground">Signalements</p>
             </div>
           </CardContent>
         </Card>
@@ -1449,10 +1369,10 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
       </div>
 
       {/* Métriques transversales */}
-      <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
+      <Card className="border border-border bg-card shadow-sm">
         <CardHeader className="pb-3">
           <CardTitle className="text-base sm:text-lg flex items-center">
-            <BarChart3 className="h-5 w-5 mr-2 text-blue-600" />
+            <BarChart3 className="h-5 w-5 mr-2 text-foreground" />
             Analytiques avancées
           </CardTitle>
           <CardDescription>
@@ -1461,33 +1381,33 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center p-3 bg-white rounded-lg border">
-              <div className="text-2xl font-bold text-blue-600">{crossStats.totalElements}</div>
-              <div className="text-xs text-gray-600">Éléments totaux</div>
-              <div className="text-xs text-gray-500">Base de données</div>
+            <div className="text-center p-3 bg-background rounded-lg border border-border">
+              <div className="text-2xl font-bold text-foreground">{crossStats.totalElements}</div>
+              <div className="text-xs text-muted-foreground">Éléments totaux</div>
+              <div className="text-xs text-muted-foreground">Base de données</div>
             </div>
             
-            <div className="text-center p-3 bg-white rounded-lg border">
-              <div className="text-2xl font-bold text-purple-600">{crossStats.healthScore}</div>
-              <div className="text-xs text-gray-600">Score santé</div>
-              <div className="text-xs text-gray-500">Sur 100</div>
+            <div className="text-center p-3 bg-background rounded-lg border border-border">
+              <div className="text-2xl font-bold text-foreground">{pendingReportsCount}</div>
+              <div className="text-xs text-muted-foreground">Signalements</div>
+              <div className="text-xs text-muted-foreground">En attente</div>
             </div>
             
-            <div className="text-center p-3 bg-white rounded-lg border">
-              <div className="text-2xl font-bold text-orange-600">{crossStats.moderationWorkload}</div>
-              <div className="text-xs text-gray-600">Charge modération</div>
-              <div className="text-xs text-gray-500">Tâches en cours</div>
+            <div className="text-center p-3 bg-background rounded-lg border border-border">
+              <div className="text-2xl font-bold text-foreground">{crossStats.moderationWorkload}</div>
+              <div className="text-xs text-muted-foreground">Charge modération</div>
+              <div className="text-xs text-muted-foreground">Tâches en cours</div>
             </div>
             
-            <div className="text-center p-3 bg-white rounded-lg border">
+            <div className="text-center p-3 bg-background rounded-lg border border-border">
               <div className={`text-2xl font-bold ${
                 crossStats.urgentActions > 5 ? 'text-red-600' :
                 crossStats.urgentActions > 2 ? 'text-orange-600' : 'text-green-600'
               }`}>
                 {crossStats.urgentActions}
               </div>
-              <div className="text-xs text-gray-600">Actions urgentes</div>
-              <div className="text-xs text-gray-500">Nécessitent intervention</div>
+              <div className="text-xs text-muted-foreground">Actions prioritaires</div>
+              <div className="text-xs text-muted-foreground">Nécessitent intervention</div>
             </div>
           </div>
         </CardContent>
@@ -1505,14 +1425,14 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
           <CardContent>
             <div className="space-y-3">
               {dashboardStats.topRegions.map((region, index) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg hover:shadow-md transition-shadow">
+                <div key={index} className="flex items-center justify-between p-3 bg-muted/40 rounded-lg border border-border hover:bg-muted/60 transition-colors">
                   <div className="flex items-center space-x-3">
-                    <div className="flex items-center justify-center w-8 h-8 bg-blue-100 text-blue-600 rounded-full text-sm font-bold">
+                    <div className="flex items-center justify-center w-8 h-8 bg-background text-foreground border border-border rounded-full text-sm font-bold">
                       {index + 1}
                     </div>
                     <div>
                       <p className="font-medium text-sm sm:text-base">{region.name}</p>
-                      <p className="text-xs sm:text-sm text-gray-500">
+                      <p className="text-xs sm:text-sm text-muted-foreground">
                         {region.userCount} utilisateurs • {region.listingCount} annonces
                       </p>
                     </div>
@@ -1525,7 +1445,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
                       {(region as any).growthRate > 0 && <TrendingUp className="h-3 w-3 mr-1" />}
                       {(region as any).growthRate > 0 ? `+${(region as any).growthRate}%` : 'Stable'}
                     </div>
-                    <p className="text-xs text-gray-400">Cette semaine</p>
+                    <p className="text-xs text-muted-foreground">Cette semaine</p>
                     
                     <div className="mt-1">
                       <div className={`px-2 py-1 rounded-full text-xs ${

@@ -47,8 +47,8 @@ export default {
 		extend: {
 			// Typographie optimisée pour la lecture mobile
 			fontFamily: {
-				'body': ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
-				'heading': ['Poppins', 'system-ui', 'sans-serif'],
+				'body': ['IBM Plex Sans', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
+				'heading': ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
 			},
 			
 			// Tailles de police mobile-first

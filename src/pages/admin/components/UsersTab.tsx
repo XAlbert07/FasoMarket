@@ -11,10 +11,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
 import { 
-  Eye, CheckCircle, Ban, Mail, Download, Users, UserCheck, AlertTriangle, Award, 
-  Search, Filter, X, MoreVertical, RefreshCw, Shield, Clock, MapPin, Phone
+  Eye, CheckCircle, Ban, Mail, Download, Users, UserCheck, AlertTriangle, 
+  Search, Filter, X, MoreVertical, RefreshCw, Shield, Clock, MapPin
 } from "lucide-react";
-import AdminChatModal from './AdminChatModal';
 // En haut du fichier
 import { useAdminDashboard, UserAction } from '@/hooks/useAdminDashboard';
 
@@ -60,8 +59,6 @@ const UsersTab: React.FC<UsersTabProps> = ({
   const [statusFilter, setStatusFilter] = useState("all");
   const [roleFilter, setRoleFilter] = useState("all");
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
-  const [chatModalOpen, setChatModalOpen] = useState(false);
-  const [selectedUserForChat, setSelectedUserForChat] = useState<any>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   
   // États pour l'interface mobile
@@ -82,12 +79,6 @@ const UsersTab: React.FC<UsersTabProps> = ({
     if (days < 30) return `${Math.round(days / 7)} sem.`;
     if (days < 365) return `${Math.round(days / 30)} mois`;
     return `${Math.round(days / 365)} an(s)`;
-  };
-
-  const getUserRiskLevel = (user: any) => {
-    if (user.reports_received > 3) return 'Élevé';
-    if (user.reports_received > 1) return 'Moyen';
-    return 'Faible';
   };
 
   // ==========================================
@@ -186,11 +177,6 @@ const UsersTab: React.FC<UsersTabProps> = ({
     navigate(`/seller-profile/${user.id}`);
   };
 
-  const handleOpenAdminChat = (user: any) => {
-    setSelectedUserForChat(user);
-    setChatModalOpen(true);
-  };
-
   /**
    * Gestion des actions suspension/réactivation
    * Cette fonction utilise  les types d'actions du hook
@@ -241,11 +227,6 @@ const UsersTab: React.FC<UsersTabProps> = ({
     }
   };
 
-  const handleCloseChatModal = () => {
-    setChatModalOpen(false);
-    setSelectedUserForChat(null);
-  };
-
   const handleRefresh = async () => {
     if (!refreshUsers) return;
     setIsRefreshing(true);
@@ -273,12 +254,8 @@ const UsersTab: React.FC<UsersTabProps> = ({
     active: users.filter(u => getUserRealStatus(u) === 'active').length,
     suspended: users.filter(u => getUserRealStatus(u) === 'suspended').length,
     banned: users.filter(u => getUserRealStatus(u) === 'banned').length,
-    pending: users.filter(u => getUserRealStatus(u) === 'pending_verification').length,
-    avgTrustScore: averageTrustScore || (users.length ? Math.round(users.reduce((sum, u) => sum + u.trust_score, 0) / users.length) : 0)
+    pending: users.filter(u => getUserRealStatus(u) === 'pending_verification').length
   };
-
-  // Utilisateurs à risque élevé
-  const highRiskUsers = users.filter(u => getUserRiskLevel(u) === 'Élevé');
 
   // Gestion des erreurs 
   if (error) {
@@ -287,8 +264,8 @@ const UsersTab: React.FC<UsersTabProps> = ({
         <div className="text-center space-y-4 max-w-sm">
           <AlertTriangle className="h-12 w-12 text-red-500 mx-auto" />
           <div className="space-y-2">
-            <h3 className="text-lg font-semibold text-gray-900">Erreur de chargement</h3>
-            <p className="text-sm text-gray-600">Impossible de charger les utilisateurs</p>
+            <h3 className="text-lg font-semibold text-foreground">Erreur de chargement</h3>
+            <p className="text-sm text-muted-foreground">Impossible de charger les utilisateurs</p>
             <p className="text-xs text-red-600 break-words">{error}</p>
           </div>
           {refreshUsers && (
@@ -306,10 +283,10 @@ const UsersTab: React.FC<UsersTabProps> = ({
     return (
       <div className="flex items-center justify-center min-h-64 p-4">
         <div className="text-center space-y-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-foreground mx-auto"></div>
           <div className="space-y-2">
-            <h3 className="text-lg font-semibold text-gray-900">Chargement des utilisateurs</h3>
-            <p className="text-sm text-gray-600">Récupération des données...</p>
+            <h3 className="text-lg font-semibold text-foreground">Chargement des utilisateurs</h3>
+            <p className="text-sm text-muted-foreground">Récupération des données...</p>
           </div>
         </div>
       </div>
@@ -323,10 +300,10 @@ const UsersTab: React.FC<UsersTabProps> = ({
         <div className="flex flex-col space-y-3">
           <div className="flex items-start justify-between">
             <div className="flex-1 min-w-0">
-              <h1 className="text-xl md:text-2xl font-bold text-gray-900 truncate">
+              <h1 className="text-xl md:text-2xl font-bold text-foreground truncate">
                 Gestion des utilisateurs
               </h1>
-              <p className="text-sm text-gray-600 mt-1">
+              <p className="text-sm text-muted-foreground mt-1">
                 Administration et modération des comptes utilisateurs
               </p>
               {loading && (
@@ -382,12 +359,12 @@ const UsersTab: React.FC<UsersTabProps> = ({
       </div>
 
       {/* Statistiques corrigées - 2 colonnes sur mobile */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <Card className="p-3">
           <div className="flex items-center justify-between">
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-medium text-gray-600 uppercase truncate">Total</p>
-              <p className="text-lg md:text-xl font-bold text-gray-900">{stats.total}</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase truncate">Total</p>
+              <p className="text-lg md:text-xl font-bold text-foreground">{stats.total}</p>
             </div>
             <Users className="h-6 w-6 text-blue-500 flex-shrink-0" />
           </div>
@@ -396,7 +373,7 @@ const UsersTab: React.FC<UsersTabProps> = ({
         <Card className="p-3">
           <div className="flex items-center justify-between">
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-medium text-gray-600 uppercase truncate">Actifs</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase truncate">Actifs</p>
               <p className="text-lg md:text-xl font-bold text-green-600">{stats.active}</p>
             </div>
             <UserCheck className="h-6 w-6 text-green-500 flex-shrink-0" />
@@ -406,7 +383,7 @@ const UsersTab: React.FC<UsersTabProps> = ({
         <Card className="p-3">
           <div className="flex items-center justify-between">
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-medium text-gray-600 uppercase truncate">Suspendus</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase truncate">Suspendus</p>
               <p className="text-lg md:text-xl font-bold text-orange-600">{stats.suspended}</p>
             </div>
             <Ban className="h-6 w-6 text-orange-500 flex-shrink-0" />
@@ -416,47 +393,18 @@ const UsersTab: React.FC<UsersTabProps> = ({
         <Card className="p-3">
           <div className="flex items-center justify-between">
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-medium text-gray-600 uppercase truncate">Bannis</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase truncate">Bannis</p>
               <p className="text-lg md:text-xl font-bold text-red-600">{stats.banned}</p>
             </div>
             <Shield className="h-6 w-6 text-red-500 flex-shrink-0" />
           </div>
         </Card>
 
-        <Card className="p-3">
-          <div className="flex items-center justify-between">
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-medium text-gray-600 uppercase truncate">Score moy.</p>
-              <p className="text-lg md:text-xl font-bold text-purple-600">{stats.avgTrustScore}%</p>
-            </div>
-            <Award className="h-6 w-6 text-purple-500 flex-shrink-0" />
-          </div>
-        </Card>
       </div>
-
-      {/* Alerte utilisateurs à risque - Version mobile */}
-      {highRiskUsers.length > 0 && (
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="p-4">
-            <div className="flex items-start space-x-3">
-              <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <h3 className="font-medium text-red-800 text-sm">Utilisateurs à risque élevé</h3>
-                <p className="text-sm text-red-700 mt-1">
-                  {highRiskUsers.length} utilisateur(s) nécessitent une attention immédiate.
-                </p>
-                <Button size="sm" variant="outline" className="mt-2 text-xs">
-                  Examiner les cas prioritaires
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Actions en masse - Version mobile */}
       {selectedUsers.length > 0 && (
-        <Card className="border-blue-200 bg-blue-50">
+        <Card className="border-blue-500/20 bg-blue-500/5">
           <CardContent className="p-3">
             <div className="flex flex-col space-y-3 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
               <span className="text-sm font-medium">
@@ -498,7 +446,7 @@ const UsersTab: React.FC<UsersTabProps> = ({
         <CardContent className="space-y-4">
           {/* Barre de recherche */}
           <div className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
             <Input 
               placeholder="Rechercher utilisateur..." 
               value={searchTerm}
@@ -557,7 +505,7 @@ const UsersTab: React.FC<UsersTabProps> = ({
           {/* Tags des filtres actifs */}
           {(statusFilter !== "all" || roleFilter !== "all" || searchTerm) && (
             <div className="flex flex-wrap items-center gap-2 text-sm pt-2 border-t">
-              <span className="text-gray-600 text-xs">Filtres:</span>
+              <span className="text-muted-foreground text-xs">Filtres:</span>
               {statusFilter !== "all" && <Badge variant="secondary" className="text-xs">{statusFilter}</Badge>}
               {roleFilter !== "all" && <Badge variant="secondary" className="text-xs">{roleFilter}</Badge>}
               {searchTerm && <Badge variant="secondary" className="text-xs">"{searchTerm}"</Badge>}
@@ -596,10 +544,10 @@ const UsersTab: React.FC<UsersTabProps> = ({
       {filteredUsers.length === 0 ? (
         <Card className="p-8">
           <div className="text-center space-y-4">
-            <Users className="h-16 w-16 text-gray-300 mx-auto" />
+            <Users className="h-16 w-16 text-muted-foreground mx-auto" />
             <div className="space-y-2">
-              <h3 className="text-lg font-medium text-gray-900">Aucun utilisateur trouvé</h3>
-              <p className="text-sm text-gray-600 max-w-md mx-auto">
+              <h3 className="text-lg font-medium text-foreground">Aucun utilisateur trouvé</h3>
+              <p className="text-sm text-muted-foreground max-w-md mx-auto">
                 {searchTerm || statusFilter !== "all" || roleFilter !== "all"
                   ? "Aucun utilisateur ne correspond aux critères de filtrage actuels."
                   : "Il n'y a actuellement aucun utilisateur dans le système."
@@ -623,7 +571,7 @@ const UsersTab: React.FC<UsersTabProps> = ({
                 const isSuspended = isUserSuspended(user);
                 
                 return (
-                  <Card key={user.id} className={`p-4 ${getUserRiskLevel(user) === 'Élevé' ? 'border-l-4 border-l-red-400 bg-red-50/30' : ''}`}>
+                  <Card key={user.id} className="p-4">
                     <div className="space-y-3">
                       {/* En-tête de la carte */}
                       <div className="flex justify-between items-start">
@@ -645,7 +593,7 @@ const UsersTab: React.FC<UsersTabProps> = ({
                               <Badge variant="secondary" className="text-xs">Admin</Badge>
                             )}
                           </div>
-                          <p className="text-xs text-gray-500 mt-1">ID: {user.id.slice(-8)}</p>
+                          <p className="text-xs text-muted-foreground mt-1">ID: {user.id.slice(-8)}</p>
                           
                           {/* AFFICHAGE DU STATUT RÉEL */}
                           <div className="flex items-center space-x-2 mt-1">
@@ -678,7 +626,7 @@ const UsersTab: React.FC<UsersTabProps> = ({
                       <div className="grid grid-cols-2 gap-4 text-xs">
                         <div className="space-y-2">
                           <div>
-                            <span className="text-gray-500 flex items-center">
+                            <span className="text-muted-foreground flex items-center">
                               <Mail className="h-3 w-3 mr-1" />
                               Email:
                             </span>
@@ -687,7 +635,7 @@ const UsersTab: React.FC<UsersTabProps> = ({
                             </p>
                           </div>
                           <div>
-                            <span className="text-gray-500 flex items-center">
+                            <span className="text-muted-foreground flex items-center">
                               <MapPin className="h-3 w-3 mr-1" />
                               Lieu:
                             </span>
@@ -698,13 +646,13 @@ const UsersTab: React.FC<UsersTabProps> = ({
                         </div>
                         <div className="space-y-2">
                           <div>
-                            <span className="text-gray-500">Téléphone:</span>
+                            <span className="text-muted-foreground">Téléphone:</span>
                             <p className="font-medium">
                               {user.phone || 'N/A'}
                             </p>
                           </div>
                           <div>
-                            <span className="text-gray-500 flex items-center">
+                            <span className="text-muted-foreground flex items-center">
                               <Clock className="h-3 w-3 mr-1" />
                               Inscrit:
                             </span>
@@ -717,27 +665,7 @@ const UsersTab: React.FC<UsersTabProps> = ({
                       <div className="flex items-center justify-between text-xs">
                         <div className="flex items-center space-x-3">
                           <span>{user.listings_count} annonces</span>
-                          <div className="flex items-center space-x-1">
-                            <div className="w-12 bg-gray-200 rounded-full h-1.5">
-                              <div 
-                                className={`h-1.5 rounded-full ${
-                                  user.trust_score >= 80 ? 'bg-green-500' : 
-                                  user.trust_score >= 60 ? 'bg-yellow-500' : 'bg-red-500'
-                                }`}
-                                style={{ width: `${user.trust_score}%` }}
-                              />
-                            </div>
-                            <span>{user.trust_score}%</span>
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center space-x-2">
-                          <span className={`px-2 py-1 rounded text-xs font-medium ${
-                            getUserRiskLevel(user) === 'Élevé' ? 'bg-red-100 text-red-600' :
-                            getUserRiskLevel(user) === 'Moyen' ? 'bg-yellow-100 text-yellow-600' : 'bg-green-100 text-green-600'
-                          }`}>
-                            {getUserRiskLevel(user)}
-                          </span>
+                          <span>{user.reports_received || 0} signalement(s)</span>
                         </div>
                       </div>
 
@@ -752,7 +680,7 @@ const UsersTab: React.FC<UsersTabProps> = ({
 
                       {/* Actions rapides mobile */}
                       <div className="flex justify-between items-center pt-2 border-t">
-                        <div className="text-xs text-gray-500">
+                        <div className="text-xs text-muted-foreground">
                           Inscrit le {formatDate ? formatDate(user.created_at) : new Date(user.created_at).toLocaleDateString('fr-FR')}
                         </div>
                         
@@ -765,16 +693,6 @@ const UsersTab: React.FC<UsersTabProps> = ({
                             title="Voir profil"
                           >
                             <Eye className="h-3 w-3" />
-                          </Button>
-                          
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => handleOpenAdminChat(user)}
-                            className="h-7 px-2 text-xs"
-                            title="Message"
-                          >
-                            <Mail className="h-3 w-3" />
                           </Button>
                           
                           {/* LOGIQUE POUR LES BOUTONS DE SUSPENSION/RÉACTIVATION */}
@@ -901,9 +819,7 @@ const UsersTab: React.FC<UsersTabProps> = ({
                         <TableHead className="min-w-[200px]">Utilisateur</TableHead>
                         <TableHead className="min-w-[150px] hidden lg:table-cell">Contact</TableHead>
                         <TableHead className="min-w-[100px] hidden sm:table-cell">Statut</TableHead>
-                        <TableHead className="min-w-[120px] hidden md:table-cell">Score confiance</TableHead>
                         <TableHead className="min-w-[100px] hidden lg:table-cell">Activité</TableHead>
-                        <TableHead className="min-w-[80px] hidden md:table-cell">Risque</TableHead>
                         <TableHead className="min-w-[100px] hidden xl:table-cell">Inscrit</TableHead>
                         <TableHead className="min-w-[120px]">Actions</TableHead>
                       </TableRow>
@@ -914,9 +830,9 @@ const UsersTab: React.FC<UsersTabProps> = ({
                         const isSuspended = isUserSuspended(user);
                         
                         return (
-                          <TableRow 
-                            key={user.id} 
-                            className={`${getUserRiskLevel(user) === 'Élevé' ? 'bg-red-50' : ''} hover:bg-gray-50 transition-colors`}
+                          <TableRow
+                            key={user.id}
+                            className="hover:bg-muted/40 transition-colors"
                           >
                             <TableCell>
                               <input
@@ -940,13 +856,13 @@ const UsersTab: React.FC<UsersTabProps> = ({
                                     <Badge variant="secondary" className="text-xs">Admin</Badge>
                                   )}
                                 </div>
-                                <span className="text-sm text-gray-500 truncate block max-w-[180px]">
+                                <span className="text-sm text-muted-foreground truncate block max-w-[180px]">
                                   {user.location || 'Localisation non renseignée'}
                                 </span>
                                 
                                 {/* Informations mobiles dans le tableau */}
                                 <div className="lg:hidden space-y-1">
-                                  <p className="text-xs text-gray-600 truncate max-w-[180px]" title={user.email}>
+                                  <p className="text-xs text-muted-foreground truncate max-w-[180px]" title={user.email}>
                                     {user.email}
                                   </p>
                                   <div className="flex items-center space-x-2 text-xs">
@@ -956,13 +872,8 @@ const UsersTab: React.FC<UsersTabProps> = ({
                                       {realStatus === 'banned' && 'Banni'}
                                       {realStatus === 'pending_verification' && 'En attente'}
                                     </Badge>
-                                    <span className="text-gray-500">{user.trust_score}%</span>
-                                    <span className={`${
-                                      getUserRiskLevel(user) === 'Élevé' ? 'text-red-600' :
-                                      getUserRiskLevel(user) === 'Moyen' ? 'text-yellow-600' : 'text-green-600'
-                                    }`}>
-                                      {getUserRiskLevel(user) === 'Élevé' ? 'É' :
-                                       getUserRiskLevel(user) === 'Moyen' ? 'M' : 'F'}
+                                    <span className="text-muted-foreground">
+                                      {user.reports_received || 0} signalement(s)
                                     </span>
                                   </div>
                                 </div>
@@ -974,7 +885,7 @@ const UsersTab: React.FC<UsersTabProps> = ({
                                 <span className="truncate block max-w-[120px]" title={user.email}>
                                   {user.email}
                                 </span>
-                                <span className="text-gray-500">{user.phone || 'N/A'}</span>
+                                <span className="text-muted-foreground">{user.phone || 'N/A'}</span>
                               </div>
                             </TableCell>
                             
@@ -996,43 +907,15 @@ const UsersTab: React.FC<UsersTabProps> = ({
                               </div>
                             </TableCell>
                             
-                            <TableCell className="hidden md:table-cell">
-                              <div className="flex items-center space-x-2">
-                                <div className="w-16 bg-gray-200 rounded-full h-2">
-                                  <div 
-                                    className={`h-2 rounded-full ${
-                                      user.trust_score >= 80 ? 'bg-green-500' : 
-                                      user.trust_score >= 60 ? 'bg-yellow-500' : 'bg-red-500'
-                                    }`}
-                                    style={{ width: `${user.trust_score}%` }}
-                                  />
-                                </div>
-                                <span className="text-sm font-medium">{user.trust_score}%</span>
-                              </div>
-                            </TableCell>
-                            
                             <TableCell className="hidden lg:table-cell">
                               <div className="space-y-1 text-sm">
                                 <span>{user.listings_count} annonces</span>
-                                <span className="text-gray-500">{formatAccountAge(user.account_age_days)}</span>
+                                <span className="text-muted-foreground">{user.reports_received || 0} signalement(s)</span>
+                                <span className="text-muted-foreground">{formatAccountAge(user.account_age_days)}</span>
                               </div>
                             </TableCell>
                             
-                            <TableCell className="hidden md:table-cell">
-                              <div className="space-y-1">
-                                <span className={`text-xs font-medium ${
-                                  getUserRiskLevel(user) === 'Élevé' ? 'text-red-600' :
-                                  getUserRiskLevel(user) === 'Moyen' ? 'text-yellow-600' : 'text-green-600'
-                                }`}>
-                                  {getUserRiskLevel(user)}
-                                </span>
-                                {user.reports_received > 0 && (
-                                  <div className="text-xs text-red-600">{user.reports_received} signalement(s)</div>
-                                )}
-                              </div>
-                            </TableCell>
-                            
-                            <TableCell className="text-sm text-gray-500 hidden xl:table-cell">
+                            <TableCell className="text-sm text-muted-foreground hidden xl:table-cell">
                               {formatDate ? formatDate(user.created_at) : new Date(user.created_at).toLocaleDateString('fr-FR')}
                             </TableCell>
                             
@@ -1051,17 +934,6 @@ const UsersTab: React.FC<UsersTabProps> = ({
                                 
                                 {/* Actions contextuelles cachées sur très petit écran */}
                                 <div className="hidden sm:flex items-center space-x-1">
-                                  {/* Bouton Message Admin */}
-                                  <Button 
-                                    variant="outline" 
-                                    size="sm" 
-                                    title="Envoyer un message administrateur"
-                                    onClick={() => handleOpenAdminChat(user)}
-                                    className="h-8 w-8 p-0"
-                                  >
-                                    <Mail className="h-4 w-4 text-green-600" />
-                                  </Button>
-                                  
                                   {/* LOGIQUE POUR LES BOUTONS DE SUSPENSION/RÉACTIVATION */}
                                   {!isSuspended ? (
                                     <AlertDialog>
@@ -1172,14 +1044,6 @@ const UsersTab: React.FC<UsersTabProps> = ({
         </>
       )}
 
-      {/* Modal de chat administrateur - Version mobile-first */}
-      {chatModalOpen && selectedUserForChat && (
-        <AdminChatModal
-          isOpen={chatModalOpen}
-          onClose={handleCloseChatModal}
-          targetUser={selectedUserForChat}
-        />
-      )}
     </div>
   );
 };

@@ -6,72 +6,70 @@
 
 @layer base {
   :root {
-    /* Burkina Faso National Colors */
-    --bf-red: 355 77% 51%;           /* #E31B23 - Primary CTA, important actions */
-    --bf-green: 155 100% 23%;        /* #007A3D - Secondary actions, success states */
-    --bf-yellow: 50 100% 50%;        /* #FFD100 - Accent, highlights, star elements */
+    /* Burkina Faso National Colors (used as restrained accents) */
+    --bf-red: 355 77% 45%;
+    --bf-green: 155 100% 23%;
+    --bf-yellow: 47 90% 55%;
     
     /* Neutral System */
     --background: 0 0% 100%;
-    --foreground: 220 13% 3%;        /* #0B0B0B - Main text */
+    --foreground: 222 21% 10%;
     
     /* Semantic Colors */
-    --primary: 355 77% 51%;          /* BF Red */
+    --primary: 174 75% 27%;
     --primary-foreground: 0 0% 100%;
-    --primary-hover: 355 77% 46%;    /* Darker red for hover */
+    --primary-hover: 174 75% 22%;
     
-    --secondary: 155 100% 23%;       /* BF Green */
+    --secondary: 222 20% 16%;
     --secondary-foreground: 0 0% 100%;
-    --secondary-hover: 155 100% 18%;
+    --secondary-hover: 222 20% 12%;
     
-    --accent: 50 100% 50%;           /* BF Yellow */
-    --accent-foreground: 220 13% 3%;
-    --accent-hover: 45 100% 45%;
+    --accent: 45 82% 58%;
+    --accent-foreground: 222 21% 10%;
+    --accent-hover: 45 82% 52%;
     
     /* Background & Surface */
-    --background: 0 0% 100%;
-    --surface: 0 0% 98%;
+    --background: 44 25% 98%;
+    --surface: 0 0% 100%;
     --surface-elevated: 0 0% 100%;
     
     /* Text Colors */
-    --foreground: 220 13% 3%;
-    --muted-foreground: 220 9% 46%;
-    --subtle-text: 220 9% 60%;
+    --foreground: 222 21% 10%;
+    --muted-foreground: 220 8% 41%;
+    --subtle-text: 220 7% 52%;
     
     /* Border & Input */
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 355 77% 51%;
+    --border: 40 12% 88%;
+    --input: 40 12% 88%;
+    --ring: 174 75% 27%;
     
     /* State Colors */
-    --destructive: 0 84% 60%;
+    --destructive: 0 72% 48%;
     --destructive-foreground: 0 0% 98%;
     --success: 155 100% 23%;
     --success-foreground: 0 0% 100%;
-    --warning: 45 100% 45%;
-    --warning-foreground: 220 13% 3%;
+    --warning: 41 87% 48%;
+    --warning-foreground: 222 21% 10%;
     
     /* Card System */
     --card: 0 0% 100%;
-    --card-foreground: 220 13% 3%;
-    --card-border: 220 13% 91%;
+    --card-foreground: 222 21% 10%;
+    --card-border: 40 12% 88%;
     
     /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(355 77% 51%), hsl(355 77% 46%));
-    --gradient-secondary: linear-gradient(135deg, hsl(155 100% 23%), hsl(155 100% 18%));
-    --gradient-hero: linear-gradient(135deg, hsl(355 77% 51%) 0%, hsl(155 100% 23%) 50%, hsl(50 100% 50%) 100%);
-    --gradient-surface: linear-gradient(180deg, hsl(0 0% 100%), hsl(0 0% 98%));
+    --gradient-primary: linear-gradient(135deg, hsl(174 75% 30%), hsl(174 75% 24%));
+    --gradient-secondary: linear-gradient(135deg, hsl(222 20% 18%), hsl(222 20% 14%));
+    --gradient-hero: linear-gradient(135deg, hsl(174 62% 96%) 0%, hsl(47 55% 96%) 100%);
+    --gradient-surface: linear-gradient(180deg, hsl(44 25% 98%), hsl(0 0% 100%));
     
     /* Shadows */
-    --shadow-sm: 0 1px 2px 0 hsl(220 13% 3% / 0.05);
-    --shadow-md: 0 4px 6px -1px hsl(220 13% 3% / 0.1), 0 2px 4px -1px hsl(220 13% 3% / 0.06);
-    --shadow-lg: 0 10px 15px -3px hsl(220 13% 3% / 0.1), 0 4px 6px -2px hsl(220 13% 3% / 0.05);
-    --shadow-xl: 0 20px 25px -5px hsl(220 13% 3% / 0.1), 0 10px 10px -5px hsl(220 13% 3% / 0.04);
-    --shadow-primary: 0 10px 30px -10px hsl(355 77% 51% / 0.3);
+    --shadow-sm: 0 1px 2px 0 hsl(222 20% 10% / 0.05);
+    --shadow-md: 0 6px 18px -12px hsl(222 20% 10% / 0.24);
+    --shadow-lg: 0 18px 36px -24px hsl(222 20% 10% / 0.28);
+    --shadow-xl: 0 24px 44px -28px hsl(222 20% 10% / 0.3);
+    --shadow-primary: 0 14px 32px -18px hsl(174 75% 27% / 0.45);
     
     /* Border Radius */
-    --radius: 0.75rem;
-
     --radius: 0.5rem;
 
     --sidebar-background: 0 0% 98%;
@@ -86,46 +84,46 @@
 
     --sidebar-accent-foreground: 240 5.9% 10%;
 
-    --sidebar-border: 220 13% 91%;
+    --sidebar-border: 40 12% 88%;
 
     --sidebar-ring: 217.2 91.2% 59.8%;
     
 
     /* Variables pour popover et dropdown - à ajouter après vos variables existantes */
---popover: 0 0% 100%;                    /* Fond blanc opaque */
---popover-foreground: 220 13% 3%;       /* Texte noir pour contraste optimal */
---muted: 220 13% 95%;                    /* Arrière-plans atténués */
---muted-foreground: 220 9% 46%;         /* Texte sur fond atténué */
+--popover: 0 0% 100%;
+--popover-foreground: 222 21% 10%;
+--muted: 40 13% 95%;
+--muted-foreground: 220 8% 41%;
 
   }
 
   .dark {
     /* Dark mode keeps Burkina Faso colors but adjusts backgrounds */
-    --background: 220 13% 3%;
+    --background: 222 22% 8%;
     --foreground: 0 0% 98%;
-    --surface: 220 13% 5%;
-    --surface-elevated: 220 13% 7%;
+    --surface: 222 22% 10%;
+    --surface-elevated: 222 22% 12%;
     
-    --card: 220 13% 5%;
+    --card: 222 22% 10%;
     --card-foreground: 0 0% 98%;
-    --card-border: 220 13% 15%;
+    --card-border: 220 13% 18%;
     
-    --border: 220 13% 15%;
-    --input: 220 13% 15%;
+    --border: 220 13% 18%;
+    --input: 220 13% 18%;
     
-    --muted-foreground: 220 9% 65%;
-    --subtle-text: 220 9% 46%;
+    --muted-foreground: 220 9% 69%;
+    --subtle-text: 220 8% 56%;
 
 
     /* Versions mode sombre - à ajouter dans votre section .dark existante */
---popover: 220 13% 7%;                   /* Fond sombre */
---popover-foreground: 0 0% 98%;         /* Texte clair sur fond sombre */
---muted: 220 13% 10%;                    /* Arrière-plans atténués sombres */
---muted-foreground: 220 9% 65%;         /* Texte atténué pour mode sombre */
+--popover: 222 22% 12%;
+--popover-foreground: 0 0% 98%;
+--muted: 220 13% 14%;
+--muted-foreground: 220 9% 69%;
     
     /* Keep national colors strong in dark mode */
-    --gradient-hero: linear-gradient(135deg, hsl(355 77% 45%) 0%, hsl(155 100% 20%) 50%, hsl(50 100% 45%) 100%);
-    --gradient-surface: linear-gradient(180deg, hsl(220 13% 3%), hsl(220 13% 5%));
+    --gradient-hero: linear-gradient(135deg, hsl(222 22% 13%) 0%, hsl(174 42% 22%) 100%);
+    --gradient-surface: linear-gradient(180deg, hsl(222 22% 8%), hsl(222 22% 11%));
     
     --shadow-primary: 0 10px 30px -10px hsl(355 77% 51% / 0.4);
   }
@@ -170,7 +168,6 @@
     box-shadow: var(--shadow-primary);
   }
 }
-
 
 
 

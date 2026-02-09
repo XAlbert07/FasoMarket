@@ -1274,21 +1274,32 @@ export const useAdminDashboard = () => {
   useEffect(() => {
     const checkConsistency = async () => {
       try {
-        // Requête pour détecter les incohérences
-        const { data: inconsistencies, error } = await supabase
-          .from('listings')
-          .select(`
-            id, 
-            title, 
-            user_id, 
-            status,
-            profiles!inner(id, suspended_until, is_banned)
-          `)
-          .eq('status', 'active')
-          .or('profiles.suspended_until.not.is.null,profiles.is_banned.eq.true');
+        // Étape 1: récupérer les utilisateurs suspendus/bannis
+        const { data: suspendedProfiles, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, suspended_until, is_banned')
+          .or('suspended_until.not.is.null,is_banned.eq.true');
 
-        if (error) {
-          console.error('Erreur lors de la vérification de cohérence:', error);
+        if (profilesError) {
+          console.error('Erreur lors de la vérification de cohérence (profiles):', profilesError);
+          return;
+        }
+
+        const suspendedUserIds = (suspendedProfiles || [])
+          .map((profile: any) => profile.id)
+          .filter(Boolean);
+
+        if (suspendedUserIds.length === 0) return;
+
+        // Étape 2: chercher les annonces actives de ces utilisateurs
+        const { data: inconsistencies, error: listingsError } = await supabase
+          .from('listings')
+          .select('id, title, user_id, status')
+          .eq('status', 'active')
+          .in('user_id', suspendedUserIds);
+
+        if (listingsError) {
+          console.error('Erreur lors de la vérification de cohérence (listings):', listingsError);
           return;
         }
 
@@ -1582,6 +1593,7 @@ export const useAdminDashboard = () => {
         .from('listings')
         .update(updateData)
         .eq('id', listingId)
+        
 
       if (error) throw error
 
@@ -1625,7 +1637,24 @@ export const useAdminDashboard = () => {
         description: actionMessages[action.type as keyof typeof actionMessages] || "Action appliquée avec succès"
       })
 
-      await fetchListings(true)
+      const refreshedListings = await fetchListings(true)
+
+      // Vérification post-refresh pour éviter les faux positifs silencieux.
+      const expectedStatusByAction: Partial<Record<ListingAction['type'], string>> = {
+        approve: 'active',
+        unsuspend: 'active',
+        suspend: 'suspended',
+        suspend_listing: 'suspended',
+        remove_listing: 'suspended',
+      }
+      const expectedStatus = expectedStatusByAction[action.type]
+      if (expectedStatus) {
+        const listingsData = Array.isArray(refreshedListings) ? refreshedListings : stateRef.current.listings.data
+        const refreshedListing = listingsData.find((l: any) => l.id === listingId)
+        if (refreshedListing && refreshedListing.status !== expectedStatus) {
+          throw new Error(`Le statut attendu n'a pas été appliqué (${refreshedListing.status}).`)
+        }
+      }
       return true
 
     } catch (error) {

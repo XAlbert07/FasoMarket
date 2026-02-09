@@ -102,11 +102,11 @@ const ReportsTab: React.FC<ReportsTabProps> = ({
   // Fonction pour colorer l'urgence
   const getUrgencyColor = (urgency: string) => {
     const colors = {
-      critical: 'bg-red-100 text-red-700 border-red-300',
-      urgent: 'bg-orange-100 text-orange-700 border-orange-300',
-      delayed: 'bg-yellow-100 text-yellow-700 border-yellow-300',
-      overdue: 'bg-purple-100 text-purple-700 border-purple-300',
-      normal: 'bg-gray-100 text-gray-700 border-gray-300'
+      critical: 'bg-red-500/10 text-red-700 border-red-500/20',
+      urgent: 'bg-amber-500/10 text-amber-700 border-amber-500/20',
+      delayed: 'bg-yellow-500/10 text-yellow-700 border-yellow-500/20',
+      overdue: 'bg-indigo-500/10 text-indigo-700 border-indigo-500/20',
+      normal: 'bg-muted text-muted-foreground border-border'
     };
     return colors[urgency as keyof typeof colors] || colors.normal;
   };
@@ -114,10 +114,10 @@ const ReportsTab: React.FC<ReportsTabProps> = ({
   // Fonction pour les couleurs de statut (traduite)
   const getStatusColorTranslated = (status: string) => {
     const colors = {
-      'pending': 'bg-orange-100 text-orange-600',
-      'in_review': 'bg-blue-100 text-blue-600',
-      'resolved': 'bg-green-100 text-green-600', 
-      'dismissed': 'bg-gray-100 text-gray-600'
+      'pending': 'bg-amber-500/10 text-amber-700 border border-amber-500/20',
+      'in_review': 'bg-blue-500/10 text-blue-700 border border-blue-500/20',
+      'resolved': 'bg-emerald-500/10 text-emerald-700 border border-emerald-500/20', 
+      'dismissed': 'bg-muted text-muted-foreground border border-border'
     };
     return colors[status as keyof typeof colors] || colors.pending;
   };
@@ -267,8 +267,8 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
         <div className="text-center space-y-3">
           <AlertTriangle className="h-8 w-8 text-red-500 mx-auto" />
           <div>
-            <p className="text-lg font-medium text-gray-900">Erreur de chargement</p>
-            <p className="text-sm text-gray-600">Impossible de charger les signalements</p>
+            <p className="text-lg font-medium text-foreground">Erreur de chargement</p>
+            <p className="text-sm text-muted-foreground">Impossible de charger les signalements</p>
             <p className="text-xs text-red-600 mt-2">{error}</p>
           </div>
           <Button onClick={handleRefresh} variant="outline" size="sm">
@@ -284,8 +284,8 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center space-y-3">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="text-sm text-gray-600">Chargement des signalements...</p>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-foreground mx-auto"></div>
+          <p className="text-sm text-muted-foreground">Chargement des signalements...</p>
         </div>
       </div>
     );
@@ -297,8 +297,8 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
       {/* En-tête avec informations d'état */}
       <div className="flex flex-col space-y-3 sm:flex-row sm:justify-between sm:items-center sm:space-y-0">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Signalements</h2>
-          <p className="text-sm text-gray-600 mt-1">
+          <h2 className="text-xl sm:text-2xl font-bold text-foreground">Signalements</h2>
+          <p className="text-sm text-muted-foreground mt-1">
             Gestion et modération des signalements utilisateurs
           </p>
           {loading && (
@@ -338,8 +338,8 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
         <Card>
           <CardContent className="p-3 sm:p-4">
             <div className="text-center">
-              <div className="text-lg sm:text-xl font-bold text-gray-900">{stats.total}</div>
-              <div className="text-xs sm:text-sm text-gray-600">Total</div>
+              <div className="text-lg sm:text-xl font-bold text-foreground">{stats.total}</div>
+              <div className="text-xs sm:text-sm text-muted-foreground">Total</div>
             </div>
           </CardContent>
         </Card>
@@ -348,7 +348,7 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
           <CardContent className="p-3 sm:p-4">
             <div className="text-center">
               <div className="text-lg sm:text-xl font-bold text-orange-600">{stats.pending}</div>
-              <div className="text-xs sm:text-sm text-gray-600">En attente</div>
+              <div className="text-xs sm:text-sm text-muted-foreground">En attente</div>
             </div>
           </CardContent>
         </Card>
@@ -357,7 +357,7 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
           <CardContent className="p-3 sm:p-4">
             <div className="text-center">
               <div className="text-lg sm:text-xl font-bold text-red-600">{stats.critical}</div>
-              <div className="text-xs sm:text-sm text-gray-600">Critiques</div>
+              <div className="text-xs sm:text-sm text-muted-foreground">Critiques</div>
             </div>
           </CardContent>
         </Card>
@@ -366,7 +366,7 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
           <CardContent className="p-3 sm:p-4">
             <div className="text-center">
               <div className="text-lg sm:text-xl font-bold text-green-600">{stats.resolved}</div>
-              <div className="text-xs sm:text-sm text-gray-600">Résolus</div>
+              <div className="text-xs sm:text-sm text-muted-foreground">Résolus</div>
             </div>
           </CardContent>
         </Card>
@@ -375,7 +375,7 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
           <CardContent className="p-3 sm:p-4">
             <div className="text-center">
               <div className="text-lg sm:text-xl font-bold text-blue-600">{stats.resolutionRate.toFixed(0)}%</div>
-              <div className="text-xs sm:text-sm text-gray-600">Taux résolution</div>
+              <div className="text-xs sm:text-sm text-muted-foreground">Taux résolution</div>
             </div>
           </CardContent>
         </Card>
@@ -384,7 +384,7 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
           <CardContent className="p-3 sm:p-4">
             <div className="text-center">
               <div className="text-lg sm:text-xl font-bold text-purple-600">{stats.avgResponseTime.toFixed(1)}h</div>
-              <div className="text-xs sm:text-sm text-gray-600">Temps moy.</div>
+              <div className="text-xs sm:text-sm text-muted-foreground">Temps moy.</div>
             </div>
           </CardContent>
         </Card>
@@ -396,7 +396,7 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
           <div className="space-y-3">
             {/* Barre de recherche */}
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input 
                 placeholder="Rechercher par motif, ID, utilisateur..." 
                 value={searchTerm}
@@ -439,7 +439,7 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
 
             {/* Résumé des filtres actifs */}
             {(searchTerm || filterStatus !== "all" || filterPriority !== "all") && (
-              <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 <span>Filtres:</span>
                 {searchTerm && <Badge variant="secondary">"{searchTerm}"</Badge>}
                 {filterStatus !== "all" && <Badge variant="secondary">Statut: {statusTranslations[filterStatus as keyof typeof statusTranslations]}</Badge>}
@@ -458,7 +458,7 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
             <CardTitle className="text-base sm:text-lg">
               Signalements ({filteredReports.length})
             </CardTitle>
-            <div className="flex items-center gap-1 text-xs sm:text-sm text-gray-500">
+            <div className="flex items-center gap-1 text-xs sm:text-sm text-muted-foreground">
               <Activity className="h-3 w-3 sm:h-4 sm:w-4" />
               <span>Temps réel</span>
             </div>
@@ -468,9 +468,9 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
         <CardContent className="p-0">
           {filteredReports.length === 0 ? (
             <div className="text-center py-8 px-4">
-              <AlertTriangle className="h-8 w-8 text-gray-400 mx-auto mb-3" />
-              <h3 className="text-base font-medium text-gray-900 mb-2">Aucun signalement trouvé</h3>
-              <p className="text-sm text-gray-600 mb-4">
+              <AlertTriangle className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+              <h3 className="text-base font-medium text-foreground mb-2">Aucun signalement trouvé</h3>
+              <p className="text-sm text-muted-foreground mb-4">
                 {searchTerm || filterStatus !== "all" || filterPriority !== "all"
                   ? "Aucun signalement ne correspond aux critères actuels."
                   : "Aucun signalement n'est disponible pour le moment."
@@ -492,7 +492,7 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
                   const actions = getAvailableActions(report);
                   
                   return (
-                    <Card key={report.id} className={`${report.priority === 'high' ? 'border-red-200 bg-red-50' : ''}`}>
+                    <Card key={report.id} className={`${report.priority === 'high' ? 'border-red-500/20 bg-red-500/5' : ''}`}>
                       <CardContent className="p-4">
                         <div className="space-y-3">
                           {/* En-tête mobile */}
@@ -500,13 +500,13 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
                             <div className="flex items-center space-x-2">
                               {report.report_type === 'listing' ? 
                                 <Package className="h-4 w-4 text-blue-500" /> : 
-                                <User className="h-4 w-4 text-gray-500" />
+                                <User className="h-4 w-4 text-muted-foreground" />
                               }
                               <Badge variant="outline" className="text-xs">
                                 {report.report_type === 'listing' ? 'Annonce' : 'Profil'}
                               </Badge>
                             </div>
-                            <div className="text-xs text-gray-500">
+                            <div className="text-xs text-muted-foreground">
                               {formatResponseTime(report.response_time_hours || 0)}
                             </div>
                           </div>
@@ -516,10 +516,10 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
                             <p className="font-medium text-sm truncate">
                               {report.listing_title || report.reported_user_name || 'Cible inconnue'}
                             </p>
-                            <p className="text-xs text-gray-600 mt-1">
+                            <p className="text-xs text-muted-foreground mt-1">
                               Motif: {report.reason}
                             </p>
-                            <p className="text-xs text-gray-500 mt-1">
+                            <p className="text-xs text-muted-foreground mt-1">
                               Par {report.reporter_name || 'Anonyme'}
                             </p>
                           </div>
@@ -538,7 +538,7 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
                           </div>
 
                           {/* Actions mobiles */}
-                          <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                          <div className="flex items-center justify-between pt-2 border-t border-border">
                             <Button 
                               variant="ghost" 
                               size="sm"
@@ -620,13 +620,13 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
                         return (
                           <TableRow 
                             key={report.id} 
-                            className={`${report.priority === 'high' ? 'bg-red-50' : ''} hover:bg-gray-50`}
+                            className={`${report.priority === 'high' ? 'bg-red-500/5' : ''} hover:bg-muted/40`}
                           >
                             <TableCell>
                               <div className="flex items-center space-x-1">
                                 {report.report_type === 'listing' ? 
                                   <Package className="h-4 w-4 text-blue-500" /> : 
-                                  <User className="h-4 w-4 text-gray-500" />
+                                  <User className="h-4 w-4 text-muted-foreground" />
                                 }
                                 <Badge variant="outline" className="text-xs">
                                   {report.report_type === 'listing' ? 'Annonce' : 'Profil'}
@@ -639,7 +639,7 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
                                 <p className="font-medium text-sm truncate max-w-[160px]">
                                   {report.listing_title || report.reported_user_name || 'Cible inconnue'}
                                 </p>
-                                <p className="text-xs text-gray-500">ID: {report.id.slice(-8)}</p>
+                                <p className="text-xs text-muted-foreground">ID: {report.id.slice(-8)}</p>
                               </div>
                             </TableCell>
                             
@@ -702,7 +702,7 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
                                     variant="outline" 
                                     size="sm"
                                     onClick={() => handleQuickAction(report.id, 'approve', 'Signalement approuvé après examen')}
-                                    className="h-7 w-7 p-0 border-green-300 hover:bg-green-50"
+                                    className="h-7 w-7 p-0 border-border hover:bg-muted/40"
                                     title="Approuver le signalement"
                                   >
                                     <CheckCircle className="h-3 w-3 text-green-600" />
@@ -714,7 +714,7 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
                                     variant="outline" 
                                     size="sm"
                                     onClick={() => handleQuickAction(report.id, 'dismiss', 'Signalement rejeté après examen')}
-                                    className="h-7 w-7 p-0 border-red-300 hover:bg-red-50"
+                                    className="h-7 w-7 p-0 border-border hover:bg-muted/40"
                                     title="Rejeter le signalement"
                                   >
                                     <XCircle className="h-3 w-3 text-red-600" />
@@ -727,7 +727,7 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
                                     variant="outline" 
                                     size="sm"
                                     onClick={() => openActionModal(report)}
-                                    className="h-7 w-7 p-0 border-blue-300 hover:bg-blue-50"
+                                    className="h-7 w-7 p-0 border-border hover:bg-muted/40"
                                     title="Appliquer des sanctions"
                                   >
                                     <Gavel className="h-3 w-3 text-blue-600" />
@@ -736,13 +736,13 @@ const handleQuickAction = async (reportId: string, actionType: string, reason: s
 
                                 {/* Indicateur d'état pour les rapports traités */}
                                 {report.status === 'resolved' && !actions.canAdvancedActions && (
-                                  <Badge variant="outline" className="text-xs px-2 py-1 bg-green-50 text-green-700 border-green-200">
+                                  <Badge variant="outline" className="text-xs px-2 py-1 bg-emerald-500/10 text-emerald-700 border-emerald-500/20">
                                     Traité
                                   </Badge>
                                 )}
                                 
                                 {report.status === 'dismissed' && (
-                                  <Badge variant="outline" className="text-xs px-2 py-1 bg-gray-50 text-gray-700 border-gray-200">
+                                  <Badge variant="outline" className="text-xs px-2 py-1 bg-muted text-muted-foreground border-border">
                                     Rejeté
                                   </Badge>
                                 )}

@@ -4,7 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { lazy, Suspense } from "react";
 import ScrollToTop from "./components/ScrollToTop"; 
@@ -47,8 +47,12 @@ const Messages = lazy(() => import("./pages/Messages"));
 const EditListing = lazy(() => import("./pages/EditListing"));
 
 // Pages admin (chargement très différé)
-const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
-const SanctionsManagementPage = lazy(() => import("@/pages/admin/components/SanctionsManagementPage"));
+const AdminLayoutV2 = lazy(() => import("./pages/admin/AdminLayoutV2"));
+const ModerationPage = lazy(() => import("./pages/admin/ModerationPage"));
+const AdminUsersPage = lazy(() => import("./pages/admin/UsersPage"));
+const AdminListingsPage = lazy(() => import("./pages/admin/ListingsPage"));
+const AdminCompliancePage = lazy(() => import("./pages/admin/CompliancePage"));
+const AdminInsightsPage = lazy(() => import("./pages/admin/InsightsPage"));
 
 // Pages d'authentification secondaires
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
@@ -206,16 +210,69 @@ const App = () => (
                 element={
                   <Suspense fallback={<PageLoader />}>
                     <ProtectedRoute requiredRole="admin">
-                      <AdminDashboard />
+                      <Navigate to="/admin/moderation" replace />
                     </ProtectedRoute>
                   </Suspense>
                 } 
               />
+
+              <Route
+                path="/admin"
+                element={
+                  <Suspense fallback={<PageLoader />}>
+                    <ProtectedRoute requiredRole="admin">
+                      <AdminLayoutV2 />
+                    </ProtectedRoute>
+                  </Suspense>
+                }
+              >
+                <Route index element={<Navigate to="moderation" replace />} />
+                <Route
+                  path="moderation"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <ModerationPage />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="users"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <AdminUsersPage />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="listings"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <AdminListingsPage />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="compliance"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <AdminCompliancePage />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="insights"
+                  element={
+                    <Suspense fallback={<PageLoader />}>
+                      <AdminInsightsPage />
+                    </Suspense>
+                  }
+                />
+              </Route>
               
               <Route path="/sanctions" element={
                 <Suspense fallback={<PageLoader />}>
-                  <ProtectedRoute>
-                    <SanctionsManagementPage />
+                  <ProtectedRoute requiredRole="admin">
+                    <Navigate to="/admin/compliance" replace />
                   </ProtectedRoute>
                 </Suspense>
               } />

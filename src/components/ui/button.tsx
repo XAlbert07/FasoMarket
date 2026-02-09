@@ -19,8 +19,8 @@ const buttonVariants = cva(
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
         // FasoMarket specific variants
-        hero: "bg-gradient-primary text-white font-semibold shadow-primary hover:shadow-lg transform hover:scale-105 transition-all duration-200",
-        cta: "bg-primary text-primary-foreground hover:bg-primary-hover font-semibold shadow-lg hover:shadow-primary",
+        hero: "bg-gradient-primary text-white font-semibold shadow-primary hover:opacity-95 transition-all duration-200",
+        cta: "bg-primary text-primary-foreground hover:bg-primary-hover font-semibold shadow-md hover:shadow-primary",
         accent: "bg-accent text-accent-foreground hover:bg-accent-hover font-medium shadow-md",
         success: "bg-success text-success-foreground hover:bg-success/90 shadow-md"
       },
