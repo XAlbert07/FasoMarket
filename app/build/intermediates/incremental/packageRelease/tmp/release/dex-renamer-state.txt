@@ -1,0 +1,4 @@
+#Mon Feb 09 17:47:44 GMT 2026
+base.0=/home/devalbert/FasoMarket/app/build/intermediates/dex/release/minifyReleaseWithR8/classes.dex
+renamed.0=classes.dex
+path.0=classes.dex
