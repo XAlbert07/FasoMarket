@@ -18,7 +18,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { AlertTriangle, RefreshCw, Search, Pause, Play, Trash2 } from "lucide-react";
+import { AlertTriangle, RefreshCw, Search, Pause, Play, Trash2, Star } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface ListingsTabProps {
@@ -32,7 +32,7 @@ interface ListingsTabProps {
   needsReviewCount: number;
 }
 
-type ListingActionType = 'suspend' | 'delete';
+type ListingActionType = 'suspend' | 'delete' | 'feature' | 'unfeature';
 
 const ListingsTab: React.FC<ListingsTabProps> = ({
   listings,
@@ -120,6 +120,14 @@ const ListingsTab: React.FC<ListingsTabProps> = ({
     () => selectedListings.filter((listing) => listing.status === 'suspended').length,
     [selectedListings]
   );
+  const selectedFeaturedCount = useMemo(
+    () => selectedListings.filter((listing) => listing.is_featured || listing.featured).length,
+    [selectedListings]
+  );
+  const selectedNotFeaturedCount = useMemo(
+    () => selectedListings.filter((listing) => !listing.is_featured && !listing.featured).length,
+    [selectedListings]
+  );
 
   const getStatusBadgeClass = (status: string) => {
     if (status === 'active') return 'bg-green-100 text-green-700';
@@ -150,6 +158,8 @@ const ListingsTab: React.FC<ListingsTabProps> = ({
     const targets = filteredListings.filter((listing) => {
       if (!selectedListingIds.includes(listing.id)) return false;
       if (type === 'suspend') return listing.status === 'active';
+      if (type === 'feature') return !listing.is_featured && !listing.featured;
+      if (type === 'unfeature') return listing.is_featured || listing.featured;
       return true;
     });
     if (targets.length === 0) return;
@@ -191,6 +201,36 @@ const ListingsTab: React.FC<ListingsTabProps> = ({
         toast({
           title: "Action non appliquée",
           description: "La réactivation a échoué. Vérifie vos droits d'administration.",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleFeatureToggle = async (listing: any) => {
+    setActionLoadingId(listing.id);
+    try {
+      const isFeatured = listing.is_featured || listing.featured;
+      const ok = await handleListingAction(listing.id, {
+        type: isFeatured ? 'unfeature' : 'feature',
+        reason: isFeatured
+          ? 'Retrait de la mise en avant depuis la modération'
+          : 'Mise en avant depuis la modération',
+      });
+      if (ok) {
+        await refreshListings();
+        toast({
+          title: isFeatured ? 'Annonce retirée des vedettes' : 'Annonce mise en avant',
+          description: isFeatured
+            ? "L'annonce n'est plus en vedette."
+            : "L'annonce apparaîtra maintenant dans les annonces en vedette.",
+        });
+      } else {
+        toast({
+          title: "Action non appliquée",
+          description: "La mise en avant a échoué. Vérifie vos droits d'administration.",
           variant: "destructive",
         });
       }
@@ -248,11 +288,22 @@ const ListingsTab: React.FC<ListingsTabProps> = ({
           const fallbackReason =
             actionType === 'suspend'
               ? 'Suspension depuis la modération annonces'
+              : actionType === 'feature'
+              ? 'Mise en avant depuis la modération'
+              : actionType === 'unfeature'
+              ? 'Retrait de la mise en avant depuis la modération'
               : 'Suppression depuis la modération annonces';
           const resolvedReason = actionReason.trim() || fallbackReason;
           if (actionType === 'suspend') {
             return handleListingAction(target.id, {
               type: 'suspend_listing',
+              reason: resolvedReason,
+              notes: actionNotes.trim() || undefined,
+            });
+          }
+          if (actionType === 'feature' || actionType === 'unfeature') {
+            return handleListingAction(target.id, {
+              type: actionType,
               reason: resolvedReason,
               notes: actionNotes.trim() || undefined,
             });
@@ -388,6 +439,26 @@ const ListingsTab: React.FC<ListingsTabProps> = ({
                 <Play className="mr-1 h-3.5 w-3.5" /> Réactiver en masse ({selectedSuspendedCount})
               </Button>
             )}
+            {selectedNotFeaturedCount > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => openBulkActionDialog('feature')}
+                disabled={actionLoadingId !== null}
+              >
+                <Star className="mr-1 h-3.5 w-3.5" /> Mettre en vedette ({selectedNotFeaturedCount})
+              </Button>
+            )}
+            {selectedFeaturedCount > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => openBulkActionDialog('unfeature')}
+                disabled={actionLoadingId !== null}
+              >
+                <Star className="mr-1 h-3.5 w-3.5 fill-current" /> Retirer des vedettes ({selectedFeaturedCount})
+              </Button>
+            )}
             <Button
               size="sm"
               variant="outline"
@@ -485,6 +556,26 @@ const ListingsTab: React.FC<ListingsTabProps> = ({
                               </Button>
                             ) : null}
 
+                            {listing.is_featured || listing.featured ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openActionDialog(listing, 'unfeature')}
+                                disabled={actionLoadingId === listing.id}
+                              >
+                                <Star className="mr-1 h-3.5 w-3.5 fill-current" /> Retirer
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openActionDialog(listing, 'feature')}
+                                disabled={actionLoadingId === listing.id}
+                              >
+                                <Star className="mr-1 h-3.5 w-3.5" /> Vedette
+                              </Button>
+                            )}
+
                             <Button
                               variant="outline"
                               size="sm"
@@ -570,6 +661,14 @@ const ListingsTab: React.FC<ListingsTabProps> = ({
                 ? actionTargets.length > 1
                   ? `Suspendre ${actionTargets.length} annonces`
                   : "Suspendre l'annonce"
+                : actionType === 'feature'
+                ? actionTargets.length > 1
+                  ? `Mettre en avant ${actionTargets.length} annonces`
+                  : "Mettre en avant l'annonce"
+                : actionType === 'unfeature'
+                ? actionTargets.length > 1
+                  ? `Retirer ${actionTargets.length} annonces des vedettes`
+                  : "Retirer l'annonce des vedettes"
                 : actionTargets.length > 1
                 ? `Supprimer ${actionTargets.length} annonces`
                 : "Supprimer l'annonce"}
@@ -577,6 +676,10 @@ const ListingsTab: React.FC<ListingsTabProps> = ({
             <AlertDialogDescription>
               {actionType === 'suspend'
                 ? "Cette action masque temporairement l'annonce sur la plateforme."
+                : actionType === 'feature'
+                ? "Cette annonce apparaîtra dans la section \"Annonces en vedette\" sur la page d'accueil."
+                : actionType === 'unfeature'
+                ? "Cette annonce ne sera plus affichée en vedette sur la page d'accueil."
                 : "Cette action supprime définitivement l'annonce."}
             </AlertDialogDescription>
           </AlertDialogHeader>

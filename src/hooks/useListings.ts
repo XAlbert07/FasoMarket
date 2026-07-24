@@ -10,10 +10,14 @@ import { useToast } from '@/hooks/use-toast';
  * Interface complète pour le hook useListings
  * Combine optimisation et fonctionnalités étendues
  */
+export const LISTINGS_PAGE_SIZE = 24;
+
 export interface UseListingsReturn {
   // Propriétés de base
   listings: Listing[];
   loading: boolean;
+  loadingMore: boolean;
+  hasMore: boolean;
   error: string | null;
   
   // Propriétés calculées pour MyListings.tsx
@@ -23,6 +27,7 @@ export interface UseListingsReturn {
   
   // Fonctions de récupération
   fetchListings: (filters?: SearchFilters) => Promise<void>;
+  loadMoreListings: () => Promise<void>;
   fetchListingsSimple: (filters?: SearchFilters) => Promise<void>;
   fetchUserListings: (userId: string) => Promise<void>;
   
@@ -39,8 +44,12 @@ export interface UseListingsReturn {
 export const useListings = (): UseListingsReturn => {
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUserId, setLastUserId] = useState<string | null>(null);
+  const [lastFilters, setLastFilters] = useState<SearchFilters | undefined>(undefined);
+  const [currentPage, setCurrentPage] = useState(0);
   const { toast } = useToast();
   const { user } = useAuthContext();
   /**
@@ -184,84 +193,86 @@ export const useListings = (): UseListingsReturn => {
     }
   }, []);
 
+  const applyListingFilters = useCallback(async (baseQuery: any, filters?: SearchFilters) => {
+    let query = baseQuery.eq('status', 'active');
+
+    if (filters?.category) {
+      const categoryId = await resolveCategoryId(filters.category);
+      if (!categoryId) return { query: null, categoryMissing: true as const };
+      query = query.eq('category_id', categoryId);
+    }
+
+    if (filters?.query) {
+      query = query.or(`title.ilike.%${filters.query}%,description.ilike.%${filters.query}%`);
+    }
+
+    if (filters?.location) {
+      query = query.ilike('location', `%${filters.location}%`);
+    }
+
+    if (filters?.condition) {
+      query = query.eq('condition', filters.condition);
+    }
+
+    if (filters?.priceMin) {
+      query = query.gte('price', filters.priceMin);
+    }
+
+    if (filters?.priceMax) {
+      query = query.lte('price', filters.priceMax);
+    }
+
+    // Default date order first, then override for other sorts
+    if (filters?.sortBy === 'price_asc') {
+      query = query.order('price', { ascending: true });
+    } else if (filters?.sortBy === 'price_desc') {
+      query = query.order('price', { ascending: false });
+    } else if (filters?.sortBy === 'views') {
+      query = query.order('views_count', { ascending: false });
+    } else {
+      query = query.order('created_at', { ascending: false });
+    }
+
+    return { query, categoryMissing: false as const };
+  }, [resolveCategoryId]);
+
   /**
-   * Fonction principale OPTIMISÉE avec jointures
-   * Performance maximale pour les listes publiques
+   * Fonction principale OPTIMISÉE avec jointures + pagination
    */
   const fetchListings = useCallback(async (filters?: SearchFilters) => {
     setLoading(true);
     setError(null);
+    setLastFilters(filters);
+    setCurrentPage(0);
 
     try {
+      const built = buildOptimizedQuery(supabase.from('listings'));
+      const { query, categoryMissing } = await applyListingFilters(built, filters);
 
-      // Construction de la requête base avec jointures
-      let query = buildOptimizedQuery(
-        supabase.from('listings')
-      )
-      .eq('status', 'active')
-      .order('created_at', { ascending: false });
-
-      // Application des filtres avec optimisations
-      if (filters?.category) {
-        const categoryId = await resolveCategoryId(filters.category);
-        if (categoryId) {
-          query = query.eq('category_id', categoryId);
-        } else {
-          // Catégorie introuvable - retour rapide
-          setListings([]);
-          setLoading(false);
-          return;
-        }
+      if (categoryMissing || !query) {
+        setListings([]);
+        setHasMore(false);
+        setLoading(false);
+        return;
       }
 
-      // Filtres de recherche textuelle
-      if (filters?.query) {
-        query = query.or(`title.ilike.%${filters.query}%,description.ilike.%${filters.query}%`);
-      }
-
-      if (filters?.location) {
-        query = query.ilike('location', `%${filters.location}%`);
-      }
-
-      if (filters?.condition) {
-        query = query.eq('condition', filters.condition);
-      }
-
-      // Filtres de prix
-      if (filters?.priceMin) {
-        query = query.gte('price', filters.priceMin);
-      }
-
-      if (filters?.priceMax) {
-        query = query.lte('price', filters.priceMax);
-      }
-
-      // Options de tri
-      if (filters?.sortBy === 'price_asc') {
-        query = query.order('price', { ascending: true });
-      } else if (filters?.sortBy === 'price_desc') {
-        query = query.order('price', { ascending: false });
-      } else if (filters?.sortBy === 'views') {
-        query = query.order('views_count', { ascending: false });
-      }
-
-      // EXÉCUTION : Requête avec jointure catégorie + enrichissement profils
-      const { data, error } = await query.limit(50);
+      const from = 0;
+      const to = LISTINGS_PAGE_SIZE - 1;
+      const { data, error } = await query.range(from, to);
 
       if (error) {
         console.error('Erreur requête:', error);
         throw error;
       }
 
-
-      // Enrichissement avec profils utilisateur (1 requête supplémentaire)
       const enrichedListings = await enrichListingsBatch(data || []);
       setListings(enrichedListings);
-
+      setHasMore((data || []).length === LISTINGS_PAGE_SIZE);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erreur de chargement';
       console.error('Erreur complète:', err);
       setError(errorMessage);
+      setHasMore(false);
       
       toast({
         title: "Erreur de chargement",
@@ -271,7 +282,57 @@ export const useListings = (): UseListingsReturn => {
     } finally {
       setLoading(false);
     }
-  }, [toast, buildOptimizedQuery, enrichListingsBatch, resolveCategoryId]);
+  }, [toast, buildOptimizedQuery, enrichListingsBatch, applyListingFilters]);
+
+  const loadMoreListings = useCallback(async () => {
+    if (loading || loadingMore || !hasMore) return;
+
+    setLoadingMore(true);
+    setError(null);
+
+    try {
+      const nextPage = currentPage + 1;
+      const built = buildOptimizedQuery(supabase.from('listings'));
+      const { query, categoryMissing } = await applyListingFilters(built, lastFilters);
+
+      if (categoryMissing || !query) {
+        setHasMore(false);
+        return;
+      }
+
+      const from = nextPage * LISTINGS_PAGE_SIZE;
+      const to = from + LISTINGS_PAGE_SIZE - 1;
+      const { data, error } = await query.range(from, to);
+
+      if (error) throw error;
+
+      const enrichedListings = await enrichListingsBatch(data || []);
+      setListings((prev) => [...prev, ...enrichedListings]);
+      setCurrentPage(nextPage);
+      setHasMore((data || []).length === LISTINGS_PAGE_SIZE);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Erreur de chargement';
+      console.error('Erreur load more:', err);
+      setError(errorMessage);
+      toast({
+        title: "Erreur de chargement",
+        description: "Impossible de charger plus d'annonces.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [
+    loading,
+    loadingMore,
+    hasMore,
+    currentPage,
+    lastFilters,
+    buildOptimizedQuery,
+    applyListingFilters,
+    enrichListingsBatch,
+    toast,
+  ]);
 
   /**
    * Version simplifiée optimisée
@@ -372,7 +433,8 @@ export const useListings = (): UseListingsReturn => {
           )
         `)
         .eq('user_id', userId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .range(0, 199);
 
       if (error) throw error;
       
@@ -440,6 +502,8 @@ export const useListings = (): UseListingsReturn => {
     // Propriétés de base
     listings,
     loading,
+    loadingMore,
+    hasMore,
     error,
     
     // Propriétés calculées
@@ -449,6 +513,7 @@ export const useListings = (): UseListingsReturn => {
     
     // Fonctions de récupération
     fetchListings,
+    loadMoreListings,
     fetchListingsSimple,
     fetchUserListings,
     

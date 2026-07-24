@@ -25,7 +25,7 @@ import { useSellerListings } from "@/hooks/useSellerListings";
 import { useSellerProfile } from "@/hooks/useSellerProfile";
 import { useSellerReviews } from "@/hooks/useSellerReviews";
 import { useCreateListing } from "@/hooks/useListings";
-import { useMessages } from "@/hooks/useMessages";
+import { useConversations } from "@/hooks/useConversations";
 
 const MerchantDashboard = () => {
   const navigate = useNavigate();
@@ -77,7 +77,7 @@ const MerchantDashboard = () => {
     fetchMessages,
     sendMessage,
     markConversationAsRead
-  } = useMessages();
+  } = useConversations();
 
   // Vérification d'authentification 
   useEffect(() => {
@@ -516,12 +516,11 @@ const MerchantDashboard = () => {
                       </Button>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-2">
+                    <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
                       {listings.slice(0, 4).map((listing) => (
                         <ListingCard
                           key={listing.id}
                           listing={listing}
-                          showCta={false}
                           showCategory={true}
                           showSeller={false}
                           showViews={true}

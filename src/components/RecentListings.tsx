@@ -41,14 +41,13 @@ export const RecentListings = () => {
             <p className="text-muted-foreground">Aucune annonce récente disponible.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-3">
             {recentListings.map((listing) => (
               <ListingCard
                 key={listing.id}
                 listing={listing}
                 isFavorite={isFavorite(listing.id)}
                 onToggleFavorite={toggleFavorite}
-                showCta={true}
                 showCategory={true}
                 showSeller={true}
                 showViews={true}

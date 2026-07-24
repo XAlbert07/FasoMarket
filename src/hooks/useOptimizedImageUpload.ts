@@ -212,7 +212,7 @@ export const useOptimizedImageUpload = () => {
           continue;
         }
 
-        if (file.size > 15 * 1024 * 1024) { // Limite augmentée à 15MB
+        if (file.size > 15 * 1024 * 1024) {
           toast({
             title: "Image trop lourde",
             description: `${file.name} dépasse 15MB`,
@@ -227,35 +227,35 @@ export const useOptimizedImageUpload = () => {
         const imageSet: ImageVariants = {} as ImageVariants;
         const baseFileName = `${Date.now()}-${Math.random().toString(36).substring(2)}`;
         
-        let variantIndex = 0;
         const variantKeys = Object.keys(variants);
-        
-        for (const [variantName, blob] of Object.entries(variants)) {
-          const fileName = `${baseFileName}-${variantName}.webp`;
-          
-          const variantProgress = baseProgress + 20 + ((variantIndex / variantKeys.length) * 60);
-          setCompressionProgress(variantProgress);
-          
-          const { data, error } = await supabase.storage
-            .from('listing-images')
-            .upload(fileName, blob, {
-              cacheControl: '31536000',
-              upsert: false,
-              contentType: 'image/webp'
-            });
+        const variantEntries = Object.entries(variants);
 
-          if (error) {
-            console.error(`Erreur upload ${variantName}:`, error);
-            continue;
+        const uploadResults = await Promise.all(
+          variantEntries.map(async ([variantName, blob], idx) => {
+            const fileName = `${baseFileName}-${variantName}.webp`;
+            const { data, error } = await supabase.storage
+              .from('listing-images')
+              .upload(fileName, blob, {
+                cacheControl: '31536000',
+                upsert: false,
+                contentType: 'image/webp'
+              });
+            if (error) {
+              console.error(`Erreur upload ${variantName}:`, error);
+              return { variantName, url: null };
+            }
+            const { data: { publicUrl } } = supabase.storage
+              .from('listing-images')
+              .getPublicUrl(data.path);
+            return { variantName, url: publicUrl };
+          })
+        );
+
+        uploadResults.forEach(({ variantName, url }) => {
+          if (url) {
+            imageSet[variantName as keyof ImageVariants] = url;
           }
-
-          const { data: { publicUrl } } = supabase.storage
-            .from('listing-images')
-            .getPublicUrl(data.path);
-
-          imageSet[variantName as keyof ImageVariants] = publicUrl;
-          variantIndex++;
-        }
+        });
         
         if (!imageSet.medium && imageSet.large) {
           imageSet.medium = imageSet.large;

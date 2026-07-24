@@ -223,7 +223,7 @@ export type Database = {
           reporter_id: string
           reason: string
           description: string | null
-          status: 'pending' | 'reviewed' | 'resolved' | 'dismissed'
+          status: 'pending' | 'in_review' | 'resolved' | 'dismissed'
           created_at: string
           updated_at: string
         }

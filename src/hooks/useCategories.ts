@@ -29,46 +29,84 @@ interface RawCategoryData {
   listing_count: number;
 }
 
-const CACHE_KEY = 'categories-with-counts';
+const CACHE_KEY = 'categories-with-counts-v3';
 
 export const useCategories = () => {
   const [categories, setCategories] = useState<FormattedCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Mapping des icônes pour chaque catégorie
+  // Mapping des icônes — une forme lisible par domaine métier
   const getIconForCategory = useCallback((categoryName: string, slug: string): string => {
+    const normalize = (value: string) =>
+      value
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim();
+
+    const key = normalize(slug) || normalize(categoryName);
+
     const iconMap: Record<string, string> = {
-      'vehicules': 'Car',
-      'immobilier': 'Home', 
-      'telephones': 'Smartphone',
-      'telephone': 'Smartphone',
-      'mode': 'Shirt',
-      'maison': 'Sofa',
-      'emploi': 'Briefcase',
-      'job': 'Briefcase',
-      'loisirs': 'Heart',
-      'loisir': 'Heart',
-      'autres': 'MoreHorizontal',
-      'autre': 'MoreHorizontal'
+      vehicules: 'Car',
+      vehicule: 'Car',
+      auto: 'Car',
+      voiture: 'Car',
+      immobilier: 'Building2',
+      maison: 'Sofa',
+      'maison-jardin': 'Sofa',
+      jardin: 'Sofa',
+      telephones: 'Smartphone',
+      telephone: 'Smartphone',
+      phone: 'Smartphone',
+      mode: 'Shirt',
+      vetements: 'Shirt',
+      fashion: 'Shirt',
+      emploi: 'Briefcase',
+      job: 'Briefcase',
+      jobs: 'Briefcase',
+      travail: 'Briefcase',
+      loisirs: 'Bike',
+      loisir: 'Bike',
+      sport: 'Bike',
+      sports: 'Bike',
+      services: 'Wrench',
+      service: 'Wrench',
+      electronique: 'Laptop',
+      informatique: 'Laptop',
+      'high-tech': 'Laptop',
+      autres: 'Package',
+      autre: 'Package',
+      divers: 'Package',
     };
-    
-    return iconMap[slug.toLowerCase()] || 
-           iconMap[categoryName.toLowerCase()] || 
-           'MoreHorizontal';
+
+    if (iconMap[key]) return iconMap[key];
+
+    // Fallback by partial name match
+    if (key.includes('vehic') || key.includes('auto')) return 'Car';
+    if (key.includes('immo') || key.includes('appart')) return 'Building2';
+    if (key.includes('tel') || key.includes('phone')) return 'Smartphone';
+    if (key.includes('mode') || key.includes('vetement')) return 'Shirt';
+    if (key.includes('maison') || key.includes('meuble') || key.includes('jardin')) return 'Sofa';
+    if (key.includes('emploi') || key.includes('job')) return 'Briefcase';
+    if (key.includes('loisir') || key.includes('sport')) return 'Bike';
+    if (key.includes('service')) return 'Wrench';
+    if (key.includes('electro') || key.includes('info') || key.includes('tech')) return 'Laptop';
+
+    return 'Package';
   }, []);
 
-  // Mapping des couleurs
+  // Couleurs legacy (cartes admin / anciens call sites) — le home utilise ToneMap côté UI
   const getColorForCategory = useCallback((index: number): string => {
     const colors = [
-      'bg-primary',
-      'bg-secondary', 
-      'bg-accent',
-      'bg-blue-500',
-      'bg-green-500',
-      'bg-purple-500',
-      'bg-orange-500',
-      'bg-muted-foreground'
+      'bg-sky-100',
+      'bg-amber-100',
+      'bg-violet-100',
+      'bg-rose-100',
+      'bg-teal-100',
+      'bg-slate-200',
+      'bg-orange-100',
+      'bg-muted',
     ];
     return colors[index % colors.length];
   }, []);
@@ -83,7 +121,7 @@ export const useCategories = () => {
       count: category.listing_count.toLocaleString('fr-FR'),
       listing_count: category.listing_count,
       color: getColorForCategory(index),
-      href: `/listings?category=${encodeURIComponent(category.name)}`
+      href: `/category/${category.slug}`
     }));
   }, [getIconForCategory, getColorForCategory]);
 
@@ -96,18 +134,18 @@ export const useCategories = () => {
       icon: 'Car',
       count: '0',
       listing_count: 0,
-      color: 'bg-primary',
-      href: '/listings?category=Véhicules'
+      color: 'bg-sky-100',
+      href: '/category/vehicules'
     },
     {
       id: 'default-immobilier',
       name: 'Immobilier', 
       slug: 'immobilier',
-      icon: 'Home',
+      icon: 'Building2',
       count: '0',
       listing_count: 0,
-      color: 'bg-secondary',
-      href: '/listings?category=Immobilier'
+      color: 'bg-amber-100',
+      href: '/category/immobilier'
     },
     {
       id: 'default-telephones',
@@ -116,8 +154,8 @@ export const useCategories = () => {
       icon: 'Smartphone',
       count: '0',
       listing_count: 0,
-      color: 'bg-accent',
-      href: '/listings?category=Téléphones'
+      color: 'bg-violet-100',
+      href: '/category/telephones'
     },
     {
       id: 'default-mode',
@@ -126,8 +164,8 @@ export const useCategories = () => {
       icon: 'Shirt', 
       count: '0',
       listing_count: 0,
-      color: 'bg-blue-500',
-      href: '/listings?category=Mode'
+      color: 'bg-rose-100',
+      href: '/category/mode'
     }
   ], []);
 

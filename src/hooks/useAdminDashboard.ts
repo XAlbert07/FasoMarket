@@ -5,6 +5,8 @@ import { supabase } from '@/lib/supabase'
 import { useToast } from '@/hooks/use-toast'
 import { useAuthContext } from '@/contexts/AuthContext'
 
+const ADMIN_PAGE_SIZE = 200;
+
 // ========================================
 // INTERFACES CONSOLIDÉES
 // ========================================
@@ -295,6 +297,10 @@ export const useAdminDashboard = () => {
     reviews: { data: [], loading: false, error: null, lastFetch: null }
   })
 
+  const [mvUserStats, setMvUserStats] = useState<any[]>([])
+  const [mvListingStats, setMvListingStats] = useState<any[]>([])
+  const [mvLoading, setMvLoading] = useState(false)
+
   // État pour le contrôle global
   const [globalLoading, setGlobalLoading] = useState(true)
   const [lastGlobalRefresh, setLastGlobalRefresh] = useState<string | null>(null)
@@ -330,15 +336,29 @@ export const useAdminDashboard = () => {
     updateSection('profiles', { loading: true, error: null })
 
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false })
+      let allProfiles: any[] = [];
+      let offset = 0;
+      let hasMore = true;
 
-      if (error) throw error
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .range(offset, offset + ADMIN_PAGE_SIZE - 1);
 
-      updateSection('profiles', { data: data || [], loading: false })
-      return data || []
+        if (error) throw error;
+        if (data && data.length > 0) {
+          allProfiles = allProfiles.concat(data);
+          offset += ADMIN_PAGE_SIZE;
+          hasMore = data.length === ADMIN_PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      updateSection('profiles', { data: allProfiles, loading: false })
+      return allProfiles
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue'
@@ -359,23 +379,36 @@ export const useAdminDashboard = () => {
     updateSection('listings', { loading: true, error: null })
 
     try {
-      const { data, error } = await supabase
-        .from('listings')
-        .select(`
-          *,
-          suspended_by:profiles!listings_suspended_by_fkey(
-            full_name,
-            email
-          )
-        `)
-        .order('created_at', { ascending: false })
+      let allListings: any[] = [];
+      let offset = 0;
+      let hasMore = true;
 
-      if (error) throw error
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('listings')
+          .select(`
+            *,
+            suspended_by:profiles!listings_suspended_by_fkey(
+              full_name,
+              email
+            )
+          `)
+          .order('created_at', { ascending: false })
+          .range(offset, offset + ADMIN_PAGE_SIZE - 1);
 
-      const safeListingsData = Array.isArray(data) ? data : [];
+        if (error) throw error;
+        if (data && data.length > 0) {
+          allListings = allListings.concat(data);
+          offset += ADMIN_PAGE_SIZE;
+          hasMore = data.length === ADMIN_PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      const safeListingsData = Array.isArray(allListings) ? allListings : [];
       updateSection('listings', { data: safeListingsData, loading: false })
       return safeListingsData
-      
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue'
@@ -426,20 +459,34 @@ export const useAdminDashboard = () => {
     updateSection('reports', { loading: true, error: null })
 
     try {
-      const { data, error } = await supabase
-        .from('reports')
-        .select(`
-          *,
-          listing:listings(title, price),
-          reported_user:profiles!reports_user_id_fkey(full_name, email),
-          reporter:profiles!reports_reporter_id_fkey(full_name, email)
-        `)
-        .order('created_at', { ascending: false })
+      let allReports: any[] = [];
+      let offset = 0;
+      let hasMore = true;
 
-      if (error) throw error
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('reports')
+          .select(`
+            *,
+            listing:listings(title, price),
+            reported_user:profiles!reports_user_id_fkey(full_name, email),
+            reporter:profiles!reports_reporter_id_fkey(full_name, email)
+          `)
+          .order('created_at', { ascending: false })
+          .range(offset, offset + ADMIN_PAGE_SIZE - 1);
 
-      updateSection('reports', { data: data || [], loading: false })
-      return data || []
+        if (error) throw error;
+        if (data && data.length > 0) {
+          allReports = allReports.concat(data);
+          offset += ADMIN_PAGE_SIZE;
+          hasMore = data.length === ADMIN_PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      updateSection('reports', { data: allReports, loading: false })
+      return allReports
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue'
@@ -489,7 +536,7 @@ export const useAdminDashboard = () => {
     if (!shouldSkipFavorites || favoritesSection.loading) {
       updateSection('favorites', { loading: true, error: null })
       try {
-        const { data, error } = await supabase.from('favorites').select('*')
+        const { data, error } = await supabase.from('favorites').select('*').range(0, ADMIN_PAGE_SIZE - 1)
         if (error) throw error
         updateSection('favorites', { data: data || [], loading: false })
       } catch (error) {
@@ -497,7 +544,6 @@ export const useAdminDashboard = () => {
       }
     }
 
-    // Messages
     const messagesSection = stateRef.current.messages
     const shouldSkipMessages = !force && messagesSection.data.length >= 0 && messagesSection.lastFetch && 
       (Date.now() - new Date(messagesSection.lastFetch).getTime() < 3 * 60 * 1000)
@@ -509,7 +555,7 @@ export const useAdminDashboard = () => {
           .from('messages')
           .select('*')
           .order('created_at', { ascending: false })
-          .limit(1000)
+          .range(0, ADMIN_PAGE_SIZE - 1)
         if (error) throw error
         updateSection('messages', { data: data || [], loading: false })
       } catch (error) {
@@ -517,7 +563,6 @@ export const useAdminDashboard = () => {
       }
     }
 
-    // Reviews
     const reviewsSection = stateRef.current.reviews
     const shouldSkipReviews = !force && reviewsSection.data.length >= 0 && reviewsSection.lastFetch && 
       (Date.now() - new Date(reviewsSection.lastFetch).getTime() < 5 * 60 * 1000)
@@ -525,7 +570,7 @@ export const useAdminDashboard = () => {
     if (!shouldSkipReviews || reviewsSection.loading) {
       updateSection('reviews', { loading: true, error: null })
       try {
-        const { data, error } = await supabase.from('reviews').select('*')
+        const { data, error } = await supabase.from('reviews').select('*').range(0, ADMIN_PAGE_SIZE - 1)
         if (error) throw error
         updateSection('reviews', { data: data || [], loading: false })
       } catch (error) {
@@ -925,84 +970,53 @@ export const useAdminDashboard = () => {
     return categoryData
   }, [centralState.listings.data, centralState.categories.data])
 
-  // Calcul des utilisateurs enrichis
+  // Calcul des utilisateurs enrichis — utilise mv_user_stats quand disponible
   const computedUsers = useMemo((): AdminUser[] => {
     const profiles = centralState.profiles.data
-    const listings = centralState.listings.data
-    const reports = centralState.reports.data
 
     if (profiles.length === 0) return []
 
+    const mvMap = new Map(mvUserStats.map((mv: any) => [mv.user_id, mv]))
 
     return profiles.map((user: any) => {
-      const userListings = listings.filter((l: any) => l.user_id === user.id)
-      const listingsCount = userListings.length
-      const activeListingsCount = userListings.filter((l: any) => l.status === 'active').length
-      const totalViewsReceived = userListings.reduce((sum: number, l: any) => sum + (l.views_count || 0), 0)
-
-      const reportsMade = reports.filter((r: any) => r.reporter_id === user.id).length
-      const reportsReceived = reports.filter((r: any) => 
-        r.user_id === user.id || 
-        (r.listings && r.listings.user_id === user.id)
-      ).length
-
+      const mv = mvMap.get(user.id)
       const accountCreated = new Date(user.created_at)
       const now = new Date()
       const accountAgeDays = Math.floor((now.getTime() - accountCreated.getTime()) / (1000 * 60 * 60 * 24))
 
-      // Calcul du score de confiance basé sur des métriques réelles
-      let trustScore = 40; // Base réduite
+      const activeListingsCount = mv?.active_listings_count || 0
+      const totalViewsReceived = mv?.total_views_received || 0
+      const reportsMade = mv?.reports_made || 0
+      const reportsReceived = mv?.reports_received || 0
 
-      // Facteurs positifs
-      trustScore += Math.min(accountAgeDays * 0.2, 25); // Ancienneté du compte
-      trustScore += Math.min(activeListingsCount * 3, 20); // Annonces actives
-      trustScore += Math.min((userListings.reduce((sum, l) => sum + (l.views_count || 0), 0) / Math.max(userListings.length, 1)) * 0.1, 10); // Moyenne des vues
-
-      // Facteurs de vérification
-      if (user.phone && user.full_name && user.location) trustScore += 15; // Profil complet
-      else if (user.phone && user.full_name) trustScore += 10; // Profil partiel
-
-      // Facteurs négatifs (plus sévères)
-      trustScore -= reportsReceived * 15; // Signalements reçus
-      trustScore -= Math.min((now.getTime() - new Date(user.last_activity || user.created_at).getTime()) / (1000 * 60 * 60 * 24 * 7), 10); // Inactivité
-
-      // Bonus pour utilisateurs actifs récents
-      const recentMessages = centralState.messages.data.filter(m => 
-        (m.sender_id === user.id || m.recipient_id === user.id) && 
-        new Date(m.created_at) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-      ).length;
-      trustScore += Math.min(recentMessages * 0.5, 5);
-
-      // Normalisation finale
+      let trustScore = 40;
+      trustScore += Math.min(accountAgeDays * 0.2, 25);
+      trustScore += Math.min(activeListingsCount * 3, 20);
+      trustScore += Math.min((totalViewsReceived / Math.max((mv?.total_listings_count || 1), 1)) * 0.1, 10);
+      if (user.phone && user.full_name && user.location) trustScore += 15;
+      else if (user.phone && user.full_name) trustScore += 10;
+      trustScore -= reportsReceived * 15;
+      trustScore -= Math.min((now.getTime() - new Date(user.updated_at || user.created_at).getTime()) / (1000 * 60 * 60 * 24 * 7), 10);
       trustScore = Math.max(0, Math.min(100, Math.round(trustScore)));
 
       let riskLevel: 'low' | 'medium' | 'high' = 'low'
-      if (reportsReceived > 2 || trustScore < 30) {
-        riskLevel = 'high'
-      } else if (reportsReceived > 0 || trustScore < 60) {
-        riskLevel = 'medium'
-      }
+      if (reportsReceived > 2 || trustScore < 30) riskLevel = 'high'
+      else if (reportsReceived > 0 || trustScore < 60) riskLevel = 'medium'
 
       let status: AdminUser['status'] = 'active'
-      if (riskLevel === 'high' && reportsReceived > 3) {
-        status = 'suspended'
-      } else if (!user.full_name || !user.phone) {
-        status = 'pending_verification'
-      }
-
-      const verificationStatus: AdminUser['verification_status'] = 
-        (user.phone && user.full_name) ? 'verified' : 'pending'
+      if (riskLevel === 'high' && reportsReceived > 3) status = 'suspended'
+      else if (!user.full_name || !user.phone) status = 'pending_verification'
 
       return {
         ...user,
         status,
         trust_score: Math.round(trustScore),
-        listings_count: listingsCount,
+        listings_count: mv?.total_listings_count || 0,
         active_listings_count: activeListingsCount,
         reports_received: reportsReceived,
         reports_made: reportsMade,
         last_activity: user.updated_at || user.created_at,
-        verification_status: verificationStatus,
+        verification_status: (user.phone && user.full_name) ? 'verified' : 'pending',
         total_views_received: totalViewsReceived,
         total_messages_sent: 0,
         total_messages_received: 0,
@@ -1011,30 +1025,28 @@ export const useAdminDashboard = () => {
         warning_count: 0
       } as AdminUser
     })
-  }, [centralState.profiles.data, centralState.listings.data, centralState.reports.data])
+  }, [centralState.profiles.data, mvUserStats])
 
-  // Calcul des annonces enrichies AVEC DÉTECTION D'INCOHÉRENCES
+  // Calcul des annonces enrichies — utilise mv_listing_stats quand disponible
   const computedListings = useMemo((): AdminListing[] => {
     const listings = centralState.listings.data
     const profiles = centralState.profiles.data
     const categories = centralState.categories.data
-    const favorites = centralState.favorites.data
-    const messages = centralState.messages.data
-    const reports = centralState.reports.data
 
     if (listings.length === 0) return []
 
-
     const profilesMap = new Map(profiles.map((profile: any) => [profile.id, profile]))
     const categoriesMap = new Map(categories.map((category: any) => [category.id, category]))
+    const mvMap = new Map(mvListingStats.map((mv: any) => [mv.listing_id, mv]))
 
     return listings.map((listing: any) => {
       const profile = profilesMap.get(listing.user_id)
       const category = categoriesMap.get(listing.category_id)
+      const mv = mvMap.get(listing.id)
 
-      const favoritesCount = favorites.filter((f: any) => f.listing_id === listing.id).length
-      const messagesCount = messages.filter((m: any) => m.listing_id === listing.id).length
-      const reportsCount = reports.filter((r: any) => r.listing_id === listing.id).length
+      const favoritesCount = mv?.favorites_count || 0
+      const reportsCount = centralState.reports.data.filter((r: any) => r.listing_id === listing.id).length
+      const messagesCount = centralState.messages.data.filter((m: any) => m.listing_id === listing.id).length
 
       const createdAt = new Date(listing.created_at)
       const now = new Date()
@@ -1133,7 +1145,7 @@ export const useAdminDashboard = () => {
       } as AdminListing
     })
   }, [centralState.listings.data, centralState.profiles.data, centralState.categories.data, 
-      centralState.favorites.data, centralState.messages.data, centralState.reports.data])
+      centralState.reports.data, centralState.messages.data, mvListingStats])
 
   // Calcul des signalements enrichis
   const computedReports = useMemo((): AdminReport[] => {
@@ -1854,6 +1866,22 @@ export const useAdminDashboard = () => {
   // COUCHE 4: FONCTIONS DE RAFRAÎCHISSEMENT
   // ========================================
 
+  const fetchMvStats = useCallback(async () => {
+    setMvLoading(true)
+    try {
+      const [usersRes, listingsRes] = await Promise.all([
+        supabase.from('mv_user_stats').select('*'),
+        supabase.from('mv_listing_stats').select('*')
+      ])
+      if (usersRes.data) setMvUserStats(usersRes.data)
+      if (listingsRes.data) setMvListingStats(listingsRes.data)
+    } catch (error) {
+      console.error('Erreur fetchMvStats:', error)
+    } finally {
+      setMvLoading(false)
+    }
+  }, [])
+
   const refreshSection = useCallback(async (section: keyof CentralState | 'all', force = false) => {
 
     if (section === 'all' || section === 'profiles') {
@@ -1873,6 +1901,7 @@ export const useAdminDashboard = () => {
     }
     if (section === 'all') {
       await fetchSupplementaryData(force)
+      await fetchMvStats()
     }
 
     setLastGlobalRefresh(new Date().toISOString())
@@ -1891,6 +1920,7 @@ export const useAdminDashboard = () => {
       ])
 
       await fetchSupplementaryData(true)
+      await fetchMvStats()
 
       
       toast({
@@ -1948,7 +1978,7 @@ export const useAdminDashboard = () => {
 
     const interval = setInterval(() => {
       refreshSection('all', false)
-    }, 3 * 60 * 1000)
+    }, 5 * 60 * 1000)
 
     return () => {
       clearInterval(interval)

@@ -21,6 +21,8 @@ interface DetailTopActionsProps {
   viewsCount?: number | null;
   isFavorite: boolean;
   favLoading: boolean;
+  listingId: string;
+  listingTitle: string;
   onBack: () => void;
   onToggleFavorite: () => void;
   onShare: () => void;
@@ -30,23 +32,25 @@ export const DetailMobileTopActions = ({
   viewsCount,
   isFavorite,
   favLoading,
+  listingId,
+  listingTitle,
   onBack,
   onToggleFavorite,
   onShare,
 }: DetailTopActionsProps) => {
   return (
-    <div className="sticky top-16 z-40 mb-4 border-b border-border bg-background/95 py-3 backdrop-blur-sm md:hidden">
-      <div className="flex items-center justify-between">
-        <Button variant="ghost" size="sm" onClick={onBack} className="flex items-center gap-1">
+    <div className="sticky top-14 z-40 mb-4 border-b border-border bg-background/95 py-2.5 backdrop-blur-sm md:hidden">
+      <div className="flex items-center justify-between gap-2">
+        <Button variant="ghost" size="sm" onClick={onBack}>
           Retour
         </Button>
 
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Eye className="h-3 w-3" />
+        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+          <Eye className="h-3.5 w-3.5" />
           <span>{viewsCount || 0}</span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-0.5">
           <Button
             variant="ghost"
             size="sm"
@@ -60,6 +64,16 @@ export const DetailMobileTopActions = ({
           <Button variant="ghost" size="sm" onClick={onShare}>
             <Share2 className="h-4 w-4" />
           </Button>
+
+          <EnhancedReportDialog
+            listingId={listingId}
+            listingTitle={listingTitle}
+            trigger={
+              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-red-600">
+                <Flag className="h-4 w-4" />
+              </Button>
+            }
+          />
         </div>
       </div>
     </div>
@@ -70,18 +84,20 @@ export const DetailDesktopTopActions = ({
   viewsCount,
   isFavorite,
   favLoading,
+  listingId,
+  listingTitle,
   onBack,
   onToggleFavorite,
   onShare,
 }: DetailTopActionsProps) => {
   return (
-    <div className="mb-6 hidden items-center justify-between rounded-lg border bg-card px-4 py-3 md:flex">
-      <div className="flex items-center gap-4">
+    <div className="mb-5 hidden items-center justify-between border border-border bg-card px-3 py-2.5 md:flex">
+      <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={onBack}>
           ← Retour
         </Button>
-        <div className="h-6 w-px bg-border" />
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="h-5 w-px bg-border" />
+        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
           <Eye className="h-4 w-4" />
           <span>{viewsCount || 0} vues</span>
         </div>
@@ -96,13 +112,24 @@ export const DetailDesktopTopActions = ({
           className={isFavorite ? "border-red-200 text-red-600" : ""}
         >
           {isFavorite ? <Heart className="mr-1 h-4 w-4 fill-current" /> : <HeartOff className="mr-1 h-4 w-4" />}
-          {favLoading ? "..." : isFavorite ? "Favoris" : "Ajouter"}
+          {favLoading ? "…" : isFavorite ? "Favoris" : "Favori"}
         </Button>
 
         <Button variant="outline" size="sm" onClick={onShare}>
           <Share2 className="mr-1 h-4 w-4" />
           Partager
         </Button>
+
+        <EnhancedReportDialog
+          listingId={listingId}
+          listingTitle={listingTitle}
+          trigger={
+            <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-red-600">
+              <Flag className="mr-1 h-4 w-4" />
+              Signaler
+            </Button>
+          }
+        />
       </div>
     </div>
   );
@@ -141,9 +168,9 @@ export const DetailDesktopSidebar = ({
 }: DetailDesktopSidebarProps) => {
   return (
     <aside className="hidden lg:block">
-      <div className="sticky top-24">
-        <Card className="overflow-hidden border-border/60 shadow-sm">
-          <CardContent className="space-y-5 p-6">
+      <div className="sticky top-24" data-seller-card>
+        <Card className="overflow-hidden border-border shadow-sm">
+          <CardContent className="space-y-4 p-5">
             <button
               type="button"
               onClick={onViewProfile}
@@ -162,16 +189,19 @@ export const DetailDesktopSidebar = ({
                   )}
                 </div>
                 <div className="min-w-0">
-                  <p className="truncate text-lg font-semibold leading-tight">
-                    {sellerProfile?.full_name || listing.profiles?.full_name || "Vendeur"}
-                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="truncate text-lg font-semibold leading-tight">
+                      {sellerProfile?.full_name || listing.profiles?.full_name || "Vendeur"}
+                    </p>
+                    {sellerProfile?.is_verified && (
+                      <CheckCircle className="h-4 w-4 flex-shrink-0 text-green-500" />
+                    )}
+                  </div>
                   <p className="text-xs text-muted-foreground">{displayListingsCount} annonces actives</p>
                 </div>
               </div>
               <ChevronRight className="h-4 w-4 text-muted-foreground" />
             </button>
-
-            {sellerProfile?.is_verified ? <Badge variant="outline">Vérifié</Badge> : null}
 
             <div className="space-y-2">
               <Button onClick={onSendMessage} className="h-12 w-full text-base" size="lg">

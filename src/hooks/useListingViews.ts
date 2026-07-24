@@ -197,31 +197,12 @@ export const useListingViews = () => {
       }
 
 
-      // Incrémenter le compteur dans la table listings de manière atomique
-      // Note : Cette méthode utilise une fonction RPC pour éviter les race conditions
-      try {
-        const { error: rpcError } = await supabase
-          .rpc('increment_listing_views', { listing_id: listingId });
+      // Incrémenter le compteur de manière atomique via RPC
+      const { error: rpcError } = await supabase
+        .rpc('increment_listing_views', { listing_id: listingId });
 
-        if (rpcError) {
-          console.warn('⚠️ RPC non disponible, fallback sur update simple');
-          
-          // Fallback : récupérer le compteur actuel et incrémenter
-          const { data: listing } = await supabase
-            .from('listings')
-            .select('views_count')
-            .eq('id', listingId)
-            .single();
-
-          if (listing) {
-            await supabase
-              .from('listings')
-              .update({ views_count: (listing.views_count || 0) + 1 })
-              .eq('id', listingId);
-          }
-        }
-      } catch (rpcError) {
-        console.warn('⚠️ Erreur incrémentation compteur:', rpcError);
+      if (rpcError) {
+        console.error('❌ Erreur RPC increment_listing_views:', rpcError);
       }
 
       // Mise à jour du cache local pour affichage immédiat
@@ -306,12 +287,13 @@ export const useListingViews = () => {
         .eq('id', listingId)
         .single();
 
-      // Récupérer les détails des vues
+      // Récupérer les détails des vues (limité aux 1000 dernières pour les stats)
       const { data: detailedViews } = await supabase
         .from('listing_views')
         .select('user_id, visitor_id, viewed_at')
         .eq('listing_id', listingId)
-        .order('viewed_at', { ascending: false });
+        .order('viewed_at', { ascending: false })
+        .range(0, 999);
 
       if (!detailedViews) {
         return {

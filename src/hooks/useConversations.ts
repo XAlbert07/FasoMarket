@@ -1,12 +1,9 @@
-// hooks/useRealtimeMessages.ts 
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { RealtimeChannel } from '@supabase/supabase-js';
 
-// Types pour les messages
 export interface Message {
   id: string;
   listing_id: string | null;
@@ -35,7 +32,6 @@ export interface Message {
     currency: string;
     images: string[];
   } | null;
-  
   type?: 'standard' | 'guest';
   is_read?: boolean;
   sender_info?: {
@@ -74,12 +70,17 @@ export interface UserPresence {
   last_seen: string;
 }
 
-export const useRealtimeMessages = () => {
+const CONVERSATIONS_PAGE_SIZE = 100;
+const MESSAGES_PAGE_SIZE = 50;
+
+export const useConversations = (enableRealtime = false) => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [userPresence, setUserPresence] = useState<Record<string, UserPresence>>({});
   const [loading, setLoading] = useState(false);
   const [isConnected, setIsConnected] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
 
   const { user } = useAuthContext();
   const { toast } = useToast();
@@ -88,6 +89,7 @@ export const useRealtimeMessages = () => {
   const presenceChannelRef = useRef<RealtimeChannel | null>(null);
   const typingChannelRef = useRef<RealtimeChannel | null>(null);
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const userPresenceRef = useRef<Record<string, UserPresence>>({});
 
   const enrichMessage = useCallback((msg: any): Message => {
     const sender = Array.isArray(msg.sender) ? msg.sender[0] : msg.sender;
@@ -124,7 +126,8 @@ export const useRealtimeMessages = () => {
         `)
         .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
         .eq('message_type', 'user')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .range(0, CONVERSATIONS_PAGE_SIZE - 1);
 
       if (error) throw error;
 
@@ -136,7 +139,6 @@ export const useRealtimeMessages = () => {
         const listing = Array.isArray(msg.listing) ? msg.listing[0] : msg.listing;
 
         const otherUser = msg.sender_id === user.id ? receiver : sender;
-        
         if (!otherUser) return;
 
         const conversationKey = `${otherUser.id}_${msg.listing_id || 'general'}`;
@@ -163,11 +165,9 @@ export const useRealtimeMessages = () => {
         }
 
         const conv = conversationsMap.get(conversationKey)!;
-        
         if (!msg.read && msg.receiver_id === user.id) {
           conv.unread_count++;
         }
-
         if (new Date(msg.created_at) > new Date(conv.last_message_at)) {
           conv.last_message = msg.content;
           conv.last_message_at = msg.created_at;
@@ -179,7 +179,6 @@ export const useRealtimeMessages = () => {
 
       setConversations(sortedConversations);
       setIsConnected(true);
-
     } catch (error) {
       console.error('Erreur fetchConversations:', error);
       setIsConnected(false);
@@ -194,8 +193,9 @@ export const useRealtimeMessages = () => {
   }, [user?.id, toast]);
 
   const fetchMessages = useCallback(async (
-    participantId: string, 
-    listingId: string | null = null
+    participantId: string,
+    listingId: string | null = null,
+    oldestMessageDate?: string
   ) => {
     if (!user?.id) return;
 
@@ -218,14 +218,25 @@ export const useRealtimeMessages = () => {
         query = query.is('listing_id', null);
       }
 
-      const { data, error } = await query.order('created_at', { ascending: true });
+      if (oldestMessageDate) {
+        query = query.lt('created_at', oldestMessageDate);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false })
+        .range(0, MESSAGES_PAGE_SIZE - 1);
 
       if (error) throw error;
 
-      const enrichedMessages = (data || []).map(enrichMessage);
-      setMessages(enrichedMessages);
-      setIsConnected(true);
+      const enrichedMessages = (data || []).map(enrichMessage).reverse();
 
+      if (oldestMessageDate) {
+        setMessages(prev => [...enrichedMessages, ...prev]);
+      } else {
+        setMessages(enrichedMessages);
+      }
+
+      setHasMoreMessages((data?.length || 0) === MESSAGES_PAGE_SIZE);
+      setIsConnected(true);
     } catch (error) {
       console.error('Erreur fetchMessages:', error);
       setIsConnected(false);
@@ -239,7 +250,17 @@ export const useRealtimeMessages = () => {
     }
   }, [user?.id, toast, enrichMessage]);
 
-  // ✅ CORRECTION : Ajout optimiste + retour du message inséré
+  const loadMoreMessages = useCallback(async (
+    participantId: string,
+    listingId: string | null = null
+  ) => {
+    if (loadingMore || !hasMoreMessages || messages.length === 0) return;
+    setLoadingMore(true);
+    const oldestDate = messages[0]?.created_at;
+    await fetchMessages(participantId, listingId, oldestDate);
+    setLoadingMore(false);
+  }, [loadingMore, hasMoreMessages, messages, fetchMessages]);
+
   const sendMessage = useCallback(async (
     receiverId: string,
     content: string,
@@ -247,14 +268,12 @@ export const useRealtimeMessages = () => {
   ): Promise<boolean> => {
     if (!user?.id || !content.trim()) return false;
 
-    // Récupérer les infos du profil de l'utilisateur courant
     const { data: userProfile } = await supabase
       .from('profiles')
       .select('full_name, avatar_url')
       .eq('id', user.id)
       .single();
 
-    // Créer un message optimiste
     const optimisticMessage: Message = {
       id: `temp-${Date.now()}`,
       listing_id: listingId,
@@ -276,7 +295,6 @@ export const useRealtimeMessages = () => {
       }
     };
 
-    // Ajouter immédiatement à l'interface
     setMessages(prev => [...prev, optimisticMessage]);
 
     try {
@@ -295,17 +313,14 @@ export const useRealtimeMessages = () => {
 
       if (error) throw error;
 
-      // Remplacer le message temporaire par le vrai ID
-      setMessages(prev => prev.map(m => 
+      setMessages(prev => prev.map(m =>
         m.id === optimisticMessage.id ? { ...optimisticMessage, id: data.id } : m
       ));
 
       setIsConnected(true);
       return true;
-
     } catch (error) {
       console.error('Erreur sendMessage:', error);
-      // Retirer le message optimiste en cas d'erreur
       setMessages(prev => prev.filter(m => m.id !== optimisticMessage.id));
       setIsConnected(false);
       toast({
@@ -337,7 +352,6 @@ export const useRealtimeMessages = () => {
       }
 
       await query;
-
     } catch (error) {
       console.error('Erreur markAsRead:', error);
     }
@@ -358,7 +372,6 @@ export const useRealtimeMessages = () => {
           onConflict: 'user_id',
           ignoreDuplicates: false
         });
-
     } catch (error) {
       console.error('Erreur updatePresence:', error);
     }
@@ -370,10 +383,10 @@ export const useRealtimeMessages = () => {
     typingChannelRef.current.send({
       type: 'broadcast',
       event: 'typing',
-      payload: { 
-        user_id: user.id, 
+      payload: {
+        user_id: user.id,
         conversation_id: conversationId,
-        typing: isTyping 
+        typing: isTyping
       }
     });
   }, [user?.id]);
@@ -382,14 +395,56 @@ export const useRealtimeMessages = () => {
     setMessages([]);
   }, []);
 
-  // ✅ CORRECTION : Écoute des messages REÇUS et ENVOYÉS
+  const markConversationAsRead = useCallback(async (
+    listingId: string,
+    participantId: string | null
+  ) => {
+    if (!user?.id || participantId === null) return;
+
+    try {
+      let query = supabase
+        .from('messages')
+        .update({ read: true })
+        .eq('listing_id', listingId)
+        .eq('sender_id', participantId)
+        .eq('receiver_id', user.id);
+
+      await query;
+    } catch (error) {
+      console.error('Erreur markConversationAsRead:', error);
+    }
+  }, [user?.id]);
+
   useEffect(() => {
     if (!user?.id) return;
 
+    fetchConversations();
+    updatePresence('online');
+
+    const handleVisibilityChange = () => {
+      updatePresence(document.hidden ? 'away' : 'online');
+    };
+
+    const handleBeforeUnload = () => {
+      updatePresence('offline');
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+
+    if (!enableRealtime) {
+      return () => {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+      };
+    }
 
     messagesChannelRef.current = supabase
       .channel(`user_messages:${user.id}`)
-      // Écouter les messages REÇUS
       .on(
         'postgres_changes',
         {
@@ -399,7 +454,6 @@ export const useRealtimeMessages = () => {
           filter: `receiver_id=eq.${user.id}`
         },
         async (payload) => {
-          
           const { data: senderData } = await supabase
             .from('profiles')
             .select('id, full_name, email, avatar_url')
@@ -416,15 +470,14 @@ export const useRealtimeMessages = () => {
               email: senderData.email || '',
               avatar_url: senderData.avatar_url,
               is_registered: true,
-              status: userPresence[senderData.id]?.status || 'offline'
+              status: userPresenceRef.current[senderData.id]?.status || 'offline'
             } : undefined
           };
-          
+
           setMessages(prev => {
-            const isInCurrentConversation = prev.some(m => 
+            const isInCurrentConversation = prev.some(m =>
               (m.sender_id === enrichedMessage.sender_id || m.receiver_id === enrichedMessage.sender_id)
             );
-            
             if (isInCurrentConversation) {
               return [...prev, enrichedMessage];
             }
@@ -440,7 +493,6 @@ export const useRealtimeMessages = () => {
           }
         }
       )
-      // ✅ AJOUT : Écouter les messages ENVOYÉS
       .on(
         'postgres_changes',
         {
@@ -450,18 +502,14 @@ export const useRealtimeMessages = () => {
           filter: `sender_id=eq.${user.id}`
         },
         async (payload) => {
-          
-          // Mettre à jour le message optimiste avec le vrai ID si nécessaire
           setMessages(prev => {
-            // Vérifier si le message existe déjà (ajout optimiste)
-            const existingIndex = prev.findIndex(m => 
-              m.id.toString().startsWith('temp-') && 
+            const existingIndex = prev.findIndex(m =>
+              m.id.toString().startsWith('temp-') &&
               m.content === payload.new.content &&
               m.receiver_id === payload.new.receiver_id
             );
-            
+
             if (existingIndex !== -1) {
-              // Remplacer le message temporaire
               const updated = [...prev];
               updated[existingIndex] = {
                 ...updated[existingIndex],
@@ -469,8 +517,6 @@ export const useRealtimeMessages = () => {
               };
               return updated;
             }
-            
-            // Si pas de message optimiste, c'est un message envoyé depuis un autre appareil
             return prev;
           });
 
@@ -485,10 +531,10 @@ export const useRealtimeMessages = () => {
       .channel(`presence:global`)
       .on('presence', { event: 'sync' }, () => {
         if (!presenceChannelRef.current) return;
-        
+
         const state = presenceChannelRef.current.presenceState();
         const newPresence: Record<string, UserPresence> = {};
-        
+
         Object.entries(state).forEach(([userId, presences]) => {
           if (presences && presences.length > 0) {
             const presence = presences[0] as any;
@@ -499,9 +545,9 @@ export const useRealtimeMessages = () => {
             };
           }
         });
-        
-        setUserPresence(newPresence);
 
+        setUserPresence(newPresence);
+        userPresenceRef.current = newPresence;
         setConversations(prev => prev.map(conv => ({
           ...conv,
           participant_status: newPresence[conv.participant_id]?.status || 'offline'
@@ -510,7 +556,7 @@ export const useRealtimeMessages = () => {
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
           await updatePresence('online');
-          
+
           if (heartbeatIntervalRef.current) {
             clearInterval(heartbeatIntervalRef.current);
           }
@@ -524,7 +570,7 @@ export const useRealtimeMessages = () => {
       .channel(`typing:${user.id}`)
       .on('broadcast', { event: 'typing' }, (payload) => {
         const { user_id, conversation_id, typing } = payload.payload;
-        
+
         setConversations(prev => prev.map(conv => {
           if (conv.id === conversation_id && conv.participant_id === user_id) {
             return { ...conv, is_typing: typing };
@@ -545,24 +591,6 @@ export const useRealtimeMessages = () => {
       })
       .subscribe();
 
-    fetchConversations();
-    updatePresence('online');
-
-    const handleVisibilityChange = () => {
-      updatePresence(document.hidden ? 'away' : 'online');
-    };
-
-    const handleBeforeUnload = () => {
-      updatePresence('offline');
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
-
     return () => {
       if (messagesChannelRef.current) {
         supabase.removeChannel(messagesChannelRef.current);
@@ -581,7 +609,7 @@ export const useRealtimeMessages = () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [user?.id]); 
+  }, [user?.id, enableRealtime]);
 
   return {
     conversations,
@@ -589,10 +617,14 @@ export const useRealtimeMessages = () => {
     userPresence,
     loading,
     isConnected,
+    loadingMore,
+    hasMoreMessages,
     fetchConversations,
     fetchMessages,
+    loadMoreMessages,
     sendMessage,
     markAsRead,
+    markConversationAsRead,
     updatePresence,
     sendTyping,
     clearMessages

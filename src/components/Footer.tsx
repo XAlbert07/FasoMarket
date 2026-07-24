@@ -2,10 +2,10 @@ import { Facebook, Instagram, Mail, MapPin, Phone } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const popularCategories = [
-  { name: "Vehicules", href: "/listings?category=Vehicules" },
-  { name: "Immobilier", href: "/listings?category=Immobilier" },
-  { name: "Telephones", href: "/listings?category=Telephones" },
-  { name: "Maison & Jardin", href: "/listings?category=Maison%20%26%20Jardin" },
+  { name: "Vehicules", href: "/category/vehicules" },
+  { name: "Immobilier", href: "/category/immobilier" },
+  { name: "Telephones", href: "/category/telephones" },
+  { name: "Maison & Jardin", href: "/category/maison" },
 ];
 
 const platformLinks = [
@@ -30,10 +30,10 @@ export const Footer = () => {
         <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-4">
           <div>
             <div className="mb-4 flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-sm font-heading font-bold text-foreground">
-                F
-              </div>
-              <span className="text-xl font-heading font-bold text-foreground">FasoMarket</span>
+              <span className="flex h-8 w-8 items-center justify-center rounded bg-primary text-[11px] font-heading font-bold tracking-wide text-primary-foreground">
+                FM
+              </span>
+              <span className="text-xl font-heading font-bold tracking-tight text-foreground">FasoMarket</span>
             </div>
             <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
               Marketplace locale pour acheter et vendre au Burkina Faso avec une experience claire, fiable et rapide.

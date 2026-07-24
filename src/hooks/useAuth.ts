@@ -871,7 +871,10 @@ export const useAuth = (): AuthContextType => {
           })
           
           // Déconnexion immédiate
-          await supabase.auth.signOut()
+          const { error: signOutError } = await supabase.auth.signOut()
+          if (signOutError && signOutError.message !== 'Auth session missing!') {
+            signinLogger.error('Erreur lors de la déconnexion forcée', signOutError)
+          }
           signinLogger.info('Déconnexion forcée effectuée')
           
           setUser(null)
@@ -934,7 +937,13 @@ export const useAuth = (): AuthContextType => {
       
       const { error } = await supabase.auth.signOut()
       
-      if (error) throw error
+      if (error) {
+        if (error.message === 'Auth session missing!') {
+          signoutLogger.info('Aucune session active - déconnexion considérée comme réussie')
+        } else {
+          throw error
+        }
+      }
 
       signoutLogger.success('Déconnexion réussie')
       

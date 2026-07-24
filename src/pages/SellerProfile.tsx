@@ -13,7 +13,6 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useGuestMessages } from '@/hooks/useGuestMessages';
 import { SmartImage } from "@/components/ui/SmartImage"; 
 import ListingCard from "@/components/listings/ListingCard";
 import { 
@@ -324,7 +323,7 @@ const SellerProfile = () => {
       badges.push({
         icon: <Shield className="h-3 w-3" />,
         text: "Confiance",
-        className: "bg-blue-100 text-blue-700 border-blue-200"
+        className: "bg-primary/10 text-primary border-primary/20"
       });
     }
     
@@ -406,7 +405,7 @@ const SellerProfile = () => {
       <Header />
       
       {/* Section Hero mobile-first */}
-      <div ref={heroRef} className="bg-gradient-to-br from-blue-50 to-white border-b">
+      <div ref={heroRef} className="bg-surface border-b">
         <div className="container mx-auto px-3 py-6">
           {/* Navigation mobile - NOUVEAU: Bouton de retour intelligent */}
           <div className="flex items-center justify-between mb-6">
@@ -446,7 +445,7 @@ const SellerProfile = () => {
        {/* Avatar cliquable pour affichage en grand */}
   <button
     onClick={() => profile.avatar_url && setShowAvatarModal(true)}
-    className={`focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-full transition-transform active:scale-95 ${
+    className={`focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-full transition-transform active:scale-95 ${
       profile.avatar_url ? 'cursor-pointer hover:opacity-90' : 'cursor-default'
     }`}
     disabled={!profile.avatar_url}
@@ -458,7 +457,7 @@ const SellerProfile = () => {
         alt={`Photo de ${profile.full_name}`}
         className="object-cover"
       />
-      <AvatarFallback className="text-2xl font-bold bg-gradient-to-br from-blue-500 to-purple-600 text-white">
+      <AvatarFallback className="text-2xl font-bold bg-primary text-white">
         {profile.full_name.charAt(0).toUpperCase()}
       </AvatarFallback>
     </Avatar>
@@ -536,7 +535,7 @@ const SellerProfile = () => {
                   {profile.bio.length > 150 && (
                     <button
                       onClick={() => setShowFullBio(!showFullBio)}
-                      className="text-blue-600 text-xs mt-2 flex items-center gap-1 hover:text-blue-700 transition-colors font-medium"
+                      className="text-primary text-xs mt-2 flex items-center gap-1 hover:text-primary transition-colors font-medium"
                     >
                       {showFullBio ? (
                         <>Voir moins <ChevronUp className="h-3 w-3" /></>
@@ -556,19 +555,19 @@ const SellerProfile = () => {
       <div className="bg-white border-b">
         <div className="container mx-auto px-3 py-4">
           <div className="grid grid-cols-3 gap-3">
-            <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100">
+            <Card className="border-0 shadow-sm bg-muted">
               <CardContent className="p-4 text-center">
                 <div className="flex items-center justify-center mb-2">
-                  <Package className="h-6 w-6 text-blue-600" />
+                  <Package className="h-6 w-6 text-primary" />
                 </div>
-                <div className="text-2xl font-bold text-blue-900">
+                <div className="text-2xl font-bold text-foreground">
                   {listings?.length || 0}
                 </div>
-                <p className="text-xs text-blue-700">Annonces</p>
+                <p className="text-xs text-primary">Annonces</p>
               </CardContent>
             </Card>
             
-            <Card className="border-0 shadow-sm bg-gradient-to-br from-yellow-50 to-yellow-100">
+            <Card className="border-0 shadow-sm bg-muted">
               <CardContent className="p-4 text-center">
                 <div className="flex items-center justify-center mb-2">
                   <Star className="h-6 w-6 text-yellow-600" />
@@ -580,7 +579,7 @@ const SellerProfile = () => {
               </CardContent>
             </Card>
             
-            <Card className="border-0 shadow-sm bg-gradient-to-br from-green-50 to-green-100">
+            <Card className="border-0 shadow-sm bg-muted">
               <CardContent className="p-4 text-center">
                 <div className="flex items-center justify-center mb-2">
                   <MessageCircle className="h-6 w-6 text-green-600" />
@@ -666,14 +665,13 @@ const SellerProfile = () => {
                 </Card>
               ) : (
                 <>
-                  <div className="grid grid-cols-2 gap-5 sm:grid-cols-2">
+                  <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
                     {listings.map((listing) => (
                       <ListingCard
                         key={listing.id}
                         listing={listing}
                         isFavorite={favorites.some((fav) => fav.listing_id === listing.id)}
                         onToggleFavorite={handleFavoriteToggle}
-                        showCta={true}
                         showCategory={true}
                         showSeller={false}
                         showViews={true}
@@ -744,9 +742,9 @@ const SellerProfile = () => {
                 <>
                   {/* Statistiques des avis */}
                   {reviewsStats && reviewsStats.totalReviews > 0 && (
-                    <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-3 md:p-4 rounded-xl border border-blue-100 mb-4">
+                    <div className="bg-primary/5 p-3 md:p-4 rounded-xl border border-primary/15 mb-4">
                       <div className="text-center mb-3 md:mb-4">
-                        <div className="text-xl md:text-2xl font-bold text-blue-600">
+                        <div className="text-xl md:text-2xl font-bold text-primary">
                           {reviewsStats.averageRating.toFixed(1)}
                         </div>
                         <div className="flex items-center justify-center gap-1 mb-1">
@@ -793,7 +791,7 @@ const SellerProfile = () => {
                                   src={review.reviewer_avatar} 
                                   alt={review.reviewer_name}
                                 />
-                                <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white text-xs md:text-sm">
+                                <AvatarFallback className="bg-primary text-white text-xs md:text-sm">
                                   {review.reviewer_name.charAt(0).toUpperCase()}
                                 </AvatarFallback>
                               </Avatar>
@@ -842,22 +840,22 @@ const SellerProfile = () => {
 
                           {/* Réponse du vendeur avec avatar SmartImage */}
                           {review.response && (
-                            <div className="bg-blue-50 border-l-4 border-blue-200 p-2 md:p-3 rounded-r-lg mt-2">
+                            <div className="bg-primary/5 border-l-4 border-primary/20 p-2 md:p-3 rounded-r-lg mt-2">
                               <div className="flex items-center gap-1 md:gap-2 mb-1 md:mb-2">
                                 <Avatar className="h-4 w-4 md:h-6 md:w-6">
                                   <AvatarImage src={profile.avatar_url} alt={profile.full_name} />
-                                  <AvatarFallback className="bg-blue-600 text-white text-xs">
+                                  <AvatarFallback className="bg-primary text-white text-xs">
                                     {profile.full_name.charAt(0).toUpperCase()}
                                   </AvatarFallback>
                                 </Avatar>
-                                <span className="text-xs font-medium text-blue-700">
+                                <span className="text-xs font-medium text-primary">
                                   Réponse du vendeur
                                 </span>
                                 <span className="text-xs text-muted-foreground">
                                   {formatRelativeTime(review.response.created_at)}
                                 </span>
                               </div>
-                              <p className="text-xs md:text-sm text-blue-800">
+                              <p className="text-xs md:text-sm text-primary">
                                 {review.response.message}
                               </p>
                             </div>
@@ -916,7 +914,7 @@ const SellerProfile = () => {
           <Button 
             onClick={handleContact} 
             variant="outline"
-            className="flex-1 h-12 border-blue-200 text-blue-700 hover:bg-blue-50"
+            className="flex-1 h-12 border-primary/20 text-primary hover:bg-primary/5"
           >
             <Phone className="h-5 w-5 mr-2" />
             Contacter
@@ -924,7 +922,7 @@ const SellerProfile = () => {
           
           <Button 
             onClick={handleDirectMessage}
-            className="flex-1 h-12 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
+            className="flex-1 h-12 bg-primary hover:bg-primary-hover"
           >
             <MessageCircle className="h-5 w-5 mr-2" />
             Message
@@ -1099,7 +1097,7 @@ const SellerProfile = () => {
                     showLoadingState={true}
                   />
                 ) : (
-                  <div className="w-64 h-64 sm:w-96 sm:h-96 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-2xl">
+                  <div className="w-64 h-64 sm:w-96 sm:h-96 bg-primary rounded-full flex items-center justify-center shadow-2xl">
                     <span className="text-white text-8xl sm:text-9xl font-bold">
                       {profile.full_name.charAt(0).toUpperCase()}
                     </span>

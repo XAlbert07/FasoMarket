@@ -1,44 +1,8 @@
-import { useState } from "react"
 import { Plus, Search, Shield, Users, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { useToast } from "@/hooks/use-toast"
 import { Link } from "react-router-dom"
-import { useNavigate } from "react-router-dom"
 
 export const CTASection = () => {
-  const { toast } = useToast();
-  const [email, setEmail] = useState("");
-
-  const handleNewsletterSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (email.trim()) {
-      toast({
-        title: "Inscription réussie !",
-        description: "Vous recevrez nos dernières annonces par email.",
-      });
-      setEmail("");
-    }
-  };
-
-
-  const handleListings = () => {
-  const navigate = useNavigate();
-
-  const handleListings = () => {
-    navigate("/listings"); 
-  };
-};
-
-
-  const handlePublish = () => {
-    const navigate = useNavigate();
-
-    const handlePublish = () => {
-      navigate("/publish"); 
-    };
-  };
-
-
   return (
     <section className="py-12 sm:py-16 lg:py-20 bg-gradient-hero relative overflow-hidden">
       {/* Background Pattern - Optimisé pour mobile */}
@@ -95,27 +59,24 @@ export const CTASection = () => {
             variant="secondary" 
             size="xl" 
             className="bg-white text-primary hover:bg-white/90 w-full sm:min-w-[200px] sm:w-auto text-base sm:text-lg font-semibold py-3 sm:py-4" 
+            asChild
           >
-            <Plus className="mr-2 h-5 w-5 sm:h-6 sm:w-6" />
-            <Link to="/publish" onClick={handlePublish} >
-            
-             Publier une annonce
+            <Link to="/publish">
+              <Plus className="mr-2 h-5 w-5 sm:h-6 sm:w-6" />
+              Publier une annonce
             </Link>
-            
           </Button>
           
           <Button 
             variant="secondary" 
             size="xl" 
-            className="bg-white text-primary hover:bg-white/90 w-full sm:min-w-[200px] sm:w-auto text-base sm:text-lg font-semibold py-3 sm:py-4" 
-          
+            className="bg-white text-primary hover:bg-white/90 w-full sm:min-w-[200px] sm:w-auto text-base sm:text-lg font-semibold py-3 sm:py-4"
+            asChild
           >
-             <Search className="mr-2 h-5 w-5 sm:h-6 sm:w-6" />
-            <Link to="/listings" onClick={handleListings}>
-             
-                Parcourir les annonces
+            <Link to="/listings">
+              <Search className="mr-2 h-5 w-5 sm:h-6 sm:w-6" />
+              Parcourir les annonces
             </Link>
-           
           </Button>
         </div>
 

@@ -206,6 +206,8 @@ export const useReports = (): UseReportsReturn => {
       }
       if (filters.limit) {
         query = query.limit(filters.limit);
+      } else {
+        query = query.limit(200);
       }
       if (filters.offset) {
         query = query.range(filters.offset, (filters.offset + (filters.limit || 10)) - 1);
@@ -300,22 +302,17 @@ export const useReports = (): UseReportsReturn => {
   // Statistiques des signalements
   const fetchReportStats = async (): Promise<{ pending: number; resolved: number; dismissed: number }> => {
     try {
-      const { data, error } = await supabase
-        .from('reports')
-        .select('status');
+      const [pendingRes, resolvedRes, dismissedRes] = await Promise.all([
+        supabase.from('reports').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+        supabase.from('reports').select('id', { count: 'exact', head: true }).eq('status', 'resolved'),
+        supabase.from('reports').select('id', { count: 'exact', head: true }).eq('status', 'dismissed')
+      ]);
 
-      if (error) {
-        throw error;
-      }
-
-      const stats = { pending: 0, resolved: 0, dismissed: 0 };
-      data?.forEach((report) => {
-        if (report.status in stats) {
-          stats[report.status as keyof typeof stats]++;
-        }
-      });
-
-      return stats;
+      return {
+        pending: pendingRes.count || 0,
+        resolved: resolvedRes.count || 0,
+        dismissed: dismissedRes.count || 0
+      };
     } catch (error) {
       console.error('Error fetching report stats:', error);
       return { pending: 0, resolved: 0, dismissed: 0 };

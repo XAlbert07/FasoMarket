@@ -1,8 +1,8 @@
 // pages/Messages.tsx 
 
 import { useState, useEffect, useRef } from 'react';
-import { useRealtimeMessages } from '@/hooks/useRealtimeMessages';
-import type { Conversation, Message } from '@/hooks/useRealtimeMessages';
+import { useConversations } from '@/hooks/useConversations';
+import type { Conversation, Message } from '@/hooks/useConversations';
 import { usePresenceCleanup } from '@/hooks/usePresenceCleanup';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
@@ -93,7 +93,7 @@ const Messages = () => {
     sendTyping,
     fetchConversations,
     clearMessages
-  } = useRealtimeMessages();
+  } = useConversations(true);
   
   const { manualCleanup } = usePresenceCleanup();
   
@@ -153,6 +153,8 @@ const Messages = () => {
     });
   };
 
+  const scrollTimeoutRef = useRef<NodeJS.Timeout>();
+
   useEffect(() => {
     const container = messagesContainerRef.current;
     if (!container) return;
@@ -161,8 +163,10 @@ const Messages = () => {
     const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
     
     if (isAtBottom || messages.length === 1) {
-      setTimeout(() => scrollToBottom(true), 100);
+      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+      scrollTimeoutRef.current = setTimeout(() => scrollToBottom(true), 100);
     }
+    return () => { if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current); };
   }, [messages]);
 
   const handleSelectConversation = async (conversation: Conversation) => {
@@ -381,12 +385,12 @@ const Messages = () => {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+      <div className="min-h-screen bg-background">
         <Header />
         <main className="container mx-auto px-4 py-12">
           <Card className="max-w-md mx-auto border-0 shadow-xl rounded-2xl overflow-hidden">
             <CardContent className="pt-8 pb-8 text-center space-y-6">
-              <div className="w-20 h-20 mx-auto bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+              <div className="w-20 h-20 mx-auto bg-primary rounded-full flex items-center justify-center">
                 <MessageCircle className="h-10 w-10 text-white" />
               </div>
               <div>
@@ -427,7 +431,7 @@ const Messages = () => {
           
           <div className="bg-white border-b border-slate-100 p-4 space-y-4">
             <div className="flex items-center justify-between">
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              <h1 className="text-2xl font-bold text-foreground">
                 Messages
               </h1>
               <div className="flex items-center gap-3">
@@ -459,7 +463,7 @@ const Messages = () => {
                   placeholder="Rechercher conversations..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 rounded-xl border-slate-200 focus:border-blue-400 focus:ring-blue-400/20"
+                  className="pl-10 rounded-xl border-slate-200 focus:border-primary focus:ring-primary/20"
                   autoFocus
                 />
               </div>
@@ -468,7 +472,7 @@ const Messages = () => {
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>{conversations.length} conversation{conversations.length > 1 ? 's' : ''}</span>
               <div className="flex items-center gap-2">
-                <Badge variant="secondary" className="bg-blue-100 text-blue-700 rounded-full">
+                <Badge variant="secondary" className="bg-primary/10 text-primary rounded-full">
                   {conversations.filter(c => c.unread_count > 0).length} non lu{conversations.filter(c => c.unread_count > 0).length > 1 ? 's' : ''}
                 </Badge>
                 <span>{Object.values(userPresence).filter(p => p.status === 'online').length} en ligne</span>
@@ -480,13 +484,13 @@ const Messages = () => {
             <div className="p-2 space-y-1">
               {loading && conversations.length === 0 ? (
                 <div className="flex flex-col items-center py-16">
-                  <div className="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                  <div className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
                   <p className="text-sm text-muted-foreground">Chargement des conversations...</p>
                 </div>
               ) : filteredConversations.length === 0 ? (
                 <div className="text-center py-16">
-                  <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center">
-                    <MessageCircle className="h-8 w-8 text-blue-500" />
+                  <div className="w-16 h-16 mx-auto mb-4 bg-primary/10 rounded-full flex items-center justify-center">
+                    <MessageCircle className="h-8 w-8 text-primary" />
                   </div>
                   <h3 className="font-semibold mb-2">
                     {searchTerm ? 'Aucun résultat' : 'Aucune conversation'}
@@ -509,7 +513,7 @@ const Messages = () => {
                         "p-3 rounded-2xl cursor-pointer transition-all duration-200 active:scale-[0.98]",
                         "hover:bg-slate-50 border border-transparent",
                         selectedConversation?.id === conversation.id 
-                          ? "bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200 shadow-sm" 
+                          ? "bg-primary/5 border-primary/20 shadow-sm" 
                           : "hover:border-slate-200"
                       )}
                       onClick={() => handleSelectConversation(conversation)}
@@ -524,7 +528,7 @@ const Messages = () => {
                             >
                               <Avatar className="h-12 w-12 border-2 border-white shadow-lg hover:shadow-xl transition-shadow">
                                 <AvatarImage src={conversation.participant_avatar || undefined} />
-                                <AvatarFallback className="font-semibold text-sm bg-gradient-to-br from-blue-500 to-purple-600 text-white">
+                                <AvatarFallback className="font-semibold text-sm bg-primary text-white">
                                   {conversation.participant_name.charAt(0).toUpperCase()}
                                 </AvatarFallback>
                               </Avatar>
@@ -532,7 +536,7 @@ const Messages = () => {
                           ) : (
                             <Avatar className="h-12 w-12 border-2 border-white shadow-lg">
                               <AvatarImage src={conversation.participant_avatar || undefined} />
-                              <AvatarFallback className="font-semibold text-sm bg-gradient-to-br from-blue-500 to-purple-600 text-white">
+                              <AvatarFallback className="font-semibold text-sm bg-primary text-white">
                                 {conversation.participant_name.charAt(0).toUpperCase()}
                               </AvatarFallback>
                             </Avatar>
@@ -563,7 +567,7 @@ const Messages = () => {
                                 {formatLastMessageTime(new Date(conversation.last_message_at))}
                               </span>
                               {conversation.unread_count > 0 && (
-                                <Badge className="h-5 min-w-5 px-1.5 flex items-center justify-center text-xs bg-blue-600 hover:bg-blue-600 rounded-full">
+                                <Badge className="h-5 min-w-5 px-1.5 flex items-center justify-center text-xs bg-primary hover:bg-primary rounded-full">
                                   {conversation.unread_count > 99 ? '99+' : conversation.unread_count}
                                 </Badge>
                               )}
@@ -572,11 +576,11 @@ const Messages = () => {
                           
                           <div className="flex items-center justify-between">
                             {conversation.is_typing ? (
-                              <div className="flex items-center gap-2 text-blue-600">
+                              <div className="flex items-center gap-2 text-primary">
                                 <div className="flex space-x-1">
-                                  <div className="w-1 h-1 bg-blue-500 rounded-full animate-bounce"></div>
-                                  <div className="w-1 h-1 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                                  <div className="w-1 h-1 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                                  <div className="w-1 h-1 bg-primary rounded-full animate-bounce"></div>
+                                  <div className="w-1 h-1 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                                  <div className="w-1 h-1 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                                 </div>
                                 <span className="text-xs italic">tape...</span>
                               </div>
@@ -597,7 +601,7 @@ const Messages = () => {
                               <Circle className="h-1 w-1 fill-current" />
                               <span className="truncate">{conversation.listing_title}</span>
                               {conversation.listing_price && (
-                                <span className="font-medium text-blue-600 whitespace-nowrap">
+                                <span className="font-medium text-primary whitespace-nowrap">
                                   {conversation.listing_price.toLocaleString()} {conversation.listing_currency}
                                 </span>
                               )}
@@ -620,10 +624,10 @@ const Messages = () => {
         )}>
           
           {!selectedConversation ? (
-            <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50">
+            <div className="flex-1 flex items-center justify-center bg-background">
               <div className="text-center max-w-sm px-6">
-                <div className="w-24 h-24 mx-auto mb-8 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center">
-                  <MessageCircle className="h-12 w-12 text-blue-500" />
+                <div className="w-24 h-24 mx-auto mb-8 bg-primary/10 rounded-full flex items-center justify-center">
+                  <MessageCircle className="h-12 w-12 text-primary" />
                 </div>
                 <h3 className="text-xl font-bold mb-4">Commencez une conversation</h3>
                 <p className="text-muted-foreground leading-relaxed">
@@ -651,7 +655,7 @@ const Messages = () => {
                     >
                       <Avatar className="h-10 w-10 border-2 border-slate-100 hover:shadow-md transition-shadow cursor-pointer">
                         <AvatarImage src={selectedConversation.participant_avatar || undefined} />
-                        <AvatarFallback className="font-medium text-sm bg-gradient-to-br from-blue-500 to-purple-600 text-white">
+                        <AvatarFallback className="font-medium text-sm bg-primary text-white">
                           {selectedConversation.participant_name.charAt(0).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
@@ -659,7 +663,7 @@ const Messages = () => {
                   ) : (
                     <Avatar className="h-10 w-10 border-2 border-slate-100">
                       <AvatarImage src={selectedConversation.participant_avatar || undefined} />
-                      <AvatarFallback className="font-medium text-sm bg-gradient-to-br from-blue-500 to-purple-600 text-white">
+                      <AvatarFallback className="font-medium text-sm bg-primary text-white">
                         {selectedConversation.participant_name.charAt(0).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
@@ -679,11 +683,11 @@ const Messages = () => {
                     {selectedConversation.participant_name}
                   </h2>
                   {selectedConversation.is_typing ? (
-                    <p className="text-sm text-blue-600 flex items-center gap-2">
+                    <p className="text-sm text-primary flex items-center gap-2">
                       <div className="flex space-x-1">
-                        <div className="w-1 h-1 bg-blue-500 rounded-full animate-bounce"></div>
-                        <div className="w-1 h-1 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                        <div className="w-1 h-1 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                        <div className="w-1 h-1 bg-primary rounded-full animate-bounce"></div>
+                        <div className="w-1 h-1 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                        <div className="w-1 h-1 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                       </div>
                       <span className="font-medium">tape...</span>
                     </p>
@@ -709,8 +713,8 @@ const Messages = () => {
                   <div className="px-4 py-6 space-y-4">
                     {selectedConversation.id === 'new-conversation' ? (
                       <div className="text-center py-16">
-                        <div className="w-16 h-16 mx-auto mb-6 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center">
-                          <Plus className="h-8 w-8 text-blue-500" />
+                        <div className="w-16 h-16 mx-auto mb-6 bg-primary/10 rounded-full flex items-center justify-center">
+                          <Plus className="h-8 w-8 text-primary" />
                         </div>
                         <h3 className="text-xl font-semibold mb-3">Nouvelle conversation</h3>
                         <p className="text-muted-foreground mb-6">
@@ -798,7 +802,7 @@ const Messages = () => {
                                   "max-w-[85%] sm:max-w-[75%] rounded-2xl px-4 py-3 shadow-sm relative",
                                   "break-words hyphens-auto",
                                   isFromCurrentUser
-                                    ? "bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-br-md ml-auto"
+                                    ? "bg-primary text-white rounded-br-md ml-auto"
                                     : "bg-white text-slate-900 border border-slate-200 rounded-bl-md shadow-md"
                                 )}>
                                   <p className="text-sm leading-relaxed whitespace-pre-wrap">
@@ -808,7 +812,7 @@ const Messages = () => {
                                   <div className={cn(
                                     "flex items-center justify-end gap-1.5 mt-2 text-xs",
                                     isFromCurrentUser 
-                                      ? "text-blue-100" 
+                                      ? "text-primary-foreground/80" 
                                       : "text-muted-foreground"
                                   )}>
                                     <span className="font-medium">
@@ -821,9 +825,9 @@ const Messages = () => {
                                     {isFromCurrentUser && (
                                       <div className="flex items-center">
                                         {message.read ? (
-                                          <CheckCheck className="h-3.5 w-3.5 text-blue-200" />
+                                          <CheckCheck className="h-3.5 w-3.5 text-primary-foreground/70" />
                                         ) : (
-                                          <Check className="h-3.5 w-3.5 text-blue-300" />
+                                          <Check className="h-3.5 w-3.5 text-primary-foreground/60" />
                                         )}
                                       </div>
                                     )}
@@ -832,7 +836,7 @@ const Messages = () => {
                                   <div className={cn(
                                     "absolute bottom-0 w-4 h-4",
                                     isFromCurrentUser 
-                                      ? "-right-1 bg-gradient-to-br from-blue-600 to-blue-700 rounded-bl-full"
+                                      ? "-right-1 bg-primary rounded-bl-full"
                                       : "-left-1 bg-white border-l border-b border-slate-200 rounded-br-full"
                                   )} />
                                 </div>
@@ -884,7 +888,7 @@ const Messages = () => {
                   <form onSubmit={handleSendMessage} className="space-y-3">
                     <div className="flex items-end gap-3">
                       <div className="flex-1 relative">
-                        <div className="relative bg-slate-100 rounded-3xl border border-slate-200 focus-within:border-blue-400 focus-within:bg-white transition-all duration-200">
+                        <div className="relative bg-slate-100 rounded-3xl border border-slate-200 focus-within:border-primary focus-within:bg-white transition-all duration-200">
                           <Input
                             ref={inputRef}
                             placeholder={`Message à ${selectedConversation.participant_name}...`}
@@ -921,7 +925,7 @@ const Messages = () => {
                         className={cn(
                           "rounded-full h-12 w-12 p-0 shadow-lg transition-all duration-200",
                           newMessage.trim() && !isSending
-                            ? "bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 scale-100"
+                            ? "bg-primary hover:bg-primary-hover scale-100"
                             : "bg-slate-300 cursor-not-allowed scale-95",
                           isSending && "animate-pulse"
                         )}
@@ -951,7 +955,7 @@ const Messages = () => {
                         )}
                         
                         {selectedConversation.id === 'new-conversation' && (
-                          <div className="flex items-center gap-1 text-blue-600">
+                          <div className="flex items-center gap-1 text-primary">
                             <Plus className="h-3 w-3" />
                             <span>Nouvelle conversation</span>
                           </div>

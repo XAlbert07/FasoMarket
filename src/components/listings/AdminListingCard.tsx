@@ -1,4 +1,4 @@
-import { Eye, MapPin, Clock, User2 } from "lucide-react";
+import { Eye, MapPin, Clock, User2, Star } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,8 @@ interface AdminListingCardProps {
   onOpenDetails: () => void;
   onSuspend: () => void;
   onUnsuspend: () => void;
+  onFeature?: () => void;
+  onUnfeature?: () => void;
 }
 
 const getStatusMeta = (status: string) => {
@@ -35,6 +37,8 @@ const AdminListingCard = ({
   onOpenDetails,
   onSuspend,
   onUnsuspend,
+  onFeature,
+  onUnfeature,
 }: AdminListingCardProps) => {
   const status = getStatusMeta(listing.status);
 
@@ -54,6 +58,11 @@ const AdminListingCard = ({
           <Badge className={status.className}>{status.label}</Badge>
         </div>
         <div className="absolute right-2 top-2 flex items-center gap-1">
+          {(listing.is_featured || listing.featured) && (
+            <div className="h-8 w-8 flex items-center justify-center rounded-md bg-yellow-500/90 text-white">
+              <Star className="h-4 w-4 fill-current" />
+            </div>
+          )}
           <Button variant="secondary" size="sm" className="h-8 w-8 border border-border bg-background p-0" onClick={onOpenDetails}>
             <Eye className="h-4 w-4" />
           </Button>
@@ -111,6 +120,15 @@ const AdminListingCard = ({
             {listing.status === "suspended" && (
               <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={onUnsuspend}>
                 Reactiver
+              </Button>
+            )}
+            {listing.is_featured || listing.featured ? (
+              <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={onUnfeature}>
+                <Star className="mr-1 h-3 w-3 fill-current" /> Retirer
+              </Button>
+            ) : (
+              <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={onFeature}>
+                <Star className="mr-1 h-3 w-3" /> Vedette
               </Button>
             )}
           </div>

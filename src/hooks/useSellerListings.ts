@@ -11,7 +11,7 @@ export interface SellerListing {
   currency: string;
   location: string;
   condition: 'new' | 'used' | 'refurbished';
-  status: 'active' | 'sold' | 'paused' | 'expired';
+  status: 'active' | 'sold' | 'suspended' | 'expired';
   images: string[];
   created_at: string;
   updated_at: string;
@@ -24,7 +24,7 @@ export interface SellerListing {
 
 // Interface pour les options de filtrage et tri
 export interface ListingsFilters {
-  status?: 'active' | 'sold' | 'paused' | 'all';
+  status?: 'active' | 'sold' | 'suspended' | 'all';
   category?: string;
   condition?: 'new' | 'used' | 'refurbished' | 'all';
   sortBy?: 'created_at' | 'price' | 'views_count' | 'title';

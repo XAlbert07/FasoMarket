@@ -1,4 +1,5 @@
 import ListingCard from "@/components/listings/ListingCard";
+import { ListingCardSkeletonRow } from "@/components/home/ListingCardSkeleton";
 import { Listing } from "@/types/database";
 
 interface SimilarListingsSectionProps {
@@ -9,9 +10,11 @@ interface SimilarListingsSectionProps {
 const SimilarListingsSection = ({ listings, loading }: SimilarListingsSectionProps) => {
   if (loading) {
     return (
-      <section className="mt-10">
-        <h2 className="mb-4 text-xl font-semibold">Annonces similaires</h2>
-        <p className="text-sm text-muted-foreground">Chargement des annonces...</p>
+      <section className="mt-8 border-t border-border pt-6">
+        <h2 className="mb-4 text-base font-heading font-semibold md:text-lg">Annonces similaires</h2>
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-4">
+          <ListingCardSkeletonRow count={4} />
+        </div>
       </section>
     );
   }
@@ -19,13 +22,13 @@ const SimilarListingsSection = ({ listings, loading }: SimilarListingsSectionPro
   if (!listings.length) return null;
 
   return (
-    <section className="mt-10 border-t pt-8">
-      <div className="mb-5 flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Annonces similaires</h2>
-        <p className="text-sm text-muted-foreground">Même catégorie ou zone proche</p>
+    <section className="mt-8 border-t border-border pt-6">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h2 className="text-base font-heading font-semibold md:text-lg">Annonces similaires</h2>
+        <p className="text-sm text-muted-foreground">Même catégorie</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-4">
         {listings.map((item) => (
           <ListingCard
             key={item.id}
